@@ -8,6 +8,7 @@ const { card, simple, emoji, DIVIDER, reply } = require('../../core/theme');
 const { ts } = require('../../utils/time');
 const transcript = require('./transcript');
 const { userError } = require('../../core/errors');
+const { I, asEmoji, setIcon, text } = require('../../core/icons');
 
 const P = PermissionFlagsBits;
 const pad = (n) => String(n).padStart(4, '0');
@@ -25,17 +26,17 @@ const isStaff = (member, cfg) => member.permissions.has(P.ManageChannels) || mem
 
 // ── Panel ────────────────────────────────────────────────────────
 function panelPayload(cfg) {
-  const types = cfg.types.map((t) => `${t.emoji} **${t.label}**\n> ${t.description || ''}`).join('\n');
+  const types = cfg.types.map((t) => `${text(t.emoji)} **${t.label}**\n> ${t.description || ''}`).join('\n');
   const { embed, files } = card({
-    title: `🎫 ${cfg.panel.title}`,
-    description: `${cfg.panel.description}\n${DIVIDER}\n${types}\n${DIVIDER}\n${emoji.dot} اختر نوع التذكرة من القائمة تحت 👇\n${emoji.dot} لا تفتح أكثر من تذكرة لنفس الموضوع.`,
+    title: `${I.ticket} ${cfg.panel.title}`,
+    description: `${cfg.panel.description}\n${DIVIDER}\n${types}\n${DIVIDER}\n${emoji.dot} اختر نوع التذكرة من القائمة تحت ${I.down}\n${emoji.dot} لا تفتح أكثر من تذكرة لنفس الموضوع.`,
     image: 'ticket',
     footer: 'Sword • Support Tickets',
   });
   const menu = new StringSelectMenuBuilder()
     .setCustomId('tickets:open')
-    .setPlaceholder('⚔️ اختر نوع التذكرة')
-    .addOptions(cfg.types.map((t) => ({ label: t.label, value: t.id, emoji: t.emoji, description: (t.description || '').slice(0, 100) || undefined })));
+    .setPlaceholder('اختر نوع التذكرة')
+    .addOptions(cfg.types.map((t) => ({ label: t.label, value: t.id, emoji: asEmoji(t.emoji), description: (t.description || '').slice(0, 100) || undefined })));
   return { embeds: [embed], files, components: [new ActionRowBuilder().addComponents(menu)], attachments: [] };
 }
 
@@ -47,8 +48,8 @@ async function refreshPanel(guild, cfg) {
 
 function controls(claimedBy) {
   return new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('tickets:close').setLabel('إغلاق').setEmoji('🔒').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('tickets:claim').setEmoji('🙋')
+    setIcon(new ButtonBuilder().setCustomId('tickets:close').setLabel('إغلاق').setStyle(ButtonStyle.Danger), I.lock),
+    setIcon(new ButtonBuilder().setCustomId('tickets:claim'), I.claim)
       .setLabel(claimedBy ? `مستلمة: ${claimedBy}`.slice(0, 80) : 'استلام').setStyle(ButtonStyle.Secondary).setDisabled(!!claimedBy),
   );
 }
@@ -73,7 +74,7 @@ async function openTicket(interaction, typeId, reason) {
     .map((id) => ({ id, allow: [P.ViewChannel, P.SendMessages, P.ReadMessageHistory, P.AttachFiles, P.ManageMessages] }));
   const parent = cfg.categoryId && guild.channels.cache.get(cfg.categoryId);
   const channel = await guild.channels.create({
-    name: `${type.emoji}・ticket-${pad(number)}`,
+    name: `ticket-${pad(number)}`,
     type: ChannelType.GuildText,
     parent: parent || undefined,
     topic: `Sword Ticket #${pad(number)} • ${type.label} • ${member.user.tag} (${member.id})`,
@@ -87,7 +88,7 @@ async function openTicket(interaction, typeId, reason) {
   q.insert.run(guild.id, channel.id, member.id, number, type.id, Date.now());
 
   const { embed, files } = card({
-    title: `🎫 تذكرة #${pad(number)} — ${type.label}`,
+    title: `${I.ticket} تذكرة #${pad(number)} — ${type.label}`,
     description: [
       `حيّاك ${member} ${emoji.gate}`,
       cfg.welcomeMessage,
@@ -119,7 +120,7 @@ async function closeTicket(interaction, reason) {
   const type = cfg.types.find((t) => t.id === ticket.type);
   const owner = await interaction.client.users.fetch(ticket.owner_id).catch(() => null);
 
-  await channel.send({ embeds: [simple(`🔒 التذكرة بتنقفل خلال ثواني...\nبواسطة ${user}`, 'accent')] });
+  await channel.send({ embeds: [simple(`${I.lock} التذكرة بتنقفل خلال ثواني...\nبواسطة ${user}`, 'accent')] });
   q.close.run(Date.now(), channel.id);
 
   const { html, count } = await transcript.build(channel, {
@@ -133,7 +134,7 @@ async function closeTicket(interaction, reason) {
     `${emoji.dot} **قفلها:** ${user}`,
     `${emoji.dot} **السبب:** ${reason || '—'}`,
     `${emoji.dot} **فُتحت:** ${ts(ticket.created_at)} • **الرسائل:** \`${count}\``,
-  ].join('\n'), 'primary', '📁 تذكرة مغلقة');
+  ].join('\n'), 'primary', `${I.archive} تذكرة مغلقة`);
 
   const log = cfg.logChannelId && guild.channels.cache.get(cfg.logChannelId);
   if (log) await log.send({ embeds: [summary], files: [new AttachmentBuilder(Buffer.from(html), { name: fileName })], allowedMentions: { parse: [] } }).catch(() => null);
@@ -163,7 +164,7 @@ const data = new SlashCommandBuilder()
   .addSubcommandGroup((g) => g.setName('type').setDescription('أنواع التذاكر (للإدارة)')
     .addSubcommand((s) => s.setName('add').setDescription('إضافة نوع')
       .addStringOption((o) => o.setName('label').setDescription('الاسم').setRequired(true).setMaxLength(80))
-      .addStringOption((o) => o.setName('emoji').setDescription('الإيموجي').setRequired(true))
+      .addStringOption((o) => o.setName('emoji').setDescription('الأيقونة: اسم أيقونة مثل support أو إيموجي').setRequired(true))
       .addStringOption((o) => o.setName('description').setDescription('الوصف').setMaxLength(100)))
     .addSubcommand((s) => s.setName('remove').setDescription('حذف نوع').addStringOption(typeOpt))
     .addSubcommand((s) => s.setName('list').setDescription('عرض الأنواع')))
@@ -186,7 +187,7 @@ async function claim(interaction) {
   q.claim.run(interaction.user.id, interaction.channelId);
   const name = interaction.member.displayName;
   if (interaction.isButton()) await interaction.message.edit({ components: [controls(name)] }).catch(() => null);
-  return interaction.reply({ embeds: [simple(`🙋 ${interaction.user} استلم التذكرة وبيساعدك الحين.`, 'success')] });
+  return interaction.reply({ embeds: [simple(`${I.claim} ${interaction.user} استلم التذكرة وبيساعدك الحين.`, 'success')] });
 }
 
 async function execute(interaction) {
@@ -200,7 +201,7 @@ async function execute(interaction) {
 
   if (group === 'type') {
     if (sub === 'list') {
-      return reply.info(interaction, `🎫 **أنواع التذاكر**\n${DIVIDER}\n${cfg.types.map((t) => `${t.emoji} **${t.label}** — ${t.description || ''}`).join('\n') || '—'}`);
+      return reply.info(interaction, `${I.ticket} **أنواع التذاكر**\n${DIVIDER}\n${cfg.types.map((t) => `${text(t.emoji)} **${t.label}** — ${t.description || ''}`).join('\n') || '—'}`);
     }
     if (sub === 'add') {
       if (cfg.types.length >= 25) return reply.error(interaction, 'الحد الأقصى 25 نوع.');
@@ -250,7 +251,7 @@ async function execute(interaction) {
   switch (sub) {
     case 'close':
       if (!staff && ticket.owner_id !== member.id) return reply.error(interaction, 'ما تقدر تقفل هذي التذكرة.');
-      await interaction.reply({ embeds: [simple('🔒 جاري الإغلاق...')], flags: MessageFlags.Ephemeral });
+      await interaction.reply({ embeds: [simple(`${I.lock} جاري الإغلاق...`)], flags: MessageFlags.Ephemeral });
       return closeTicket(interaction, o.getString('reason'));
     case 'add':
     case 'remove': {
@@ -262,7 +263,7 @@ async function execute(interaction) {
         if (user.id === ticket.owner_id) return reply.error(interaction, 'ما تقدر تشيل صاحب التذكرة.');
         await interaction.channel.permissionOverwrites.delete(user.id);
       }
-      return interaction.reply({ embeds: [simple(sub === 'add' ? `➕ تمت إضافة ${user} للتذكرة.` : `➖ تمت إزالة ${user} من التذكرة.`)] });
+      return interaction.reply({ embeds: [simple(sub === 'add' ? `${I.plus} تمت إضافة ${user} للتذكرة.` : `${I.minus} تمت إزالة ${user} من التذكرة.`)] });
     }
     case 'rename':
       if (!staff) return reply.error(interaction, 'لفريق الدعم فقط.');
@@ -275,14 +276,14 @@ async function autocomplete(interaction) {
   const focused = interaction.options.getFocused().toLowerCase();
   const types = cfgOf(interaction.guildId).types;
   await interaction.respond(types.filter((t) => t.label.toLowerCase().includes(focused)).slice(0, 25)
-    .map((t) => ({ name: `${t.emoji} ${t.label}`.slice(0, 100), value: t.id })));
+    .map((t) => ({ name: t.label.slice(0, 100), value: t.id })));
 }
 
 module.exports = {
   id: 'tickets',
   name: 'Tickets Plugin',
   nameAr: 'بلوقن التذاكر',
-  emoji: '🎫',
+  emoji: I.ticket,
   description: 'تذاكر ببانل وشعار Sword، أنواع متعددة، استلام، وترانسكربت HTML بثيم السيرفر.',
   defaults: {
     categoryId: null,
@@ -293,24 +294,24 @@ module.exports = {
     dmTranscript: true,
     askReason: true,
     counter: 0,
-    welcomeMessage: 'اكتب مشكلتك أو طلبك بالتفصيل وبيرد عليك فريق الدعم بأقرب وقت ⚔️',
+    welcomeMessage: 'اكتب مشكلتك أو طلبك بالتفصيل وبيرد عليك فريق الدعم بأقرب وقت.',
     panel: {
       title: 'تذاكر Sword',
-      description: 'تحتاج مساعدة؟ فريق **Sword** حاضر لك 🗡️',
+      description: 'تحتاج مساعدة؟ فريق **Sword** حاضر لك.',
       channelId: null,
       messageId: null,
     },
     types: [
-      { id: 'support', label: 'الدعم الفني', emoji: '🛠️', description: 'مشكلة أو خلل تحتاج فيه مساعدة' },
-      { id: 'report', label: 'بلاغ عن عضو', emoji: '🚨', description: 'بلّغ عن مخالفة مع الدليل' },
-      { id: 'question', label: 'استفسار عام', emoji: '❓', description: 'أي سؤال عن السيرفر' },
-      { id: 'partner', label: 'شراكة وتعاون', emoji: '🤝', description: 'طلبات الشراكة والإعلانات' },
+      { id: 'support', label: 'الدعم الفني', emoji: 'support', description: 'مشكلة أو خلل تحتاج فيه مساعدة' },
+      { id: 'report', label: 'بلاغ عن عضو', emoji: 'report', description: 'بلّغ عن مخالفة مع الدليل' },
+      { id: 'question', label: 'استفسار عام', emoji: 'question', description: 'أي سؤال عن السيرفر' },
+      { id: 'partner', label: 'شراكة وتعاون', emoji: 'partner', description: 'طلبات الشراكة والإعلانات' },
     ],
   },
   commands: [{ data, execute, autocomplete }],
   dashboard: [
     {
-      title: '⚙️ الإعداد',
+      title: 'الإعداد', icon: 'settings',
       fields: [
         { key: 'categoryId', type: 'category', label: 'كاتقوري التذاكر', hint: 'المكان اللي تنفتح فيه رومات التذاكر' },
         { key: 'staffRoles', type: 'roles', label: 'رتب فريق الدعم', max: 10 },
@@ -322,7 +323,7 @@ module.exports = {
       ],
     },
     {
-      title: '🎫 البانل والرسائل',
+      title: 'البانل والرسائل', icon: 'ticket',
       fields: [
         { key: 'panel.title', type: 'text', label: 'عنوان البانل', max: 100, required: true },
         { key: 'panel.description', type: 'textarea', label: 'وصف البانل', max: 1500 },
@@ -330,13 +331,13 @@ module.exports = {
       ],
     },
     {
-      title: '📂 أنواع التذاكر',
+      title: 'أنواع التذاكر', icon: 'folder',
       description: 'تظهر كقائمة اختيار في البانل (حد أقصى 25)',
       fields: [
         {
           key: 'types', type: 'list', label: 'الأنواع', addLabel: 'إضافة نوع', max: 25, idKey: 'id',
           fields: [
-            { key: 'emoji', type: 'text', label: 'الإيموجي', max: 64, required: true },
+            { key: 'emoji', type: 'icon', label: 'الأيقونة', required: true },
             { key: 'label', type: 'text', label: 'الاسم', max: 80, required: true },
             { key: 'description', type: 'text', label: 'الوصف', max: 100 },
           ],
@@ -400,16 +401,16 @@ module.exports = {
         return reply.error(interaction, 'ما تقدر تقفل هذي التذكرة.');
       }
       return interaction.reply({
-        embeds: [simple('🔒 متأكد تبي تقفل التذكرة؟')],
+        embeds: [simple(`${I.lock} متأكد تبي تقفل التذكرة؟`)],
         components: [new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId('tickets:confirm').setLabel('إغلاق').setEmoji('🔒').setStyle(ButtonStyle.Danger),
+          setIcon(new ButtonBuilder().setCustomId('tickets:confirm').setLabel('إغلاق').setStyle(ButtonStyle.Danger), I.lock),
           new ButtonBuilder().setCustomId('tickets:cancel').setLabel('إلغاء').setStyle(ButtonStyle.Secondary),
         )],
         flags: MessageFlags.Ephemeral,
       });
     },
     async confirm(interaction) {
-      await interaction.update({ embeds: [simple('🔒 جاري الإغلاق...')], components: [] });
+      await interaction.update({ embeds: [simple(`${I.lock} جاري الإغلاق...`)], components: [] });
       return closeTicket(interaction);
     },
     async cancel(interaction) {

@@ -10,6 +10,7 @@ const logger = require('../core/logger');
 const { describeCommands, usage } = require('../core/loader');
 const { ASSETS } = require('../core/theme');
 const schema = require('./schema');
+const { LIST: ICONS } = require('../core/icons');
 
 const started = Date.now();
 const SESSION_DAYS = 7;
@@ -43,7 +44,7 @@ function start(client, plugins = client?.plugins) {
   app.use(express.json({ limit: '200kb' }));
 
   const pluginList = [...plugins.values()].map((p) => ({
-    id: p.id, name: p.name, nameAr: p.nameAr, emoji: p.emoji, description: p.description,
+    id: p.id, name: p.name, nameAr: p.nameAr, icon: p.emoji.key, description: p.description,
   }));
   const commands = describeCommands(plugins).map((c) => ({ ...c, usage: usage(c) }));
   const ready = () => !!client?.isReady();
@@ -149,7 +150,7 @@ function start(client, plugins = client?.plugins) {
       id: plugin.id,
       name: plugin.name,
       nameAr: plugin.nameAr,
-      emoji: plugin.emoji,
+      icon: plugin.emoji.key,
       description: plugin.description,
       toggleable: plugin.toggleable,
       enabled: !plugin.toggleable || store.isEnabled(guild.id, plugin.id),
@@ -186,6 +187,7 @@ function start(client, plugins = client?.plugins) {
     res.json({
       guild: { id: guild.id, name: guild.name, icon: guild.iconURL({ size: 128 }), members: guild.memberCount },
       prefix: store.get(guild.id, 'core').prefix,
+      icons: Object.keys(ICONS).filter((k) => !k.startsWith('dot') && !['on', 'off', 'arrow'].includes(k)),
       channels,
       roles,
       plugins: [...plugins.values()].map((p) => pluginPayload(guild, p)),
@@ -224,7 +226,7 @@ function start(client, plugins = client?.plugins) {
       const params = schema.apply([{ fields: action.params || [] }], {}, req.body.params || {}, req.guild);
       const message = await action.run(req.guild, params, req.user);
       logger.info(`🌐 ${req.user.username} نفّذ ${plugin.id}.${req.params.actionId} في ${req.guild.name}`);
-      res.json({ message: message || 'تم ✅', plugin: pluginPayload(req.guild, plugin) });
+      res.json({ message: message || 'تم', plugin: pluginPayload(req.guild, plugin) });
     } catch (err) {
       if (err instanceof schema.FieldError || err.userFacing) return res.status(400).json({ error: err.message });
       logger.error('dashboard action:', err);

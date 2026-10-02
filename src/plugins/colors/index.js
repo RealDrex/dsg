@@ -2,6 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, ActionRowBuilder,
 const store = require('../../core/store');
 const { card, DIVIDER, reply } = require('../../core/theme');
 const { userError } = require('../../core/errors');
+const { I, asEmoji } = require('../../core/icons');
 
 const PALETTE = [
   ['قرمزي', 0xdc143c], ['أحمر', 0xff4d4d], ['برتقالي', 0xff8c42], ['ذهبي', 0xffd166], ['أصفر', 0xfff275],
@@ -12,8 +13,8 @@ const PALETTE = [
 
 // Closest coloured-circle emoji for a role colour (used in the select menu).
 const CIRCLES = [
-  ['🔴', 0xdd2e44], ['🟠', 0xf4900c], ['🟡', 0xfdcb58], ['🟢', 0x78b159], ['🔵', 0x55acee],
-  ['🟣', 0xaa8ed6], ['🟤', 0xc1694f], ['⚫', 0x31373d], ['⚪', 0xe6e7e8],
+  [I.dotRed, 0xdd2e44], [I.dotOrange, 0xf4900c], [I.dotYellow, 0xfdcb58], [I.dotGreen, 0x78b159], [I.dotBlue, 0x55acee],
+  [I.dotPurple, 0xaa8ed6], [I.dotBrown, 0xc1694f], [I.dotBlack, 0x31373d], [I.dotWhite, 0xe6e7e8],
 ];
 const rgb = (c) => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
 function circleFor(color) {
@@ -22,7 +23,7 @@ function circleFor(color) {
     const [r2, g2, b2] = rgb(c);
     const d = (r - r2) ** 2 + (g - g2) ** 2 + (b - b2) ** 2;
     return d < best.d ? { e, d } : best;
-  }, { e: '⚪', d: Infinity }).e;
+  }, { e: I.dotWhite, d: Infinity }).e;
 }
 
 const MAX = 24; // 25 select options minus "remove colour"
@@ -33,8 +34,8 @@ function panelPayload(guild) {
   const roles = liveRoles(guild, store.get(guild.id, 'colors'));
   const grid = roles.map((r, i) => `\`${String(i + 1).padStart(2, '0')}\` ${r}`).join('\n');
   const { embed, files } = card({
-    title: '🎨 علبة الألوان',
-    description: `اختر لون اسمك من القائمة تحت 👇\n${DIVIDER}\n${grid || '*ما فيه ألوان للحين*'}\n${DIVIDER}`,
+    title: 'علبة الألوان', icon: 'colors',
+    description: `اختر لون اسمك من القائمة تحت ${I.down}\n${DIVIDER}\n${grid || '*ما فيه ألوان للحين*'}\n${DIVIDER}`,
     image: 'colors',
     footer: 'Sword • Colors',
   });
@@ -42,10 +43,10 @@ function panelPayload(guild) {
   if (roles.length) {
     const menu = new StringSelectMenuBuilder()
       .setCustomId('colors:pick')
-      .setPlaceholder('🎨 اختر لونك')
+      .setPlaceholder('اختر لونك')
       .addOptions([
-        ...roles.map((r) => ({ label: r.name.replace(/^🎨\s*/, '').slice(0, 100), value: r.id, emoji: circleFor(r.color) })),
-        { label: 'إزالة اللون', value: 'none', emoji: '✖️' },
+        ...roles.map((r) => ({ label: r.name.replace(/^🎨\s*/u, '').slice(0, 100) || r.name, value: r.id, emoji: asEmoji(circleFor(r.color)) })),
+        { label: 'إزالة اللون', value: 'none', emoji: asEmoji(I.close) },
       ]);
     components.push(new ActionRowBuilder().addComponents(menu));
   }
@@ -67,7 +68,7 @@ async function createColors(guild, wanted) {
   const created = [];
   for (const [name, color] of PALETTE.slice(0, count)) {
     const role = await guild.roles.create({
-      name: `🎨 ${name}`, colors: { primaryColor: color }, permissions: [], mentionable: false, reason: 'Sword Colors',
+      name, colors: { primaryColor: color }, permissions: [], mentionable: false, reason: 'Sword Colors',
     });
     // Directly under the bot's role so the colour wins over other roles.
     await role.setPosition(me.roles.highest.position - 1).catch(() => null);
@@ -104,7 +105,7 @@ async function execute(interaction) {
 
   switch (sub) {
     case 'list':
-      return reply.info(interaction, `🎨 **الألوان (${cfg.roles.length})**\n${DIVIDER}\n${liveRoles(guild, cfg).map((r) => `${circleFor(r.color)} ${r}`).join('\n') || '—'}`);
+      return reply.info(interaction, `${I.colors} **الألوان (${cfg.roles.length})**\n${DIVIDER}\n${liveRoles(guild, cfg).map((r) => `${circleFor(r.color)} ${r}`).join('\n') || '—'}`);
     case 'panel': {
       const channel = interaction.options.getChannel('channel') || interaction.channel;
       const message = await channel.send(panelPayload(guild));
@@ -129,7 +130,7 @@ async function execute(interaction) {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const created = await createColors(guild, interaction.options.getInteger('count') || PALETTE.length);
       if (!created) return reply.error(interaction, 'وصلت الحد الأقصى للألوان.');
-      return reply.success(interaction, `تم إنشاء \`${created}\` لون 🎨\nأرسل البانل بـ \`/ألوان لوحة\``);
+      return reply.success(interaction, `تم إنشاء \`${created}\` لون ${I.colors}\nأرسل البانل بـ \`/ألوان لوحة\``);
     }
     case 'reset': {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -152,13 +153,13 @@ module.exports = {
   id: 'colors',
   name: 'Colors Plugin',
   nameAr: 'بلوقن علبة الألوان',
-  emoji: '🎨',
+  emoji: I.colors,
   description: 'رتب ألوان جاهزة وبانل اختيار لون الاسم بشعار Sword.',
   defaults: { roles: [], created: [], panel: { channelId: null, messageId: null } },
   commands: [{ data, execute }],
   dashboard: [
     {
-      title: '🎨 رتب الألوان',
+      title: 'رتب الألوان', icon: 'colors',
       description: 'الرتب اللي تظهر في بانل الألوان (حد أقصى 24) — رتب الألوان لازم تكون تحت رتبة البوت',
       fields: [{ key: 'roles', type: 'roles', label: 'الألوان', max: MAX }],
     },
@@ -200,7 +201,7 @@ module.exports = {
       if (choice === 'none') return reply.success(interaction, 'تمت إزالة لونك.');
       if (!cfg.roles.includes(choice)) return reply.error(interaction, 'هذا اللون ما عاد موجود.');
       await member.roles.add(choice, 'Sword Colors');
-      return reply.success(interaction, `لونك الحين <@&${choice}> 🎨`);
+      return reply.success(interaction, `لونك الحين <@&${choice}> ${I.colors}`);
     },
   },
 };

@@ -1,15 +1,16 @@
 // Moderation cases (warn/ban/kick/timeout...) — stored and broadcast to the logs plugin.
 const db = require('./db');
+const { I } = require('./icons');
 
 const ACTIONS = {
-  warn: { label: 'تحذير', emoji: '⚠️' },
-  timeout: { label: 'تايم أوت', emoji: '⏳' },
-  untimeout: { label: 'فك التايم أوت', emoji: '⌛' },
-  kick: { label: 'طرد', emoji: '👢' },
-  ban: { label: 'باند', emoji: '🔨' },
-  unban: { label: 'فك الباند', emoji: '🕊️' },
-  unwarn: { label: 'حذف تحذير', emoji: '🧽' },
-  auto: { label: 'إجراء تلقائي (حماية)', emoji: '🛡️' },
+  warn: { label: 'تحذير', emoji: I.warn },
+  timeout: { label: 'تايم أوت', emoji: I.timeout },
+  untimeout: { label: 'فك التايم أوت', emoji: I.untimeout },
+  kick: { label: 'طرد', emoji: I.kick },
+  ban: { label: 'باند', emoji: I.ban },
+  unban: { label: 'فك الباند', emoji: I.unban },
+  unwarn: { label: 'حذف تحذير', emoji: I.unwarn },
+  auto: { label: 'إجراء تلقائي (حماية)', emoji: I.protection },
 };
 
 const nextNumber = db.prepare('SELECT COALESCE(MAX(number), 0) + 1 AS n FROM cases WHERE guild_id = ?');

@@ -13,6 +13,16 @@
     for (const c of children.flat()) if (c != null) node.append(c instanceof Node ? c : document.createTextNode(c));
     return node;
   };
+  const SVG = 'http://www.w3.org/2000/svg';
+  const icon = (name, cls = 'ic') => {
+    const svg = document.createElementNS(SVG, 'svg');
+    svg.setAttribute('class', cls);
+    svg.setAttribute('aria-hidden', 'true');
+    const use = document.createElementNS(SVG, 'use');
+    use.setAttribute('href', `/icons.svg#${name}`);
+    svg.append(use);
+    return svg;
+  };
   const clone = (v) => JSON.parse(JSON.stringify(v));
   const getPath = (o, p) => p.split('.').reduce((a, k) => a?.[k], o);
   const setPath = (o, p, v) => {
@@ -40,7 +50,7 @@
   let toastTimer;
   function toast(text, error = false) {
     const t = $('#toast');
-    t.textContent = text;
+    t.replaceChildren(icon(error ? 'error' : 'success'), el('span', { text }));
     t.classList.toggle('error', error);
     t.classList.add('show');
     clearTimeout(toastTimer);
@@ -120,7 +130,7 @@
       menu.append(el('button', {
         class: `menu-item${p.id === state.pluginId ? ' active' : ''}`, type: 'button', onclick: () => selectPlugin(p.id),
       },
-      el('span', { class: 'menu-icon', text: p.emoji }),
+      el('span', { class: 'menu-icon' }, icon(p.icon)),
       el('span', { class: 'menu-text' }, el('b', { text: p.nameAr }), el('small', { text: `@${p.name}` })),
       el('span', { class: `menu-dot${p.enabled ? '' : ' off'}`, title: p.enabled ? 'شغال' : 'مقفل' })));
     }
@@ -157,7 +167,7 @@
   // ── Page ─────────────────────────────────────────────────────
   function renderPage() {
     const p = current();
-    $('#p-icon').textContent = p.emoji;
+    $('#p-icon').replaceChildren(icon(p.icon));
     $('#p-title').textContent = p.nameAr;
     $('#p-tag').textContent = `@${p.name}`;
     $('#p-desc').textContent = p.description;
@@ -177,7 +187,7 @@
     const panel = $('#panel');
     panel.innerHTML = '';
     if (p.toggleable && !p.enabled) {
-      panel.append(el('div', { class: 'notice disabled-note', text: '🔴 هذا البلوقن مقفل — أوامره وأحداثه موقفة. شغّله من الزر فوق.' }));
+      panel.append(el('div', { class: 'notice disabled-note' }, icon('off'), el('span', { text: 'هذا البلوقن مقفل — أوامره وأحداثه موقفة. شغّله من الزر فوق.' })));
     }
     if (state.tab === 'settings') renderSettings(panel, p);
     if (state.tab === 'actions') renderActions(panel, p);
@@ -186,7 +196,7 @@
 
   function renderSettings(panel, p) {
     if (!p.sections.length) {
-      panel.append(el('div', { class: 'card' }, el('h2', { text: 'ما فيه إعدادات هنا' }), el('p', { class: 'card-desc', text: 'هذا البلوقن يُدار بالأوامر — شوف تبويب الأوامر.' })));
+      panel.append(el('div', { class: 'card' }, el('h2', {}, icon('info'), 'ما فيه إعدادات هنا'), el('p', { class: 'card-desc', text: 'هذا البلوقن يُدار بالأوامر — شوف تبويب الأوامر.' })));
       return;
     }
     for (const section of p.sections) {
@@ -195,7 +205,7 @@
         fields.append(renderField(f, state.draft, f.key, () => updateSavebar()));
       }
       panel.append(el('section', { class: 'card' },
-        el('h2', { text: section.title }),
+        el('h2', {}, section.icon ? icon(section.icon) : null, section.title),
         section.description ? el('p', { class: 'card-desc', text: section.description }) : null,
         section.fields?.length ? fields : null));
     }
@@ -207,7 +217,7 @@
   const channelById = (id) => state.data.channels.find((c) => c.id === id);
 
   function channelOptions(type) {
-    if (type === 'category') return channelsOf('category').map((c) => el('option', { value: c.id, text: `📁 ${c.name}` }));
+    if (type === 'category') return channelsOf('category').map((c) => el('option', { value: c.id, text: `▸ ${c.name}` }));
     const groups = new Map([[null, []]]);
     for (const c of channelsOf('text')) {
       if (!groups.has(c.parent)) groups.set(c.parent, []);
@@ -226,7 +236,7 @@
   function renderField(f, target, key, onChange) {
     const value = getPath(target, key);
     const set = (v) => { setPath(target, key, v); onChange(); };
-    const wide = ['textarea', 'list', 'tags', 'roles', 'channels'].includes(f.type);
+    const wide = ['textarea', 'list', 'tags', 'roles', 'channels', 'icon'].includes(f.type);
     const wrap = el('div', { class: `field${wide ? ' wide' : ''}`, 'data-key': key });
     const label = el('label', { text: f.label });
     const hint = f.hint ? el('small', { class: 'hint', text: f.hint }) : null;
@@ -265,6 +275,18 @@
         input.value = value ?? f.options[0]?.value;
         if (value == null) setPath(target, key, input.value);
         put(label, input, hint);
+        return wrap;
+      }
+      case 'icon': {
+        const grid = el('div', { class: 'icon-grid', role: 'radiogroup' });
+        const draw = () => {
+          grid.replaceChildren(...state.data.icons.map((name) => el('button', {
+            type: 'button', class: `icon-pick${getPath(target, key) === name ? ' active' : ''}`, title: name, 'aria-label': name,
+            onclick: () => { set(name); draw(); },
+          }, icon(name))));
+        };
+        draw();
+        put(label, grid, hint);
         return wrap;
       }
       case 'channel':
@@ -338,7 +360,7 @@
             const fields = el('div', { class: 'fields' });
             for (const sub of f.fields) fields.append(renderField(sub, item, sub.key, onChange));
             listEl.append(el('div', { class: 'list-item' }, fields,
-              el('button', { class: 'remove', type: 'button', title: 'حذف', text: '🗑', onclick: () => { items.splice(i, 1); onChange(); draw(); } })));
+              el('button', { class: 'remove', type: 'button', title: 'حذف', onclick: () => { items.splice(i, 1); onChange(); draw(); } }, icon('trash'))));
           });
           if (f.addLabel && items.length < (f.max || 25)) {
             listEl.append(el('button', {
@@ -373,7 +395,7 @@
         button.disabled = true;
         try {
           const res = await api(`/api/guilds/${state.data.guild.id}/plugins/${p.id}/actions/${action.id}`, { method: 'POST', body: { params } });
-          toast(`✅ ${res.message}`);
+          toast(res.message);
           replacePlugin(res.plugin, { keepDraft: dirty() });
         } catch (e) {
           toast(e.message, true);
@@ -383,7 +405,7 @@
       });
       row.append(button);
       panel.append(el('section', { class: 'card action-card' },
-        el('div', {}, el('h2', { text: action.label }), action.description ? el('p', { class: 'card-desc', text: action.description }) : null),
+        el('div', {}, el('h2', {}, icon('sparkles'), action.label), action.description ? el('p', { class: 'card-desc', text: action.description }) : null),
         row));
     }
   }
@@ -399,7 +421,7 @@
         el('p', { text: c.description })));
     }
     panel.append(el('section', { class: 'card' },
-      el('h2', { text: `أوامر ${p.nameAr}` }),
+      el('h2', {}, icon('keyboard'), `أوامر ${p.nameAr}`),
       el('p', { class: 'card-desc', text: `كل أمر يشتغل بالسلاش أو بالبريفكس ${prefix} — <> إجباري • [] اختياري` }),
       el('div', { style: 'margin-top:14px' }, grid)));
   }
@@ -434,7 +456,7 @@
       const plugin = await api(`/api/guilds/${state.data.guild.id}/plugins/${state.pluginId}`, { method: 'PUT', body: { enabled } });
       plugin.config = current().config;
       replacePlugin(plugin, { keepDraft: true });
-      toast(enabled ? '🟢 تم تشغيل البلوقن' : '🔴 تم إيقاف البلوقن');
+      toast(enabled ? 'تم تشغيل البلوقن' : 'تم إيقاف البلوقن');
     } catch (err) {
       e.target.checked = !enabled;
       toast(err.message, true);
@@ -448,7 +470,7 @@
     try {
       const plugin = await api(`/api/guilds/${state.data.guild.id}/plugins/${state.pluginId}`, { method: 'PUT', body: { config: state.draft } });
       replacePlugin(plugin);
-      toast('✅ تم حفظ التغييرات');
+      toast('تم حفظ التغييرات');
     } catch (e) {
       toast(e.message, true);
       if (e.body?.field) $(`.field[data-key="${CSS.escape(e.body.field)}"]`)?.classList.add('error');

@@ -5,6 +5,7 @@ const { simple, emoji, reply, colors } = require('../../core/theme');
 const { checkTarget, canManageRole } = require('../../utils/perms');
 const { parseDuration, formatDuration, ts } = require('../../utils/time');
 const { truncate } = require('../../utils/text');
+const { I } = require('../../core/icons');
 
 const P = PermissionFlagsBits;
 const MAX_TIMEOUT = 28 * 86_400_000;
@@ -207,9 +208,9 @@ const commands = [
         const list = cases.forUser(guildId, user.id, 'warn');
         const body = list.length
           ? list.slice(0, 15).map((w) => `**#${w.number}** • ${ts(w.created_at)} • <@${w.mod_id}>\n${emoji.dot} ${truncate(w.reason || NO_REASON, 150)}`).join('\n\n')
-          : 'ما عنده أي تحذير ✨';
+          : `ما عنده أي تحذير ${I.sparkles}`;
         return interaction.reply({
-          embeds: [simple(body, 'primary', `⚠️ تحذيرات ${user.username} (${list.length})`).setThumbnail(user.displayAvatarURL())],
+          embeds: [simple(body, 'primary', `${I.warn} تحذيرات ${user.username} (${list.length})`).setThumbnail(user.displayAvatarURL())],
         });
       }
       if (sub === 'remove') {
@@ -247,8 +248,8 @@ const commands = [
       const list = cases.forUser(interaction.guildId, user.id);
       const body = list.length
         ? list.slice(0, 20).map((c) => `${cases.ACTIONS[c.action]?.emoji || '•'} **#${c.number}** ${cases.ACTIONS[c.action]?.label || c.action} • ${ts(c.created_at)}\n${emoji.dot} ${truncate(c.reason || NO_REASON, 120)}`).join('\n')
-        : 'سجله نظيف ✨';
-      await interaction.reply({ embeds: [simple(body, 'primary', `📜 سجل ${user.username} (${list.length})`).setThumbnail(user.displayAvatarURL())] });
+        : `سجله نظيف ${I.sparkles}`;
+      await interaction.reply({ embeds: [simple(body, 'primary', `${I.info} سجل ${user.username} (${list.length})`).setThumbnail(user.displayAvatarURL())] });
     },
   },
   {
@@ -268,7 +269,7 @@ const commands = [
       if (user) messages = messages.filter((m) => m.author.id === user.id);
       if (botsOnly) messages = messages.filter((m) => m.author.bot);
       const deleted = await interaction.channel.bulkDelete([...messages.values()].slice(0, amount), true);
-      await interaction.editReply({ embeds: [simple(`🧹 تم مسح \`${deleted.size}\` رسالة.${deleted.size < amount ? '\n(الرسائل الأقدم من 14 يوم ما تنمسح)' : ''}`, 'success')] });
+      await interaction.editReply({ embeds: [simple(`${I.clear} تم مسح \`${deleted.size}\` رسالة.${deleted.size < amount ? '\n(الرسائل الأقدم من 14 يوم ما تنمسح)' : ''}`, 'success')] });
     },
   },
   {
@@ -278,7 +279,7 @@ const commands = [
       .setDefaultMemberPermissions(P.ManageChannels)
       .addChannelOption(channelOpt)
       .addStringOption(reasonOpt),
-    execute: (i) => setChannelPerm(i, { SendMessages: false, Connect: false, SendMessagesInThreads: false }, '🔒 تم قفل'),
+    execute: (i) => setChannelPerm(i, { SendMessages: false, Connect: false, SendMessagesInThreads: false }, `${I.lock} تم قفل`),
   },
   {
     data: new SlashCommandBuilder()
@@ -287,7 +288,7 @@ const commands = [
       .setDefaultMemberPermissions(P.ManageChannels)
       .addChannelOption(channelOpt)
       .addStringOption(reasonOpt),
-    execute: (i) => setChannelPerm(i, { SendMessages: null, Connect: null, SendMessagesInThreads: null }, '🔓 تم فتح'),
+    execute: (i) => setChannelPerm(i, { SendMessages: null, Connect: null, SendMessagesInThreads: null }, `${I.unlock} تم فتح`),
   },
   {
     data: new SlashCommandBuilder()
@@ -296,7 +297,7 @@ const commands = [
       .setDefaultMemberPermissions(P.ManageChannels)
       .addChannelOption(channelOpt)
       .addStringOption(reasonOpt),
-    execute: (i) => setChannelPerm(i, { ViewChannel: false }, '🙈 تم إخفاء'),
+    execute: (i) => setChannelPerm(i, { ViewChannel: false }, `${I.hide} تم إخفاء`),
   },
   {
     data: new SlashCommandBuilder()
@@ -305,7 +306,7 @@ const commands = [
       .setDefaultMemberPermissions(P.ManageChannels)
       .addChannelOption(channelOpt)
       .addStringOption(reasonOpt),
-    execute: (i) => setChannelPerm(i, { ViewChannel: null }, '👁️ تم إظهار'),
+    execute: (i) => setChannelPerm(i, { ViewChannel: null }, `${I.show} تم إظهار`),
   },
   {
     data: new SlashCommandBuilder()
@@ -320,7 +321,7 @@ const commands = [
       if (ms == null || ms > 21_600_000) return reply.error(interaction, 'مدة غير صحيحة (أقصى شي 6h).');
       const channel = interaction.options.getChannel('channel') || interaction.channel;
       await channel.setRateLimitPerUser(Math.floor(ms / 1000));
-      await interaction.reply({ embeds: [simple(ms ? `🐢 وضع البطء في ${channel}: **${formatDuration(ms)}**` : `⚡ تم إيقاف وضع البطء في ${channel}`)] });
+      await interaction.reply({ embeds: [simple(ms ? `${I.slowmode} وضع البطء في ${channel}: **${formatDuration(ms)}**` : `${I.fast} تم إيقاف وضع البطء في ${channel}`)] });
     },
   },
   {
@@ -364,7 +365,7 @@ const commands = [
             `${emoji.dot} **الاسم:** ${role}`, `${emoji.dot} **الآيدي:** \`${role.id}\``,
             `${emoji.dot} **اللون:** \`${role.hexColor}\``, `${emoji.dot} **الأعضاء:** \`${role.members.size}\``,
             `${emoji.dot} **الترتيب:** \`${role.position}\``, `${emoji.dot} **أُنشئت:** ${ts(role.createdAt, 'D')}`,
-          ].join('\n'), role.color || colors.primary, '🎭 معلومات الرتبة')],
+          ].join('\n'), role.color || colors.primary, `${I.roles} معلومات الرتبة`)],
         });
       }
       const member = interaction.options.getMember('user');
@@ -403,14 +404,14 @@ module.exports = {
   id: 'admin',
   name: 'Admin Plugin',
   nameAr: 'بلوقن الإدارة',
-  emoji: '👤',
+  emoji: I.admin,
   description: 'باند، طرد، تايم أوت، تحذيرات بعقوبات تلقائية، مسح، قفل وإخفاء الرومات، والرتب.',
   defaults: {
     warnPunish: { enabled: true, at: 3, action: 'timeout', duration: 3_600_000 },
   },
   dashboard: [
     {
-      title: '⚠️ العقوبة التلقائية للتحذيرات',
+      title: 'العقوبة التلقائية للتحذيرات', icon: 'warn',
       fields: [
         { key: 'warnPunish.enabled', type: 'bool', label: 'تفعيل العقوبة التلقائية' },
         { key: 'warnPunish.at', type: 'number', label: 'كل كم تحذير', min: 1, max: 20 },

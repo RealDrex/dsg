@@ -52,6 +52,19 @@ code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85em; 
 .btn-ghost:hover { border-color: var(--accent-2); background: rgba(158,27,27,.12); }
 .btn-sm { padding: 8px 18px; font-size: 14px; }
 
+/* ── Icons ───────────────────────────── */
+.ic { width: 1.15em; height: 1.15em; flex: none; vertical-align: -0.2em; display: inline-block; }
+.btn .ic { width: 20px; height: 20px; }
+.btn-discord { background: #5865f2; color: #fff; }
+.btn-discord:hover { background: #4752c4; }
+.account { display: flex; align-items: center; gap: 8px; }
+.user-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; border-radius: 999px; border: 1px solid var(--line); background: rgba(15,15,17,.8); font-weight: 700; font-size: 14px; transition: border-color .2s; }
+.user-chip:hover { border-color: #3a3a40; }
+.user-chip img { width: 30px; height: 30px; border-radius: 50%; }
+.user-chip .ic { color: var(--muted); }
+.icon-link { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); color: var(--muted); transform: scaleX(-1); }
+.icon-link:hover { color: var(--text); border-color: var(--accent-2); }
+
 /* ── Nav ─────────────────────────────── */
 .nav {
   position: fixed; inset: 0 0 auto 0; z-index: 50;
@@ -135,7 +148,7 @@ code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85em; 
   border-radius: var(--radius); padding: 28px; transition: border-color .3s, transform .3s;
 }
 .feature:hover { border-color: #333; transform: translateY(-4px); }
-.feature-icon { font-size: 30px; width: 58px; height: 58px; display: grid; place-items: center; border-radius: 14px; background: var(--card-2); border: 1px solid var(--line); margin-bottom: 16px; }
+.feature-icon { color: var(--silver); font-size: 26px; width: 58px; height: 58px; display: grid; place-items: center; border-radius: 14px; background: var(--card-2); border: 1px solid var(--line); margin-bottom: 16px; }
 .feature h3 { margin: 0 0 6px; font-size: 21px; }
 .feature p { margin: 0; color: var(--muted); font-size: 16px; }
 
@@ -153,7 +166,7 @@ code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85em; 
 }
 .plugin:hover { transform: translateY(-3px); border-color: #34343a; }
 .plugin:hover::before { opacity: 1; }
-.plugin-icon { flex: none; font-size: 26px; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 12px; background: var(--card-2); border: 1px solid var(--line); }
+.plugin-icon { flex: none; color: var(--silver); font-size: 24px; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 12px; background: var(--card-2); border: 1px solid var(--line); }
 .plugin h3 { margin: 0; font-size: 18px; }
 .plugin .tag { display: block; font-family: var(--en); color: var(--muted); font-size: 13px; direction: ltr; text-align: end; }
 .plugin p { margin: 6px 0 0; color: #a5a5ac; font-size: 15px; line-height: 1.6; }
@@ -173,12 +186,13 @@ code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85em; 
 .chip {
   flex: none; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--card);
   color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; transition: all .2s; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px;
 }
 .chip:hover { color: var(--text); border-color: #3a3a40; }
 .chip.active { background: var(--silver); color: #0a0a0a; border-color: var(--silver); font-weight: 700; }
 
 .command-list { display: grid; gap: 28px; margin-top: 14px; }
-.group-title { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 19px; }
+.group-title { display: flex; align-items: center; gap: 10px; color: var(--text); margin: 0 0 12px; font-size: 19px; }
 .group-title small { color: var(--muted); font-weight: 400; font-size: 14px; }
 .group-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 10px; }
 .cmd {
@@ -225,6 +239,8 @@ code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85em; 
 }
 @media (max-width: 760px) {
   .nav-links { display: none; }
+  .user-chip span { display: none; }
+  .user-chip { padding-right: 4px; }
   .hero { align-items: end; padding-bottom: 110px; }
   .hero-art { width: 100%; opacity: .45; }
   .hero-art img { height: 70%; }

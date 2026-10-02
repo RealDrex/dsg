@@ -24,7 +24,7 @@ function renderMessage(m) {
   const embeds = m.embeds.map((e) => `<div class="embed">${e.title ? `<b>${esc(e.title)}</b>` : ''}${e.description ? `<p>${esc(e.description)}</p>` : ''}</div>`).join('');
   const files = [...m.attachments.values()].map((a) => (a.contentType?.startsWith('image/')
     ? `<a href="${esc(a.url)}"><img class="att" src="${esc(a.url)}" alt=""></a>`
-    : `<a class="file" href="${esc(a.url)}">📎 ${esc(a.name)}</a>`)).join('');
+    : `<a class="file" href="${esc(a.url)}">مرفق: ${esc(a.name)}</a>`)).join('');
   return `<div class="msg">
   <img class="av" src="${esc(m.author.displayAvatarURL({ size: 64 }))}" alt="">
   <div class="body">
@@ -55,7 +55,7 @@ main{max-width:960px;margin:0 auto;padding:16px}
 .embed p{margin:4px 0 0;color:#cfcfcf}.att{max-width:360px;max-height:280px;border-radius:6px;margin-top:6px;display:block}
 .file{display:inline-block;margin-top:6px;color:#d4d4d4}footer{text-align:center;color:var(--muted);font-size:12px;padding:24px}
 </style></head><body>
-<header><img src="${logo}" alt="Sword"><div><h1>⚔️ Ticket #${String(ticket.number).padStart(4, '0')} — ${esc(ticket.typeLabel)}</h1>
+<header><img src="${logo}" alt="Sword"><div><h1>Ticket #${String(ticket.number).padStart(4, '0')} — ${esc(ticket.typeLabel)}</h1>
 <p>${esc(channel.guild.name)} • صاحب التذكرة: ${esc(ticket.ownerTag)} • ${messages.length} رسالة</p><div class="bar"></div></div></header>
 <main>${messages.map(renderMessage).join('\n')}</main>
 <footer>Sword • Private Server — ${new Date().toLocaleString('en-GB')}</footer>

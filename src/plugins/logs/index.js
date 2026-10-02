@@ -4,14 +4,15 @@ const cases = require('../../core/cases');
 const { colors, emoji, DIVIDER, reply, BRAND } = require('../../core/theme');
 const { formatDuration, ts } = require('../../utils/time');
 const { truncate } = require('../../utils/text');
+const { I } = require('../../core/icons');
 
 const TYPES = {
-  messages: { label: 'الرسائل', emoji: '💬', channel: 'سجل-الرسائل' },
-  members: { label: 'الأعضاء', emoji: '👥', channel: 'سجل-الأعضاء' },
-  moderation: { label: 'الإدارة', emoji: '🔨', channel: 'سجل-الإدارة' },
-  server: { label: 'السيرفر (رومات ورتب)', emoji: '🏯', channel: 'سجل-السيرفر' },
-  voice: { label: 'الفويس', emoji: '🔊', channel: 'سجل-الفويس' },
-  protection: { label: 'الحماية', emoji: '🛡️', channel: 'سجل-الحماية' },
+  messages: { label: 'الرسائل', emoji: I.message, channel: 'سجل-الرسائل' },
+  members: { label: 'الأعضاء', emoji: I.users, channel: 'سجل-الأعضاء' },
+  moderation: { label: 'الإدارة', emoji: I.ban, channel: 'سجل-الإدارة' },
+  server: { label: 'السيرفر (رومات ورتب)', emoji: I.server, channel: 'سجل-السيرفر' },
+  voice: { label: 'الفويس', emoji: I.voice, channel: 'سجل-الفويس' },
+  protection: { label: 'الحماية', emoji: I.protection, channel: 'سجل-الحماية' },
 };
 
 const COLOR = { add: colors.success, remove: colors.accent, edit: colors.warn, info: colors.primary };
@@ -39,7 +40,7 @@ const events = {
       title: 'رسالة انحذفت',
       color: 'remove',
       user: message.author,
-      description: `${emoji.dot} **الكاتب:** ${message.author ?? 'غير معروف'}\n${emoji.dot} **الروم:** ${message.channel}\n${DIVIDER}\n${truncate(message.content, 3000) || '*رسالة غير محفوظة أو بدون نص*'}${attachments ? `\n📎 ${attachments}` : ''}`,
+      description: `${emoji.dot} **الكاتب:** ${message.author ?? 'غير معروف'}\n${emoji.dot} **الروم:** ${message.channel}\n${DIVIDER}\n${truncate(message.content, 3000) || '*رسالة غير محفوظة أو بدون نص*'}${attachments ? `\n${I.paperclip} ${attachments}` : ''}`,
     });
   },
   messageUpdate(before, after) {
@@ -94,7 +95,7 @@ const events = {
     if (added.size || removed.size) {
       log(guild, 'members', {
         title: 'تحديث رتب', color: 'edit', user: after.user,
-        description: `${after}${added.size ? `\n➕ ${added.map((r) => `${r}`).join(' ')}` : ''}${removed.size ? `\n➖ ${removed.map((r) => `${r}`).join(' ')}` : ''}`,
+        description: `${after}${added.size ? `\n${I.plus} ${added.map((r) => `${r}`).join(' ')}` : ''}${removed.size ? `\n${I.minus} ${removed.map((r) => `${r}`).join(' ')}` : ''}`,
       });
     }
   },
@@ -161,7 +162,7 @@ const events = {
   },
 };
 
-const typeChoices = Object.entries(TYPES).map(([value, t]) => ({ name: `${t.emoji} ${t.label}`, value }));
+const typeChoices = Object.entries(TYPES).map(([value, t]) => ({ name: t.label, value }));
 
 const data = new SlashCommandBuilder()
   .setName('logs')
@@ -181,7 +182,7 @@ async function execute(interaction) {
   if (sub === 'view') {
     const cfg = store.get(guild.id, 'logs');
     const lines = Object.entries(TYPES).map(([key, t]) => `${t.emoji} **${t.label}:** ${cfg.channels[key] ? `<#${cfg.channels[key]}>` : `${emoji.off} مقفل`}`);
-    return reply.info(interaction, `📋 **إعدادات اللوقات**\n${DIVIDER}\n${lines.join('\n')}`);
+    return reply.info(interaction, `${I.logs} **إعدادات اللوقات**\n${DIVIDER}\n${lines.join('\n')}`);
   }
   if (sub === 'set' || sub === 'disable') {
     const type = interaction.options.getString('type');
@@ -197,7 +198,7 @@ async function execute(interaction) {
 // Creates a hidden "Sword Logs" category with one channel per log type.
 async function setupLogs(guild) {
   const category = await guild.channels.create({
-    name: '📜 Sword Logs',
+    name: 'Sword Logs',
     type: ChannelType.GuildCategory,
     permissionOverwrites: [
       { id: guild.roles.everyone, deny: [PermissionFlagsBits.ViewChannel] },
@@ -206,7 +207,7 @@ async function setupLogs(guild) {
   });
   const created = {};
   for (const [key, t] of Object.entries(TYPES)) {
-    created[key] = (await guild.channels.create({ name: `${t.emoji}・${t.channel}`, parent: category, type: ChannelType.GuildText })).id;
+    created[key] = (await guild.channels.create({ name: t.channel, parent: category, type: ChannelType.GuildText })).id;
   }
   store.update(guild.id, 'logs', (cfg) => { cfg.channels = created; });
   return { category, count: Object.keys(created).length };
@@ -216,21 +217,21 @@ module.exports = {
   id: 'logs',
   name: 'Logs Plugin',
   nameAr: 'بلوقن اللوقات',
-  emoji: '📋',
+  emoji: I.logs,
   description: 'تسجيل الرسائل، الأعضاء، العقوبات، الرومات والرتب، الفويس وتنبيهات الحماية.',
   defaults: { channels: Object.fromEntries(Object.keys(TYPES).map((k) => [k, null])) },
   commands: [{ data, execute }],
   dashboard: [
     {
-      title: '📋 رومات اللوقات',
+      title: 'رومات اللوقات', icon: 'logs',
       description: 'حدد روم لكل نوع — الفاضي يعني النوع مقفل',
-      fields: Object.entries(TYPES).map(([key, t]) => ({ key: `channels.${key}`, type: 'channel', label: `${t.emoji} ${t.label}` })),
+      fields: Object.entries(TYPES).map(([key, t]) => ({ key: `channels.${key}`, type: 'channel', label: t.label })),
     },
   ],
   actions: {
     setup: {
       label: 'إنشاء رومات اللوقات تلقائياً',
-      description: 'يسوي كاتقوري "📜 Sword Logs" مخفية فيها 6 رومات ويربطها',
+      description: 'يسوي كاتقوري "Sword Logs" مخفية فيها 6 رومات ويربطها',
       async run(guild) {
         const { count } = await setupLogs(guild);
         return `تم إنشاء ${count} رومات لوق`;

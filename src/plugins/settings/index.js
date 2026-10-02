@@ -7,6 +7,7 @@ const { card, simple, emoji, DIVIDER, reply } = require('../../core/theme');
 const { describeCommands, usage } = require('../../core/loader');
 const { ts } = require('../../utils/time');
 const { truncate } = require('../../utils/text');
+const { I, asEmoji } = require('../../core/icons');
 
 let commandIndex = null;
 const prefixOf = (interaction) => store.get(interaction.guildId, 'core').prefix || '!';
@@ -18,13 +19,13 @@ const commandsOf = (client, pluginId) => {
 function helpMenu(client, selected) {
   const menu = new StringSelectMenuBuilder()
     .setCustomId('settings:help')
-    .setPlaceholder('⚔️ اختر البلوقن لعرض أوامره')
+    .setPlaceholder('اختر البلوقن لعرض أوامره')
     .addOptions(
       [...client.plugins.values()].map((p) => ({
         label: p.nameAr,
         description: truncate(p.description, 100),
         value: p.id,
-        emoji: p.emoji,
+        emoji: asEmoji(p.emoji),
         default: p.id === selected,
       })),
     );
@@ -41,7 +42,7 @@ function helpHome(interaction) {
     .join('\n');
   const { embed, files } = card({
     title: `${emoji.sword} Sword — قائمة الأوامر`,
-    description: `أهلاً بك في بوت **Sword** ${emoji.gate}\nاختر بلوقن من القائمة تحت عشان تشوف أوامره بالتفصيل.\n${DIVIDER}\n${list}\n${DIVIDER}\n⌨️ كل أمر يشتغل بالسلاش \`/\` أو بالبريفكس \`${prefixOf(interaction)}\`\nمثال: \`${prefixOf(interaction)}باند @عضو السبب\`\n\`<>\` إجباري  •  \`[]\` اختياري`,
+    description: `أهلاً بك في بوت **Sword** ${emoji.gate}\nاختر بلوقن من القائمة تحت عشان تشوف أوامره بالتفصيل.\n${DIVIDER}\n${list}\n${DIVIDER}\n${I.keyboard} كل أمر يشتغل بالسلاش \`/\` أو بالبريفكس \`${prefixOf(interaction)}\`\nمثال: \`${prefixOf(interaction)}باند @عضو السبب\`\n\`<>\` إجباري  •  \`[]\` اختياري`,
     image: 'banner',
   });
   return { embeds: [embed], files, components: [helpMenu(client)] };
@@ -76,7 +77,7 @@ function pluginsPanel(interaction) {
       toggleable.map((p) => ({
         label: p.nameAr,
         value: p.id,
-        emoji: p.emoji,
+        emoji: asEmoji(p.emoji),
         description: p.name,
         default: store.isEnabled(guildId, p.id),
       })),
@@ -121,7 +122,7 @@ const commands = [
     data: new SlashCommandBuilder().setName('ping').setDescription('سرعة استجابة البوت'),
     async execute(interaction) {
       const sent = Date.now();
-      await interaction.reply({ embeds: [simple('🏓 ...')], flags: MessageFlags.Ephemeral });
+      await interaction.reply({ embeds: [simple(`${I.ping} ...`)], flags: MessageFlags.Ephemeral });
       const roundtrip = Date.now() - sent;
       await interaction.editReply({
         embeds: [simple(`${emoji.sword} **Pong!**\nالبوت: \`${roundtrip}ms\`  •  الاتصال: \`${Math.round(interaction.client.ws.ping)}ms\``)],
@@ -136,12 +137,12 @@ const commands = [
         title: `${emoji.sword} Sword Bot`,
         description: `بوت سستم متكامل لسيرفر **Sword** ${emoji.gate}\n${DIVIDER}`,
         fields: [
-          { name: '⏱️ شغال من', value: ts(Date.now() - client.uptime), inline: true },
-          { name: '📶 البنق', value: `\`${Math.round(client.ws.ping)}ms\``, inline: true },
-          { name: '🧩 البلوقنات', value: `\`${client.plugins.size}\``, inline: true },
-          { name: '⌨️ الأوامر', value: `\`${client.commands.size}\``, inline: true },
-          { name: '🏯 السيرفرات', value: `\`${client.guilds.cache.size}\``, inline: true },
-          { name: '📦 المكتبة', value: `\`discord.js v${djsVersion}\``, inline: true },
+          { name: `${I.clock} شغال من`, value: ts(Date.now() - client.uptime), inline: true },
+          { name: `${I.signal} البنق`, value: `\`${Math.round(client.ws.ping)}ms\``, inline: true },
+          { name: `${I.puzzle} البلوقنات`, value: `\`${client.plugins.size}\``, inline: true },
+          { name: `${I.keyboard} الأوامر`, value: `\`${client.commands.size}\``, inline: true },
+          { name: `${I.server} السيرفرات`, value: `\`${client.guilds.cache.size}\``, inline: true },
+          { name: `${I.package} المكتبة`, value: `\`discord.js v${djsVersion}\``, inline: true },
         ],
         image: 'banner',
       });
@@ -158,14 +159,14 @@ const commands = [
         brand: false,
         thumbnail: guild.iconURL({ size: 256 }) || undefined,
         fields: [
-          { name: '👑 المالك', value: `<@${guild.ownerId}>`, inline: true },
-          { name: '📅 تأسس', value: ts(guild.createdAt, 'D'), inline: true },
-          { name: '🆔 الآيدي', value: `\`${guild.id}\``, inline: true },
-          { name: '👥 الأعضاء', value: `\`${guild.memberCount}\``, inline: true },
-          { name: '💎 البوستات', value: `\`${guild.premiumSubscriptionCount || 0}\` (لفل ${guild.premiumTier})`, inline: true },
-          { name: '🎭 الرتب', value: `\`${guild.roles.cache.size - 1}\``, inline: true },
+          { name: `${I.crown} المالك`, value: `<@${guild.ownerId}>`, inline: true },
+          { name: `${I.calendar} تأسس`, value: ts(guild.createdAt, 'D'), inline: true },
+          { name: `${I.id} الآيدي`, value: `\`${guild.id}\``, inline: true },
+          { name: `${I.users} الأعضاء`, value: `\`${guild.memberCount}\``, inline: true },
+          { name: `${I.gem} البوستات`, value: `\`${guild.premiumSubscriptionCount || 0}\` (لفل ${guild.premiumTier})`, inline: true },
+          { name: `${I.roles} الرتب`, value: `\`${guild.roles.cache.size - 1}\``, inline: true },
           {
-            name: '💬 الرومات',
+            name: `${I.message} الرومات`,
             value: `كتابي \`${channels.filter((c) => c.type === ChannelType.GuildText).size}\` • صوتي \`${channels.filter((c) => c.type === ChannelType.GuildVoice).size}\` • كاتقوري \`${channels.filter((c) => c.type === ChannelType.GuildCategory).size}\``,
           },
         ],
@@ -185,12 +186,12 @@ const commands = [
       const member = interaction.options.getMember('user') || (user.id === interaction.user.id ? interaction.member : null);
       const roles = member?.roles.cache.filter((r) => r.id !== interaction.guildId).sort((a, b) => b.position - a.position);
       const fields = [
-        { name: '🆔 الآيدي', value: `\`${user.id}\``, inline: true },
-        { name: '📅 إنشاء الحساب', value: ts(user.createdAt, 'D'), inline: true },
+        { name: `${I.id} الآيدي`, value: `\`${user.id}\``, inline: true },
+        { name: `${I.calendar} إنشاء الحساب`, value: ts(user.createdAt, 'D'), inline: true },
       ];
       if (member) {
-        fields.push({ name: '📥 دخل السيرفر', value: ts(member.joinedAt, 'D'), inline: true });
-        fields.push({ name: `🎭 الرتب (${roles.size})`, value: truncate(roles.map((r) => `${r}`).join(' '), 1000) || 'لا يوجد' });
+        fields.push({ name: `${I.joined} دخل السيرفر`, value: ts(member.joinedAt, 'D'), inline: true });
+        fields.push({ name: `${I.roles} الرتب (${roles.size})`, value: truncate(roles.map((r) => `${r}`).join(' '), 1000) || 'لا يوجد' });
       }
       const { embed } = card({
         title: `${emoji.blade} ${user.username}`,
@@ -211,7 +212,7 @@ const commands = [
     async execute(interaction) {
       const user = interaction.options.getUser('user') || interaction.user;
       const { embed } = card({
-        title: `🖼️ ${user.username}`,
+        title: `${I.image} ${user.username}`,
         brand: false,
         image: user.displayAvatarURL({ size: 1024 }),
         description: `[تحميل الصورة](${user.displayAvatarURL({ size: 4096 })})`,
@@ -225,7 +226,7 @@ module.exports = {
   id: 'settings',
   name: 'Bot Settings',
   nameAr: 'إعدادات البوت',
-  emoji: '⚙️',
+  emoji: I.settings,
   description: 'قائمة الأوامر، البريفكس، تشغيل وإيقاف البلوقنات، ومعلومات عامة عن البوت والسيرفر.',
   configKey: 'core',
   dashboard: [

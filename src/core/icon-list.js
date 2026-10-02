@@ -1,0 +1,132 @@
+// Sword icon set. One list drives the website SVG sprite, the PNG emojis the bot
+// uploads to Discord, and runtime lookups. `src` is a Lucide icon name (ISC licensed)
+// or `dot` for a filled circle; `color` is how it renders inside Discord.
+const SILVER = '#d9d9d9';
+const RED = '#c42a31';
+const GREEN = '#3ddc84';
+
+const lucide = (src, color = SILVER) => ({ src, color });
+const dot = (color) => ({ src: 'dot', color });
+
+module.exports = {
+  // brand & status
+  sword: lucide('swords'),
+  blade: lucide('sword'),
+  success: lucide('circle-check', GREEN),
+  error: lucide('circle-x', RED),
+  warn: lucide('triangle-alert', '#e0a33a'),
+  info: lucide('scroll-text'),
+  on: dot(GREEN),
+  off: dot(RED),
+  arrow: lucide('chevron-left'),
+
+  // plugins
+  settings: lucide('settings'),
+  protection: lucide('shield-check'),
+  admin: lucide('user-cog'),
+  welcome: lucide('hand'),
+  logs: lucide('clipboard-list'),
+  activity: lucide('trending-up'),
+  autorole: lucide('user-check'),
+  roles: lucide('tags'),
+  ticket: lucide('ticket'),
+  autoactions: lucide('messages-square'),
+  counters: lucide('chart-column'),
+  colors: lucide('palette'),
+
+  // moderation
+  ban: lucide('gavel', RED),
+  unban: lucide('undo-2'),
+  kick: lucide('user-x'),
+  timeout: lucide('hourglass'),
+  untimeout: lucide('timer-off'),
+  warning: lucide('triangle-alert', '#e0a33a'),
+  unwarn: lucide('eraser'),
+  clear: lucide('brush'),
+  lock: lucide('lock'),
+  unlock: lucide('lock-open'),
+  hide: lucide('eye-off'),
+  show: lucide('eye'),
+  slowmode: lucide('timer'),
+  fast: lucide('zap'),
+  shieldAlert: lucide('shield-alert', RED),
+  history: lucide('history'),
+
+  // protection
+  message: lucide('message-square'),
+  link: lucide('link'),
+  mention: lucide('at-sign'),
+  muted: lucide('message-square-off'),
+  raid: lucide('door-open'),
+  nuke: lucide('bomb', RED),
+  bot: lucide('bot'),
+  whitelist: lucide('list-checks'),
+  siren: lucide('siren', RED),
+
+  // info / general
+  ping: lucide('activity'),
+  signal: lucide('signal'),
+  puzzle: lucide('puzzle'),
+  keyboard: lucide('keyboard'),
+  server: lucide('server'),
+  package: lucide('package'),
+  clock: lucide('clock'),
+  crown: lucide('crown', '#e0b84a'),
+  calendar: lucide('calendar'),
+  id: lucide('fingerprint'),
+  users: lucide('users'),
+  user: lucide('user'),
+  gem: lucide('gem', '#f47fff'),
+  joined: lucide('log-in'),
+  image: lucide('image'),
+  mail: lucide('mail'),
+  leave: lucide('user-minus'),
+  hash: lucide('hash'),
+  voice: lucide('volume-2'),
+  globe: lucide('globe'),
+  down: lucide('arrow-down'),
+  sparkles: lucide('sparkles'),
+  plus: lucide('plus', GREEN),
+  minus: lucide('minus', RED),
+  trash: lucide('trash-2', RED),
+  close: lucide('x', RED),
+  paperclip: lucide('paperclip'),
+  edit: lucide('pencil'),
+  forbid: lucide('ban', RED),
+
+  // levels
+  levelUp: lucide('party-popper'),
+  gift: lucide('gift'),
+  trophy: lucide('trophy', '#e0b84a'),
+  gold: lucide('medal', '#e0b84a'),
+  silver: lucide('medal', '#c0c0c0'),
+  bronze: lucide('medal', '#cd7f32'),
+
+  // tickets
+  claim: lucide('user-round-check'),
+  archive: lucide('folder-archive'),
+  folder: lucide('folder-open'),
+  support: lucide('wrench'),
+  report: lucide('siren'),
+  question: lucide('circle-help'),
+  partner: lucide('handshake'),
+  cart: lucide('shopping-cart'),
+  star: lucide('star'),
+
+  // roles / auto actions
+  pointer: lucide('mouse-pointer-click'),
+  list: lucide('list'),
+  react: lucide('smile-plus'),
+  reply: lucide('reply'),
+
+  // colour dots (colour picker)
+  dotRed: dot('#dd2e44'),
+  dotOrange: dot('#f4900c'),
+  dotYellow: dot('#fdcb58'),
+  dotGreen: dot('#78b159'),
+  dotBlue: dot('#55acee'),
+  dotPurple: dot('#aa8ed6'),
+  dotBrown: dot('#c1694f'),
+  dotBlack: dot('#31373d'),
+  dotWhite: dot('#e6e7e8'),
+};

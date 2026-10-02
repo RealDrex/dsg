@@ -2,8 +2,10 @@ const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const store = require('../../core/store');
 const { emoji, DIVIDER, reply } = require('../../core/theme');
 const { canManageRole } = require('../../utils/perms');
+const { I } = require('../../core/icons');
 
-const TARGETS = { humans: '👤 الأعضاء', bots: '🤖 البوتات' };
+const TARGETS = { humans: 'الأعضاء', bots: 'البوتات' };
+const TARGET_ICONS = { humans: I.user, bots: I.bot };
 
 async function onJoin(member) {
   const cfg = store.get(member.guild.id, 'autorole');
@@ -45,7 +47,7 @@ async function execute(interaction) {
   if (sub === 'list') {
     const cfg = store.get(guildId, 'autorole');
     const show = (ids) => ids.map((id) => `<@&${id}>`).join(' ') || '—';
-    return reply.info(interaction, `✅ **الرتب التلقائية**\n${DIVIDER}\n${TARGETS.humans}: ${show(cfg.humans)}\n${TARGETS.bots}: ${show(cfg.bots)}\n⏱️ التأخير: \`${cfg.delay}s\``);
+    return reply.info(interaction, `${I.success} **الرتب التلقائية**\n${DIVIDER}\n${TARGET_ICONS.humans} ${TARGETS.humans}: ${show(cfg.humans)}\n${TARGET_ICONS.bots} ${TARGETS.bots}: ${show(cfg.bots)}\n${I.clock} التأخير: \`${cfg.delay}s\``);
   }
   if (sub === 'delay') {
     store.update(guildId, 'autorole', (cfg) => { cfg.delay = interaction.options.getInteger('seconds'); });
@@ -71,16 +73,16 @@ module.exports = {
   id: 'autorole',
   name: 'Autorole Plugin',
   nameAr: 'بلوقن الرولات التلقائية',
-  emoji: '✅',
+  emoji: I.autorole,
   description: 'رتب تلقائية للأعضاء الجدد وللبوتات مع إمكانية التأخير.',
   defaults: { humans: [], bots: [], delay: 0 },
   commands: [{ data, execute }],
   dashboard: [
     {
-      title: '✅ الرتب التلقائية',
+      title: 'الرتب التلقائية', icon: 'success',
       fields: [
-        { key: 'humans', type: 'roles', label: '👤 رتب الأعضاء الجدد' },
-        { key: 'bots', type: 'roles', label: '🤖 رتب البوتات' },
+        { key: 'humans', type: 'roles', label: 'رتب الأعضاء الجدد' },
+        { key: 'bots', type: 'roles', label: 'رتب البوتات' },
         { key: 'delay', type: 'number', label: 'التأخير (ثواني)', min: 0, max: 600, hint: 'مفيد إذا عندك نظام تحقق' },
       ],
     },

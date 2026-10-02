@@ -3,6 +3,7 @@ const db = require('../../core/db');
 const store = require('../../core/store');
 const { card, simple, emoji, DIVIDER, reply, bar } = require('../../core/theme');
 const { fill, memberVars } = require('../../utils/text');
+const { I } = require('../../core/icons');
 
 // XP needed to go from `level` to `level + 1`.
 const need = (level) => 5 * level ** 2 + 50 * level + 100;
@@ -54,8 +55,8 @@ async function levelUp(member, level, channel, cfg) {
   if (!cfg.announce) return;
   const target = (cfg.channelId && member.guild.channels.cache.get(cfg.channelId)) || channel;
   const text = fill(cfg.message, { ...memberVars(member), level });
-  const rewardText = added.length ? `\n🎁 حصلت على: ${added.map((id) => `<@&${id}>`).join(' ')}` : '';
-  await target?.send({ content: `${member}`, embeds: [simple(`${text}${rewardText}`, 'primary', '⚔️ Level Up!').setThumbnail(member.user.displayAvatarURL())] }).catch(() => null);
+  const rewardText = added.length ? `\n${I.gift} حصلت على: ${added.map((id) => `<@&${id}>`).join(' ')}` : '';
+  await target?.send({ content: `${member}`, embeds: [simple(`${I.levelUp} ${text}${rewardText}`, 'primary', `${I.sword} Level Up!`).setThumbnail(member.user.displayAvatarURL())] }).catch(() => null);
 }
 
 const cooldowns = new Map();
@@ -100,7 +101,7 @@ const data = new SlashCommandBuilder().setName('rank').setDescription('مستو�
 
 async function rank(interaction) {
   const user = interaction.options.getUser('user') || interaction.user;
-  if (user.bot) return reply.error(interaction, 'البوتات ما عندها لفلات 🤖');
+  if (user.bot) return reply.error(interaction, `البوتات ما عندها لفلات ${I.bot}`);
   const r = row(interaction.guildId, user.id);
   const pos = q.rank.get(interaction.guildId, r.level, r.level, r.xp).pos;
   const next = need(r.level);
@@ -112,7 +113,7 @@ async function rank(interaction) {
       DIVIDER,
       `${bar(r.xp, next)}  \`${r.xp} / ${next} XP\``,
       DIVIDER,
-      `💬 الرسائل: \`${r.messages}\`  •  🔊 الفويس: \`${Math.floor(r.voice_minutes / 60)}h ${r.voice_minutes % 60}m\``,
+      `${I.message} الرسائل: \`${r.messages}\`  •  ${I.voice} الفويس: \`${Math.floor(r.voice_minutes / 60)}h ${r.voice_minutes % 60}m\``,
     ].join('\n'),
     image: 'line',
     footer: 'Sword • Rank',
@@ -122,18 +123,18 @@ async function rank(interaction) {
 
 const topData = new SlashCommandBuilder().setName('top').setDescription('قائمة أفضل 10 أعضاء تفاعلاً')
   .addStringOption((o) => o.setName('type').setDescription('حسب').addChoices(
-    { name: '⚔️ المستوى', value: 'xp' }, { name: '💬 الرسائل', value: 'messages' }, { name: '🔊 الفويس', value: 'voice' },
+    { name: 'المستوى', value: 'xp' }, { name: 'الرسائل', value: 'messages' }, { name: 'الفويس', value: 'voice' },
   ));
 
 async function top(interaction) {
   const type = interaction.options.getString('type') || 'xp';
   const t = TOP[type];
   const rows = db.prepare(`SELECT * FROM levels WHERE guild_id = ? ORDER BY ${t.order} LIMIT 10`).all(interaction.guildId);
-  const medals = ['🥇', '🥈', '🥉'];
+  const medals = [`${I.gold}`, `${I.silver}`, `${I.bronze}`];
   const body = rows.length
     ? rows.map((r, i) => `${medals[i] || `\`#${i + 1}\``} <@${r.user_id}> — ${t.show(r)}`).join('\n')
     : 'ما فيه تفاعل للحين.';
-  const { embed, files } = card({ title: `🏆 التوب — ${t.label}`, description: `${body}\n${DIVIDER}`, image: 'line' });
+  const { embed, files } = card({ title: `${I.trophy} التوب — ${t.label}`, description: `${body}\n${DIVIDER}`, image: 'line' });
   await interaction.reply({ embeds: [embed], files, allowedMentions: { parse: [] } });
 }
 
@@ -179,7 +180,7 @@ async function admin(interaction) {
     if (sub === 'list') {
       const cfg = store.get(guildId, 'activity');
       const list = [...cfg.rewards].sort((a, b) => a.level - b.level).map((rw) => `${emoji.dot} لفل \`${rw.level}\` ← <@&${rw.roleId}>`);
-      return reply.info(interaction, `🎁 **مكافآت اللفلات** (${cfg.stackRewards ? 'تجميع' : 'آخر رتبة فقط'})\n${DIVIDER}\n${list.join('\n') || '—'}`);
+      return reply.info(interaction, `${I.gift} **مكافآت اللفلات** (${cfg.stackRewards ? 'تجميع' : 'آخر رتبة فقط'})\n${DIVIDER}\n${list.join('\n') || '—'}`);
     }
     if (sub === 'stack') {
       set((cfg) => { cfg.stackRewards = o.getBoolean('enabled'); });
@@ -223,7 +224,7 @@ async function admin(interaction) {
         if (role) cfg.ignoredRoles = toggle(cfg.ignoredRoles, role.id);
       });
       const cfg = store.get(guildId, 'activity');
-      return reply.info(interaction, `🚫 **بدون XP**\nالرومات: ${cfg.ignoredChannels.map((id) => `<#${id}>`).join(' ') || '—'}\nالرتب: ${cfg.ignoredRoles.map((id) => `<@&${id}>`).join(' ') || '—'}`);
+      return reply.info(interaction, `${I.forbid} **بدون XP**\nالرومات: ${cfg.ignoredChannels.map((id) => `<#${id}>`).join(' ') || '—'}\nالرتب: ${cfg.ignoredRoles.map((id) => `<@&${id}>`).join(' ') || '—'}`);
     }
     case 'set': {
       const user = o.getUser('user');
@@ -243,7 +244,7 @@ module.exports = {
   id: 'activity',
   name: 'Activity Plugin',
   nameAr: 'بلوقن الرانك والتفاعل',
-  emoji: '📈',
+  emoji: I.activity,
   description: 'لفلات بالرسائل والفويس، رتب مكافآت، رسائل لفل أب، وتوب التفاعل.',
   defaults: {
     xpMin: 15,
@@ -252,7 +253,7 @@ module.exports = {
     voiceXp: 10,
     announce: true,
     channelId: null,
-    message: '🎉 مبروك {user}! وصلت لفل **{level}** ⚔️',
+    message: 'مبروك {user}! وصلت لفل **{level}**',
     rewards: [],
     stackRewards: true,
     ignoredChannels: [],
@@ -265,7 +266,7 @@ module.exports = {
   ],
   dashboard: [
     {
-      title: '⚔️ الخبرة (XP)',
+      title: 'الخبرة (XP)', icon: 'sword',
       fields: [
         { key: 'xpMin', type: 'number', label: 'أقل XP للرسالة', min: 1, max: 500 },
         { key: 'xpMax', type: 'number', label: 'أعلى XP للرسالة', min: 1, max: 500 },
@@ -274,7 +275,7 @@ module.exports = {
       ],
     },
     {
-      title: '🎉 رسائل اللفل أب',
+      title: 'رسائل اللفل أب', icon: 'levelUp',
       fields: [
         { key: 'announce', type: 'bool', label: 'تفعيل رسائل اللفل أب' },
         { key: 'channelId', type: 'channel', label: 'روم مخصص', hint: 'فاضي = نفس الروم اللي تفاعل فيه العضو' },
@@ -282,7 +283,7 @@ module.exports = {
       ],
     },
     {
-      title: '🎁 رتب المكافآت',
+      title: 'رتب المكافآت', icon: 'gift',
       fields: [
         { key: 'stackRewards', type: 'bool', label: 'يحتفظ العضو بكل رتب المكافآت', hint: 'إذا طفيته ياخذ آخر رتبة بس' },
         {
@@ -295,7 +296,7 @@ module.exports = {
       ],
     },
     {
-      title: '🚫 بدون XP',
+      title: 'بدون XP', icon: 'forbid',
       fields: [
         { key: 'ignoredChannels', type: 'channels', label: 'رومات ما تعطي XP' },
         { key: 'ignoredRoles', type: 'roles', label: 'رتب ما تاخذ XP' },

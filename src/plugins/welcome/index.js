@@ -3,6 +3,7 @@ const store = require('../../core/store');
 const { card, simple, emoji, DIVIDER, reply } = require('../../core/theme');
 const { fill, memberVars } = require('../../utils/text');
 const { userError } = require('../../core/errors');
+const { I } = require('../../core/icons');
 
 const VARS_HELP = '`{user}` منشن • `{username}` الاسم • `{server}` السيرفر • `{count}` عدد الأعضاء';
 
@@ -106,19 +107,19 @@ module.exports = {
   id: 'welcome',
   name: 'Welcome Plugin',
   nameAr: 'بلوقن الترحيب',
-  emoji: '👋',
+  emoji: I.welcome,
   description: 'ترحيب بإمبد وبانر Sword، رسالة خاص للعضو الجديد، ورسالة مغادرة.',
   defaults: {
     channelId: null,
-    message: 'حيّاك الله {user} في **{server}** ⚔️\nأنت العضو رقم **{count}** — نورت السيرفر!',
+    message: 'حيّاك الله {user} في **{server}**\nأنت العضو رقم **{count}** — نورت السيرفر!',
     image: true,
     mention: true,
-    dm: { enabled: false, message: 'أهلاً {username}! حيّاك في **{server}** ⚔️\nلا تنسى تقرأ القوانين.' },
-    leave: { channelId: null, message: '🍂 **{username}** غادر السيرفر... صرنا {count}' },
+    dm: { enabled: false, message: 'أهلاً {username}! حيّاك في **{server}**\nلا تنسى تقرأ القوانين.' },
+    leave: { channelId: null, message: '**{username}** غادر السيرفر... صرنا {count}' },
   },
   dashboard: [
     {
-      title: '👋 الترحيب',
+      title: 'الترحيب', icon: 'welcome',
       description: 'المتغيرات: {user} منشن • {username} الاسم • {server} السيرفر • {count} عدد الأعضاء',
       fields: [
         { key: 'channelId', type: 'channel', label: 'روم الترحيب', hint: 'فاضي = الترحيب مقفل' },
@@ -128,14 +129,14 @@ module.exports = {
       ],
     },
     {
-      title: '✉️ رسالة الخاص',
+      title: 'رسالة الخاص', icon: 'mail',
       fields: [
         { key: 'dm.enabled', type: 'bool', label: 'إرسال رسالة خاص للعضو الجديد' },
         { key: 'dm.message', type: 'textarea', label: 'نص رسالة الخاص', max: 1500 },
       ],
     },
     {
-      title: '🍂 المغادرة',
+      title: 'المغادرة', icon: 'leave',
       fields: [
         { key: 'leave.channelId', type: 'channel', label: 'روم المغادرة', hint: 'فاضي = مقفل' },
         { key: 'leave.message', type: 'textarea', label: 'رسالة المغادرة', max: 1500 },

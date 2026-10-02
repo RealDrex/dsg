@@ -6,15 +6,16 @@ const store = require('../../core/store');
 const cases = require('../../core/cases');
 const { card, simple, emoji, DIVIDER, reply } = require('../../core/theme');
 const { formatDuration } = require('../../utils/time');
+const { I, asEmoji } = require('../../core/icons');
 
 const FEATURES = {
-  antiSpam: { label: 'مضاد السبام', emoji: '💬', desc: 'تايم أوت لمن يرسل رسائل كثيرة بسرعة' },
-  antiLink: { label: 'مضاد الروابط', emoji: '🔗', desc: 'حذف روابط الدعوات أو كل الروابط' },
-  antiMention: { label: 'مضاد المنشن', emoji: '📣', desc: 'منع المنشن الجماعي' },
-  badWords: { label: 'فلتر الكلمات', emoji: '🤐', desc: 'حذف الرسائل اللي فيها كلمات ممنوعة' },
-  antiRaid: { label: 'مضاد الرايد', emoji: '🚪', desc: 'طرد الداخلين وقت دخول جماعي مشبوه' },
-  antiNuke: { label: 'مضاد التخريب', emoji: '💣', desc: 'سحب رتب من يحذف رومات/رتب أو يبند بكثرة' },
-  antiBot: { label: 'مضاد البوتات', emoji: '🤖', desc: 'طرد أي بوت يضيفه شخص مو بالوايت ليست' },
+  antiSpam: { label: 'مضاد السبام', emoji: I.message, desc: 'تايم أوت لمن يرسل رسائل كثيرة بسرعة' },
+  antiLink: { label: 'مضاد الروابط', emoji: I.link, desc: 'حذف روابط الدعوات أو كل الروابط' },
+  antiMention: { label: 'مضاد المنشن', emoji: I.mention, desc: 'منع المنشن الجماعي' },
+  badWords: { label: 'فلتر الكلمات', emoji: I.muted, desc: 'حذف الرسائل اللي فيها كلمات ممنوعة' },
+  antiRaid: { label: 'مضاد الرايد', emoji: I.raid, desc: 'طرد الداخلين وقت دخول جماعي مشبوه' },
+  antiNuke: { label: 'مضاد التخريب', emoji: I.nuke, desc: 'سحب رتب من يحذف رومات/رتب أو يبند بكثرة' },
+  antiBot: { label: 'مضاد البوتات', emoji: I.bot, desc: 'طرد أي بوت يضيفه شخص مو بالوايت ليست' },
 };
 
 const INVITE_RE = /(discord\.gg|discord(?:app)?\.com\/invite|dsc\.gg)\/[\w-]+/i;
@@ -82,7 +83,7 @@ async function onMessage(message) {
     if (count >= cfg.mentions.max) {
       await warnInChannel(message, 'ممنوع المنشن الجماعي.');
       await punish(message.member, 10, `منشن جماعي (${count})`);
-      return alert(message.guild, '📣 منشن جماعي', `${message.author} منشن \`${count}\` في ${message.channel} — تايم أوت 10 دقائق.`);
+      return alert(message.guild, `${I.mention} منشن جماعي`, `${message.author} منشن \`${count}\` في ${message.channel} — تايم أوت 10 دقائق.`);
     }
   }
 
@@ -101,7 +102,7 @@ async function onMessage(message) {
       }
       await message.channel.send({ embeds: [simple(`${emoji.error} ${message.author} تم معاقبته بسبب السبام.`, 'error')] })
         .then((m) => setTimeout(() => m.delete().catch(() => null), 6000)).catch(() => null);
-      alert(message.guild, '💬 سبام', `${message.author} أرسل \`${count}\` رسائل خلال ${cfg.spam.seconds} ثواني في ${message.channel}.`);
+      alert(message.guild, `${I.message} سبام`, `${message.author} أرسل \`${count}\` رسائل خلال ${cfg.spam.seconds} ثواني في ${message.channel}.`);
     }
   }
 }
@@ -116,7 +117,7 @@ async function onJoin(member) {
     const adder = entry?.executor ? await guild.members.fetch(entry.executor.id).catch(() => null) : null;
     if (!isWhitelisted(adder, cfg) && member.kickable) {
       await member.kick('Sword Protection: بوت غير مصرح');
-      alert(guild, '🤖 بوت غير مصرح', `تم طرد البوت ${member.user.tag}${adder ? ` اللي أضافه ${adder}` : ''}.`);
+      alert(guild, `${I.bot} بوت غير مصرح`, `تم طرد البوت ${member.user.tag}${adder ? ` اللي أضافه ${adder}` : ''}.`);
     }
     return;
   }
@@ -124,7 +125,7 @@ async function onJoin(member) {
   if (!cfg.features.antiRaid || member.user.bot) return;
   const now = Date.now();
   if ((raidUntil.get(guild.id) || 0) > now) {
-    await member.send({ embeds: [simple(`🚪 سيرفر **${guild.name}** في وضع الحماية من الرايد حالياً، حاول تدخل بعد شوي.`, 'warn')] }).catch(() => null);
+    await member.send({ embeds: [simple(`${I.raid} سيرفر **${guild.name}** في وضع الحماية من الرايد حالياً، حاول تدخل بعد شوي.`, 'warn')] }).catch(() => null);
     if (member.kickable) await member.kick('Sword Protection: وضع الرايد');
     return;
   }
@@ -132,7 +133,7 @@ async function onJoin(member) {
   if (joins >= cfg.raid.joins) {
     raidUntil.set(guild.id, now + cfg.raid.minutes * 60_000);
     joinTracker.delete(guild.id);
-    alert(guild, '🚨 رايد!', `دخل \`${joins}\` عضو خلال ${cfg.raid.seconds} ثانية.\nتم تفعيل وضع الرايد لمدة **${cfg.raid.minutes} دقائق** — أي أحد يدخل بينطرد.`);
+    alert(guild, `${I.siren} رايد!`, `دخل \`${joins}\` عضو خلال ${cfg.raid.seconds} ثانية.\nتم تفعيل وضع الرايد لمدة **${cfg.raid.minutes} دقائق** — أي أحد يدخل بينطرد.`);
   }
 }
 
@@ -162,7 +163,7 @@ async function onDestructive(guild, type, targetId, label) {
     result = `تم سحب \`${removable.size}\` رتبة منه`;
   }
   cases.create(guild, { action: 'auto', userId: member.id, modId: guild.client.user.id, reason: `Anti-Nuke: ${label} ×${count}` });
-  alert(guild, '💣 محاولة تخريب!', `${member} سوّى **${label}** \`${count}\` مرات خلال ${cfg.nuke.seconds} ثانية.\n${result}.`);
+  alert(guild, `${I.nuke} محاولة تخريب!`, `${member} سوّى **${label}** \`${count}\` مرات خلال ${cfg.nuke.seconds} ثانية.\n${result}.`);
 }
 
 function panel(interaction) {
@@ -171,24 +172,24 @@ function panel(interaction) {
     .map(([key, f]) => `${cfg.features[key] ? emoji.on : emoji.off} ${f.emoji} **${f.label}** — ${f.desc}`)
     .join('\n');
   const settings = [
-    `💬 السبام: \`${cfg.spam.messages}\` رسائل / \`${cfg.spam.seconds}s\` ← ${cfg.spam.action === 'kick' ? 'طرد' : `تايم أوت ${cfg.spam.minutes}m`}`,
-    `🔗 الروابط: ${cfg.links.invitesOnly ? 'روابط الدعوات فقط' : 'كل الروابط'}`,
-    `📣 المنشن: الحد \`${cfg.mentions.max}\``,
-    `🚪 الرايد: \`${cfg.raid.joins}\` دخول / \`${cfg.raid.seconds}s\` ← قفل \`${cfg.raid.minutes}m\``,
-    `💣 التخريب: \`${cfg.nuke.limit}\` إجراءات / \`${cfg.nuke.seconds}s\``,
-    `🤐 الكلمات الممنوعة: \`${cfg.words.length}\``,
-    `🤍 الوايت ليست: \`${cfg.whitelist.users.length}\` عضو • \`${cfg.whitelist.roles.length}\` رتبة`,
+    `${I.message} السبام: \`${cfg.spam.messages}\` رسائل / \`${cfg.spam.seconds}s\` ← ${cfg.spam.action === 'kick' ? 'طرد' : `تايم أوت ${cfg.spam.minutes}m`}`,
+    `${I.link} الروابط: ${cfg.links.invitesOnly ? 'روابط الدعوات فقط' : 'كل الروابط'}`,
+    `${I.mention} المنشن: الحد \`${cfg.mentions.max}\``,
+    `${I.raid} الرايد: \`${cfg.raid.joins}\` دخول / \`${cfg.raid.seconds}s\` ← قفل \`${cfg.raid.minutes}m\``,
+    `${I.nuke} التخريب: \`${cfg.nuke.limit}\` إجراءات / \`${cfg.nuke.seconds}s\``,
+    `${I.muted} الكلمات الممنوعة: \`${cfg.words.length}\``,
+    `${I.whitelist} الوايت ليست: \`${cfg.whitelist.users.length}\` عضو • \`${cfg.whitelist.roles.length}\` رتبة`,
   ].join('\n');
   const menu = new StringSelectMenuBuilder()
     .setCustomId('protection:toggle')
-    .setPlaceholder('🛡️ حدد الحمايات المفعلة')
+    .setPlaceholder('حدد الحمايات المفعلة')
     .setMinValues(0)
     .setMaxValues(Object.keys(FEATURES).length)
     .addOptions(Object.entries(FEATURES).map(([key, f]) => ({
-      label: f.label, value: key, emoji: f.emoji, description: f.desc, default: !!cfg.features[key],
+      label: f.label, value: key, emoji: asEmoji(f.emoji), description: f.desc, default: !!cfg.features[key],
     })));
   const { embed, files } = card({
-    title: '🛡️ لوحة الحماية',
+    title: 'لوحة الحماية', icon: 'protection',
     description: `${list}\n${DIVIDER}\n${settings}`,
   });
   return { embeds: [embed], files, components: [new ActionRowBuilder().addComponents(menu)], attachments: [] };
@@ -243,7 +244,7 @@ async function execute(interaction) {
       const cfg = cfgOf(guildId);
       const users = cfg.whitelist.users.map((id) => `<@${id}>`).join(' ') || '—';
       const roles = cfg.whitelist.roles.map((id) => `<@&${id}>`).join(' ') || '—';
-      return reply.info(interaction, `🤍 **الوايت ليست**\n${DIVIDER}\n**الأعضاء:** ${users}\n**الرتب:** ${roles}`);
+      return reply.info(interaction, `${I.whitelist} **الوايت ليست**\n${DIVIDER}\n**الأعضاء:** ${users}\n**الرتب:** ${roles}`);
     }
     const target = o.getMentionable('target');
     const key = interaction.guild.roles.cache.has(target.id) ? 'roles' : 'users';
@@ -257,7 +258,7 @@ async function execute(interaction) {
   if (group === 'words') {
     if (sub === 'list') {
       const words = cfgOf(guildId).words;
-      return reply.info(interaction, `🤐 **الكلمات الممنوعة (${words.length})**\n${DIVIDER}\n${words.map((w) => `||${w}||`).join(' • ') || '—'}`);
+      return reply.info(interaction, `${I.muted} **الكلمات الممنوعة (${words.length})**\n${DIVIDER}\n${words.map((w) => `||${w}||`).join(' • ') || '—'}`);
     }
     const words = o.getString('word').split(',').map((w) => w.trim().toLowerCase()).filter(Boolean);
     set((cfg) => {
@@ -324,7 +325,7 @@ module.exports = {
   id: 'protection',
   name: 'Protection Plugin',
   nameAr: 'بلوقن الحماية',
-  emoji: '🛡️',
+  emoji: I.protection,
   description: 'مضاد سبام، روابط، منشن، كلمات ممنوعة، رايد، تخريب (Anti-Nuke) وبوتات.',
   defaults: {
     features: { antiSpam: true, antiLink: true, antiMention: true, badWords: false, antiRaid: false, antiNuke: false, antiBot: false },
@@ -340,10 +341,10 @@ module.exports = {
   dashboard: [
     {
       title: 'الحمايات المفعلة',
-      fields: Object.entries(FEATURES).map(([key, f]) => ({ key: `features.${key}`, type: 'bool', label: `${f.emoji} ${f.label}`, hint: f.desc })),
+      fields: Object.entries(FEATURES).map(([key, f]) => ({ key: `features.${key}`, type: 'bool', label: f.label, hint: f.desc })),
     },
     {
-      title: '💬 مضاد السبام',
+      title: 'مضاد السبام', icon: 'message',
       fields: [
         { key: 'spam.messages', type: 'number', label: 'عدد الرسائل', min: 3, max: 20 },
         { key: 'spam.seconds', type: 'number', label: 'خلال (ثواني)', min: 2, max: 60 },
@@ -352,14 +353,14 @@ module.exports = {
       ],
     },
     {
-      title: '🔗 الروابط والمنشن',
+      title: 'الروابط والمنشن', icon: 'link',
       fields: [
         { key: 'links.invitesOnly', type: 'bool', label: 'منع روابط الدعوات فقط', hint: 'إذا طفيته ينمنع أي رابط' },
         { key: 'mentions.max', type: 'number', label: 'أقصى منشن في رسالة', min: 2, max: 50 },
       ],
     },
     {
-      title: '🚪 الرايد و 💣 التخريب',
+      title: 'الرايد والتخريب', icon: 'raid',
       fields: [
         { key: 'raid.joins', type: 'number', label: 'عدد الداخلين = رايد', min: 3, max: 100 },
         { key: 'raid.seconds', type: 'number', label: 'خلال (ثواني)', min: 3, max: 300 },
@@ -369,7 +370,7 @@ module.exports = {
       ],
     },
     {
-      title: '🤍 الاستثناءات والكلمات',
+      title: 'الاستثناءات والكلمات', icon: 'whitelist',
       fields: [
         { key: 'whitelist.roles', type: 'roles', label: 'رتب الوايت ليست' },
         { key: 'whitelist.users', type: 'tags', label: 'أعضاء الوايت ليست (آيديات)', snowflake: true, hint: 'الصق آيدي العضو واضغط Enter' },

@@ -1,6 +1,7 @@
 (() => {
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+  const ic = (name) => `<svg class="ic" aria-hidden="true"><use href="/icons.svg#${name}"/></svg>`;
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
   // Nav background on scroll
@@ -74,7 +75,7 @@
     grid.innerHTML = plugins.map((p) => `
       <button class="plugin reveal" data-plugin="${esc(p.id)}">
         <span class="count">${commands.filter((c) => c.plugin === p.id).length} أمر</span>
-        <span class="plugin-icon">${esc(p.emoji)}</span>
+        <span class="plugin-icon">${ic(esc(p.icon))}</span>
         <span>
           <h3>${esc(p.nameAr)}</h3>
           <span class="tag">@${esc(p.name)}</span>
@@ -98,7 +99,7 @@
   function renderChips() {
     const chips = $('#chips');
     chips.innerHTML = [`<button class="chip" data-plugin="all">الكل</button>`]
-      .concat(plugins.map((p) => `<button class="chip" data-plugin="${esc(p.id)}">${esc(p.emoji)} ${esc(p.nameAr.replace(/^بلوقن\s*/, ''))}</button>`))
+      .concat(plugins.map((p) => `<button class="chip" data-plugin="${esc(p.id)}">${ic(esc(p.icon))} ${esc(p.nameAr.replace(/^بلوقن\s*/, ''))}</button>`))
       .join('');
     $$('.chip', chips).forEach((c) => c.addEventListener('click', () => setFilter(c.dataset.plugin)));
   }
@@ -128,7 +129,7 @@
 
     list.innerHTML = groups.map((g) => `
       <div class="group">
-        <h3 class="group-title">${esc(g.plugin.emoji)} ${esc(g.plugin.nameAr)} <small>${g.items.length}</small></h3>
+        <h3 class="group-title">${ic(esc(g.plugin.icon))} ${esc(g.plugin.nameAr)} <small>${g.items.length}</small></h3>
         <div class="group-grid">
           ${g.items.map((c) => `
             <button class="cmd" data-usage="${esc(c.usage)}">
@@ -162,6 +163,25 @@
     }
   }
 
+  // Discord account in the navbar
+  async function loadAccount() {
+    try {
+      const res = await fetch('/api/me', { credentials: 'same-origin' });
+      if (!res.ok) return;
+      const { user } = await res.json();
+      const avatar = user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64` : '/assets/logo-96.png';
+      $('#account').innerHTML = `
+        <a class="user-chip" href="/dashboard" title="لوحة التحكم">
+          <img src="${esc(avatar)}" alt=""><span>${esc(user.username)}</span>${ic('settings')}
+        </a>
+        <a class="icon-link" href="/auth/logout" title="تسجيل الخروج">${ic('joined')}</a>`;
+      const cta = $('#hero-cta');
+      cta.href = '/dashboard';
+      cta.innerHTML = `${ic('settings')}<span>لوحة التحكم</span>`;
+    } catch { /* stay logged out */ }
+  }
+
+  loadAccount();
   loadStats();
   loadCommands();
   setInterval(loadStats, 30000);

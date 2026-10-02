@@ -1,6 +1,7 @@
 // Sword visual identity: black steel, silver edges and a drop of crimson.
 const path = require('node:path');
 const { EmbedBuilder, AttachmentBuilder, MessageFlags } = require('discord.js');
+const { I, text: iconText } = require('./icons');
 
 const ASSETS = path.join(__dirname, '..', '..', 'assets');
 
@@ -13,17 +14,18 @@ const colors = {
   warn: 0x8a8a8a,
 };
 
+// Icon handles (custom Discord emojis uploaded from assets/icons).
 const emoji = {
-  sword: '⚔️',
-  blade: '🗡️',
-  gate: '⛩️',
-  success: '✅',
-  error: '⛔',
-  warn: '⚠️',
-  info: '📜',
+  sword: I.sword,
+  blade: I.blade,
+  gate: I.sword,
+  success: I.success,
+  error: I.error,
+  warn: I.warn,
+  info: I.info,
   dot: '▸',
-  on: '🟢',
-  off: '🔴',
+  on: I.on,
+  off: I.off,
 };
 
 const DIVIDER = '━━━━━━━━━━━━━━━━━━━━━━━';
@@ -49,7 +51,7 @@ const url = (key) => `attachment://${images[key]}`;
  * `image` takes one of the brand image keys (or a full URL).
  * Returns { embed, files } so callers can spread files into the payload.
  */
-function card({ title, description, color = 'primary', fields, image, brand = true, footer, thumbnail } = {}) {
+function card({ title, icon, description, color = 'primary', fields, image, brand = true, footer, thumbnail } = {}) {
   const embed = new EmbedBuilder().setColor(colors[color] ?? color);
   const files = [];
   const use = (key) => {
@@ -57,7 +59,7 @@ function card({ title, description, color = 'primary', fields, image, brand = tr
     return url(key);
   };
 
-  if (title) embed.setTitle(title);
+  if (title) embed.setTitle(icon ? `${iconText(icon)} ${title}`.trim() : title);
   if (description) embed.setDescription(description);
   if (fields?.length) embed.addFields(fields);
   if (brand) {

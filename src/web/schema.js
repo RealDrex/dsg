@@ -2,6 +2,7 @@
 // in the schema can change; everything is type-checked against the live guild.
 const crypto = require('node:crypto');
 const { ChannelType } = require('discord.js');
+const { isIcon } = require('../core/icons');
 
 const TEXT_TYPES = [ChannelType.GuildText, ChannelType.GuildAnnouncement];
 const SNOWFLAKE = /^\d{17,20}$/;
@@ -46,6 +47,15 @@ function value(field, input, guild, previous) {
       const allowed = field.options.map((o) => o.value);
       if (!allowed.includes(input)) throw new FieldError(field, 'اختيار غير صحيح');
       return input;
+    }
+    case 'icon': {
+      if (isNull) {
+        if (field.required) throw new FieldError(field, 'اختر أيقونة');
+        return null;
+      }
+      // Icon names from the Sword set; older configs may still hold a typed emoji.
+      if (isIcon(input) || (input === previous && typeof input === 'string')) return input;
+      throw new FieldError(field, 'أيقونة غير معروفة');
     }
     case 'channel':
     case 'category': {

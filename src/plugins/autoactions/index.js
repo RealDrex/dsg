@@ -2,6 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('disco
 const store = require('../../core/store');
 const { file, simple, emoji, DIVIDER, reply } = require('../../core/theme');
 const { fill } = require('../../utils/text');
+const { I } = require('../../core/icons');
 
 const MATCH = {
   exact: { label: 'مطابق تماماً', test: (text, t) => text === t },
@@ -56,7 +57,7 @@ async function replyCommand(interaction) {
   if (sub === 'list') {
     const list = store.get(guildId, 'autoactions').replies;
     const body = list.map((r) => `${emoji.dot} \`${r.trigger}\` (${MATCH[r.match].label}) ← ${r.response.slice(0, 60)}`);
-    return reply.info(interaction, `💬 **الردود التلقائية (${list.length})**\n${DIVIDER}\n${body.join('\n') || '—'}`);
+    return reply.info(interaction, `${I.message} **الردود التلقائية (${list.length})**\n${DIVIDER}\n${body.join('\n') || '—'}`);
   }
   const trigger = o.getString('trigger').trim().toLowerCase();
   store.update(guildId, 'autoactions', (cfg) => {
@@ -89,7 +90,7 @@ async function reactCommand(interaction) {
   const { guildId } = interaction;
   if (sub === 'list') {
     const list = store.get(guildId, 'autoactions').reactions;
-    return reply.info(interaction, `😀 **الرياكشن التلقائي**\n${DIVIDER}\n${list.map((r) => `<#${r.channelId}> ← ${r.emojis.join(' ')}`).join('\n') || '—'}`);
+    return reply.info(interaction, `${I.react} **الرياكشن التلقائي**\n${DIVIDER}\n${list.map((r) => `<#${r.channelId}> ← ${r.emojis.join(' ')}`).join('\n') || '—'}`);
   }
   const channel = interaction.options.getChannel('channel');
   const emojis = sub === 'add' ? interaction.options.getString('emojis').split(/\s+/).filter(Boolean).slice(0, 5) : [];
@@ -115,13 +116,13 @@ async function lineCommand(interaction) {
   const { guildId } = interaction;
   if (sub === 'list') {
     const cfg = store.get(guildId, 'autoactions').lines;
-    return reply.info(interaction, `🗡️ **الخط التلقائي**\n${DIVIDER}\n${cfg.channels.map((id) => `<#${id}>`).join(' ') || '—'}\nالصورة: ${cfg.image || 'خط سيف Sword'}`);
+    return reply.info(interaction, `${I.blade} **الخط التلقائي**\n${DIVIDER}\n${cfg.channels.map((id) => `<#${id}>`).join(' ') || '—'}\nالصورة: ${cfg.image || 'خط سيف Sword'}`);
   }
   if (sub === 'image') {
     const url = interaction.options.getString('url');
     if (url && !/^https?:\/\/\S+$/i.test(url)) return reply.error(interaction, 'رابط غير صحيح.');
     store.update(guildId, 'autoactions', (cfg) => { cfg.lines.image = url || null; });
-    return reply.success(interaction, url ? 'تم تحديث صورة الخط.' : 'رجع خط سيف Sword الافتراضي ⚔️');
+    return reply.success(interaction, url ? 'تم تحديث صورة الخط.' : `رجع خط سيف Sword الافتراضي ${I.sword}`);
   }
   const channel = interaction.options.getChannel('channel');
   store.update(guildId, 'autoactions', (cfg) => {
@@ -135,7 +136,7 @@ module.exports = {
   id: 'autoactions',
   name: 'Autoactions Plugin',
   nameAr: 'بلوقن الرد والرياكشن والخطوط التلقائية',
-  emoji: '💬',
+  emoji: I.autoactions,
   description: 'ردود تلقائية، رياكشن تلقائي على رومات، وخط سيف فاصل بعد الرسائل.',
   defaults: { replies: [], reactions: [], lines: { channels: [], image: null } },
   commands: [
@@ -153,7 +154,7 @@ module.exports = {
   ],
   dashboard: [
     {
-      title: '💬 الردود التلقائية',
+      title: 'الردود التلقائية', icon: 'message',
       description: 'المتغيرات في الرد: {user} {username} {server}',
       fields: [
         {
@@ -169,7 +170,7 @@ module.exports = {
       ],
     },
     {
-      title: '😀 الرياكشن التلقائي',
+      title: 'الرياكشن التلقائي', icon: 'react',
       fields: [
         {
           key: 'reactions', type: 'list', label: 'الرومات', addLabel: 'إضافة روم', max: 50,
@@ -181,7 +182,7 @@ module.exports = {
       ],
     },
     {
-      title: '🗡️ الخط التلقائي',
+      title: 'الخط التلقائي', icon: 'blade',
       fields: [
         { key: 'lines.channels', type: 'channels', label: 'رومات الخط' },
         { key: 'lines.image', type: 'text', label: 'رابط صورة خط مخصصة', max: 500, nullable: true, pattern: '^https?://\\S+$', hint: 'فاضي = خط سيف Sword' },

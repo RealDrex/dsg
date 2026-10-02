@@ -36,7 +36,7 @@
       <button class="server" id="server-btn" type="button">
         <img id="server-icon" src="/assets/logo-96.png" alt="">
         <span><b id="server-name">—</b><small id="server-meta"></small></span>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+        <svg class="ic" aria-hidden="true"><use href="/icons.svg#down"/></svg>
       </button>
       <div class="menu-label">القوائم</div>
       <nav class="menu" id="menu"></nav>
@@ -52,7 +52,7 @@
         <div class="me">
           <img id="me-avatar" src="/assets/logo-96.png" alt="">
           <span id="me-name">—</span>
-          <a class="logout" href="/auth/logout" title="تسجيل الخروج">خروج</a>
+          <a class="logout" href="/auth/logout" title="تسجيل الخروج"><svg class="ic"><use href="/icons.svg#joined"/></svg> خروج</a>
         </div>
       </header>
 
@@ -79,7 +79,7 @@
   </div>
 
   <div class="savebar" id="savebar">
-    <span>⚠️ عندك تغييرات ما انحفظت</span>
+    <span class="savebar-text"><svg class="ic"><use href="/icons.svg#warn"/></svg> عندك تغييرات ما انحفظت</span>
     <div>
       <button class="btn btn-ghost btn-sm" id="reset-btn" type="button">تراجع</button>
       <button class="btn btn-primary btn-sm" id="save-btn" type="button">حفظ التغييرات</button>

@@ -2,15 +2,16 @@ const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('disco
 const store = require('../../core/store');
 const { emoji, DIVIDER, reply } = require('../../core/theme');
 const logger = require('../../core/logger');
+const { I } = require('../../core/icons');
 
 const TYPES = {
-  members: { label: 'كل الأعضاء', template: '👥・الأعضاء: {count}', count: (g) => g.memberCount },
-  humans: { label: 'البشر', template: '👤・الأعضاء: {count}', count: (g) => g.members.cache.filter((m) => !m.user.bot).size },
-  bots: { label: 'البوتات', template: '🤖・البوتات: {count}', count: (g) => g.members.cache.filter((m) => m.user.bot).size },
-  voice: { label: 'المتواجدين بالفويس', template: '🔊・بالفويس: {count}', count: (g) => g.voiceStates.cache.filter((v) => v.channelId).size },
-  boosts: { label: 'البوستات', template: '💎・البوستات: {count}', count: (g) => g.premiumSubscriptionCount || 0 },
-  roles: { label: 'الرتب', template: '🎭・الرتب: {count}', count: (g) => g.roles.cache.size - 1 },
-  channels: { label: 'الرومات', template: '💬・الرومات: {count}', count: (g) => g.channels.cache.filter((c) => c.type !== ChannelType.GuildCategory).size },
+  members: { label: 'كل الأعضاء', template: 'الأعضاء ┃ {count}', count: (g) => g.memberCount },
+  humans: { label: 'البشر', template: 'الأعضاء ┃ {count}', count: (g) => g.members.cache.filter((m) => !m.user.bot).size },
+  bots: { label: 'البوتات', template: 'البوتات ┃ {count}', count: (g) => g.members.cache.filter((m) => m.user.bot).size },
+  voice: { label: 'المتواجدين بالفويس', template: 'بالفويس ┃ {count}', count: (g) => g.voiceStates.cache.filter((v) => v.channelId).size },
+  boosts: { label: 'البوستات', template: 'البوستات ┃ {count}', count: (g) => g.premiumSubscriptionCount || 0 },
+  roles: { label: 'الرتب', template: 'الرتب ┃ {count}', count: (g) => g.roles.cache.size - 1 },
+  channels: { label: 'الرومات', template: 'الرومات ┃ {count}', count: (g) => g.channels.cache.filter((c) => c.type !== ChannelType.GuildCategory).size },
 };
 
 const nameFor = (guild, counter) => (counter.template || TYPES[counter.type].template).replace('{count}', TYPES[counter.type].count(guild).toLocaleString('en-US'));
@@ -52,7 +53,7 @@ async function execute(interaction) {
 
   if (sub === 'list') {
     const list = cfg.counters.map((c) => `${emoji.dot} <#${c.channelId}> — ${TYPES[c.type].label}`);
-    return reply.info(interaction, `📊 **العدادات**\n${DIVIDER}\n${list.join('\n') || '—'}\n\n*تتحدث تلقائياً كل 10 دقائق (حد ديسكورد).*`);
+    return reply.info(interaction, `${I.counters} **العدادات**\n${DIVIDER}\n${list.join('\n') || '—'}\n\n*تتحدث تلقائياً كل 10 دقائق (حد ديسكورد).*`);
   }
   if (sub === 'refresh') {
     await interaction.deferReply({ flags: 64 });
@@ -77,7 +78,7 @@ async function createCounter(guild, type, template) {
   if (['humans', 'bots'].includes(type)) await guild.members.fetch().catch(() => null);
   let category = cfg.categoryId && guild.channels.cache.get(cfg.categoryId);
   if (!category) {
-    category = await guild.channels.create({ name: '📊 Sword Stats', type: ChannelType.GuildCategory, position: 0 });
+    category = await guild.channels.create({ name: 'Sword Stats', type: ChannelType.GuildCategory, position: 0 });
     store.update(guild.id, 'counters', (c) => { c.categoryId = category.id; });
   }
   const counter = { type, template: template || null };
@@ -100,13 +101,13 @@ module.exports = {
   id: 'counters',
   name: 'Counters Plugin',
   nameAr: 'بلوقن العدادات',
-  emoji: '📊',
+  emoji: I.counters,
   description: 'رومات فويس تعرض عدد الأعضاء، البوتات، الفويس، البوستات وغيرها وتتحدث تلقائياً.',
   defaults: { categoryId: null, counters: [] },
   commands: [{ data, execute }],
   dashboard: [
     {
-      title: '📊 العدادات الحالية',
+      title: 'العدادات الحالية', icon: 'counters',
       description: 'تقدر تعدل شكل الاسم ({count} = الرقم) أو تحذف عداد — الحذف يحذف رومه.',
       fields: [
         {

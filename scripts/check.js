@@ -37,6 +37,26 @@ for (const command of commands.values()) {
 }
 if (commands.size > 100) fail(`${commands.size} top-level commands (Discord limit is 100)`);
 
+// Icons: every I.name used in code exists, with a PNG (Discord) and a sprite symbol (website).
+const fs = require('node:fs');
+const path = require('node:path');
+const ICONS = require('../src/core/icon-list');
+const sprite = fs.readFileSync(path.join(__dirname, '..', 'src', 'web', 'public', 'icons.svg'), 'utf8');
+const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? walk(path.join(dir, d.name)) : [path.join(dir, d.name)]));
+for (const file of walk(path.join(__dirname, '..', 'src')).filter((f) => f.endsWith('.js'))) {
+  for (const [, name] of fs.readFileSync(file, 'utf8').matchAll(/\bI\.([a-zA-Z]+)\b/g)) {
+    if (!ICONS[name]) fail(`${path.relative(process.cwd(), file)}: unknown icon I.${name}`);
+  }
+}
+for (const name of Object.keys(ICONS)) {
+  if (!fs.existsSync(path.join(__dirname, '..', 'assets', 'icons', `${name}.png`))) fail(`icon ${name}: missing PNG (npm run icons)`);
+  if (!sprite.includes(`id="${name}"`)) fail(`icon ${name}: missing from icons.svg (npm run icons)`);
+}
+for (const plugin of plugins.values()) {
+  if (!plugin.emoji?.key) fail(`plugin ${plugin.id}: emoji must be an icon (I.name)`);
+  for (const section of plugin.dashboard || []) if (section.icon && !ICONS[section.icon]) fail(`plugin ${plugin.id}: unknown section icon ${section.icon}`);
+}
+
 const all = describeCommands(plugins);
 for (const plugin of plugins.values()) {
   console.log(`${plugin.emoji}  ${plugin.nameAr.padEnd(32)} ${String(plugin.commands.length).padStart(2)} commands, ${all.filter((c) => c.plugin === plugin.id).length} total`);

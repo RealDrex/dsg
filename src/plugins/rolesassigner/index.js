@@ -5,6 +5,7 @@ const {
 const store = require('../../core/store');
 const { card, emoji, DIVIDER, reply } = require('../../core/theme');
 const { canManageRole } = require('../../utils/perms');
+const { I } = require('../../core/icons');
 
 const CUSTOM_EMOJI = /^<a?:\w+:(\d+)>$/;
 const emojiKey = (text) => text.match(CUSTOM_EMOJI)?.[1] || text;
@@ -29,8 +30,8 @@ async function onReaction(reaction, user, added) {
 function renderPanel(panel) {
   const lines = panel.roles.map((r) => `${r.emoji || emoji.dot} <@&${r.roleId}>${r.label ? ` — ${r.label}` : ''}`);
   const { embed, files } = card({
-    title: `🎭 ${panel.title}`,
-    description: `${panel.description || 'اختر رتبتك من الأزرار تحت 👇'}\n${DIVIDER}\n${lines.join('\n') || '*ما فيه رتب للحين*'}`,
+    title: `${I.roles} ${panel.title}`,
+    description: `${panel.description || `اختر رتبتك من الأزرار تحت ${I.down}`}\n${DIVIDER}\n${lines.join('\n') || '*ما فيه رتب للحين*'}`,
     image: 'roles',
     footer: `Sword • ${panel.single ? 'رتبة وحدة فقط' : 'تقدر تختار أكثر من رتبة'}`,
   });
@@ -38,7 +39,7 @@ function renderPanel(panel) {
   if (panel.roles.length && panel.mode === 'select') {
     const menu = new StringSelectMenuBuilder()
       .setCustomId(`rolesassigner:sel:${panel.id}`)
-      .setPlaceholder('🎭 اختر رتبك')
+      .setPlaceholder('اختر رتبك')
       .setMinValues(0)
       .setMaxValues(panel.single ? 1 : panel.roles.length)
       .addOptions(panel.roles.map((r) => ({ label: r.label || r.name || 'Role', value: r.roleId, emoji: r.emoji || undefined })));
@@ -75,8 +76,8 @@ async function applyRoles(interaction, panel, wanted) {
   if (add.length) await member.roles.add(add, 'Sword Role Panel');
   if (remove.length) await member.roles.remove(remove, 'Sword Role Panel');
   const parts = [];
-  if (add.length) parts.push(`➕ ${add.map((id) => `<@&${id}>`).join(' ')}`);
-  if (remove.length) parts.push(`➖ ${remove.map((id) => `<@&${id}>`).join(' ')}`);
+  if (add.length) parts.push(`${I.plus} ${add.map((id) => `<@&${id}>`).join(' ')}`);
+  if (remove.length) parts.push(`${I.minus} ${remove.map((id) => `<@&${id}>`).join(' ')}`);
   return reply.success(interaction, parts.join('\n') || 'ما تغير شي.');
 }
 
@@ -102,7 +103,7 @@ async function reactionCommand(interaction) {
   if (sub === 'list') {
     const list = store.get(guildId, 'rolesassigner').reactions;
     const body = list.map((r) => `${r.emoji.match(/^\d+$/) ? `<:e:${r.emoji}>` : r.emoji} ← <@&${r.roleId}> • [الرسالة](https://discord.com/channels/${guildId}/${r.channelId}/${r.messageId})`);
-    return reply.info(interaction, `🎭 **الرياكشن رولز (${list.length})**\n${DIVIDER}\n${body.join('\n') || '—'}`);
+    return reply.info(interaction, `${I.roles} **الرياكشن رولز (${list.length})**\n${DIVIDER}\n${body.join('\n') || '—'}`);
   }
   const messageId = interaction.options.getString('message_id').trim();
   const rawEmoji = interaction.options.getString('emoji').trim();
@@ -137,7 +138,7 @@ const panelData = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
   .addSubcommand((s) => s.setName('create').setDescription('إنشاء بانل جديد')
     .addStringOption((o) => o.setName('title').setDescription('العنوان').setRequired(true).setMaxLength(100))
-    .addStringOption((o) => o.setName('mode').setDescription('الشكل').addChoices({ name: '🔘 أزرار', value: 'buttons' }, { name: '📜 قائمة اختيار', value: 'select' }))
+    .addStringOption((o) => o.setName('mode').setDescription('الشكل').addChoices({ name: 'أزرار', value: 'buttons' }, { name: `${I.info} قائمة اختيار`, value: 'select' }))
     .addStringOption((o) => o.setName('description').setDescription('الوصف (\\n لسطر جديد)').setMaxLength(1500))
     .addBooleanOption((o) => o.setName('single').setDescription('رتبة وحدة بس لكل عضو'))
     .addChannelOption((o) => o.setName('channel').setDescription('الروم').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)))
@@ -160,7 +161,7 @@ async function panelCommand(interaction) {
 
   if (sub === 'list') {
     const list = Object.values(cfg.panels).map((p) => `\`#${p.id}\` **${p.title}** • ${p.roles.length} رتبة • <#${p.channelId}>`);
-    return reply.info(interaction, `🎭 **بانلات الرتب**\n${DIVIDER}\n${list.join('\n') || '—'}`);
+    return reply.info(interaction, `${I.roles} **بانلات الرتب**\n${DIVIDER}\n${list.join('\n') || '—'}`);
   }
 
   if (sub === 'create') {
@@ -230,7 +231,7 @@ module.exports = {
   id: 'rolesassigner',
   name: 'Rolesassigner Plugin',
   nameAr: 'بلوقن الرياكشن والسلكت رول',
-  emoji: '🎭',
+  emoji: I.roles,
   description: 'رتب بالرياكشن، وبانلات رتب بأزرار أو قائمة اختيار بثيم Sword.',
   defaults: { reactions: [], panels: {}, nextPanel: 1 },
   commands: [
@@ -239,7 +240,7 @@ module.exports = {
   ],
   dashboard: [
     {
-      title: '🎭 البانلات والرياكشن رولز',
+      title: 'البانلات والرياكشن رولز', icon: 'roles',
       description: 'البانلات تنشأ من ديسكورد عشان تختار مكانها: /بانل_رتب إنشاء ثم /بانل_رتب إضافة. والرياكشن رولز بـ /رتب_رياكشن إضافة. تقدر تحذفها من هنا.',
       fields: [
         {

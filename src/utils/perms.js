@@ -1,3 +1,5 @@
+const { I } = require('../core/icons');
+
 // Role hierarchy checks shared by moderation commands.
 function checkTarget(interaction, target, action = 'هذا الإجراء') {
   const { guild, member: moderator } = interaction;
@@ -5,7 +7,7 @@ function checkTarget(interaction, target, action = 'هذا الإجراء') {
   if (!target) return null;
   if (target.id === moderator.id) return `ما تقدر تسوي ${action} على نفسك.`;
   if (target.id === guild.ownerId) return 'ما تقدر تعاقب مالك السيرفر.';
-  if (target.id === me.id) return 'ما أقدر أسوي هذا على نفسي ⚔️';
+  if (target.id === me.id) return `ما أقدر أسوي هذا على نفسي ${I.sword}`;
   if (moderator.id !== guild.ownerId && target.roles.highest.position >= moderator.roles.highest.position) {
     return 'رتبة العضو أعلى منك أو مساوية لك.';
   }

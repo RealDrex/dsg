@@ -4,10 +4,15 @@ const logger = require('./core/logger');
 const { loadPlugins } = require('./core/loader');
 const { bindEvents, handleInteraction } = require('./core/handler');
 const { handlePrefix } = require('./core/prefix');
+const icons = require('./core/icons');
+const path = require('node:path');
+
+// Exit code 78 = configuration problem: start.bat stops instead of restarting.
+const CONFIG_ERROR = 78;
 
 if (!config.token) {
-  logger.error('DISCORD_TOKEN مو موجود. انسخ .env.example إلى .env وحط التوكن.');
-  process.exit(1);
+  logger.error('DISCORD_TOKEN مو موجود — افتح ملف .env وحط التوكن (أو شغّل install.bat).');
+  process.exit(CONFIG_ERROR);
 }
 
 const client = new Client({
@@ -36,7 +41,12 @@ client.on(Events.MessageCreate, handlePrefix);
 
 client.once(Events.ClientReady, async () => {
   logger.info(`⚔️  ${client.user.tag} جاهز — ${plugins.size} بلوقن، ${commands.size} أمر، ${client.guilds.cache.size} سيرفر`);
-  client.user.setPresence({ activities: [{ name: 'Sword ⚔️ /مساعدة', type: ActivityType.Watching }], status: 'online' });
+  client.user.setPresence({ activities: [{ name: 'Sword • /مساعدة', type: ActivityType.Watching }], status: 'online' });
+  try {
+    await icons.sync(client, { dataDir: path.dirname(path.resolve(config.dbPath)) });
+  } catch (err) {
+    logger.warn('تعذر رفع الأيقونات:', err.message);
+  }
   for (const plugin of plugins.values()) {
     try {
       await plugin.ready?.(client);
@@ -49,4 +59,7 @@ client.once(Events.ClientReady, async () => {
 if (config.web.enabled) require('./web/server').start(client);
 
 process.on('unhandledRejection', (err) => logger.error('Unhandled rejection:', err));
-client.login(config.token);
+client.login(config.token).catch((err) => {
+  logger.error('فشل تسجيل دخول البوت — تأكد من DISCORD_TOKEN وتفعيل Intents في Developer Portal:', err.message);
+  process.exit(CONFIG_ERROR);
+});
