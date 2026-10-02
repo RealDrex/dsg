@@ -1,0 +1,22 @@
+{
+  "name": "sword-bot",
+  "version": "1.0.0",
+  "description": "Sword — بوت سستم متكامل لسيرفر Sword: إدارة، حماية، تذاكر، لفلات، رولات، لوقات وموقع",
+  "main": "src/index.js",
+  "private": true,
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy": "node src/deploy.js",
+    "web": "node src/web/standalone.js",
+    "check": "node scripts/check.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "discord.js": "^14.27.0",
+    "dotenv": "^16.6.1",
+    "express": "^5.2.1"
+  }
+}

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sword — بوت السستم</title>
+  <meta name="description" content="Sword: بوت سستم متكامل لإدارة وحماية سيرفر Sword — تذاكر، لفلات، رتب، لوقات وأكثر.">
+  <meta name="theme-color" content="#050505">
+  <meta property="og:title" content="Sword — بوت السستم">
+  <meta property="og:description" content="إدارة، حماية، تذاكر، لفلات، رتب ولوقات — كل شي بمكان واحد.">
+  <meta property="og:image" content="/assets/banner.png">
+  <link rel="icon" href="/assets/logo-96.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;800&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <nav class="nav" id="nav">
+    <a class="brand" href="#top"><img src="/assets/logo-96.png" alt=""><span>SWORD</span></a>
+    <div class="nav-links">
+      <a href="#features">المميزات</a>
+      <a href="#plugins">البلوقنات</a>
+      <a href="#commands">الأوامر</a>
+    </div>
+    <a class="btn btn-ghost btn-sm invite-link" href="#" hidden>انضم للسيرفر</a>
+  </nav>
+
+  <header class="hero" id="top">
+    <div class="hero-art" aria-hidden="true">
+      <img src="/assets/samurai.png" alt="">
+      <span class="kana">ジョー</span>
+    </div>
+    <div class="hero-content">
+      <div class="status" id="status"><span class="dot"></span><span class="status-text">جاري الاتصال…</span></div>
+      <h1 class="title">SWORD</h1>
+      <img class="katana" src="/assets/line.png" alt="">
+      <p class="lead">بوت سستم متكامل صُنع لسيرفر <b>Sword</b> — إدارة، حماية، تذاكر، لفلات، رتب ولوقات. كل شي مرتب وواضح بأوامر سلاش.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="#commands">استعرض الأوامر</a>
+        <a class="btn btn-ghost invite-link" href="#" hidden>انضم للسيرفر</a>
+      </div>
+    </div>
+    <a class="scroll-hint" href="#stats" aria-label="انزل"><span></span></a>
+  </header>
+
+  <section class="stats" id="stats">
+    <div class="stat reveal"><b data-stat="plugins">—</b><span>بلوقن</span></div>
+    <div class="stat reveal"><b data-stat="commands">—</b><span>أمر</span></div>
+    <div class="stat reveal"><b data-stat="members">—</b><span>عضو</span></div>
+    <div class="stat reveal"><b data-stat="uptime">—</b><span>مدة التشغيل</span></div>
+  </section>
+
+  <section class="section" id="features">
+    <div class="section-head reveal">
+      <span class="eyebrow">ليش Sword؟</span>
+      <h2>حدّة السيف في إدارة سيرفرك</h2>
+    </div>
+    <div class="features">
+      <article class="feature reveal">
+        <div class="feature-icon">🛡️</div>
+        <h3>حماية بطبقات</h3>
+        <p>مضاد سبام وروابط ومنشن، فلتر كلمات، مضاد رايد، ومضاد تخريب يسحب الرتب من أي أحد يحاول يخرب.</p>
+      </article>
+      <article class="feature reveal">
+        <div class="feature-icon">🎫</div>
+        <h3>تذاكر احترافية</h3>
+        <p>بانل بشعار Sword، أنواع متعددة، استلام التذكرة، وترانسكربت HTML بثيم السيرفر لكل تذكرة.</p>
+      </article>
+      <article class="feature reveal">
+        <div class="feature-icon">📈</div>
+        <h3>لفلات وتفاعل</h3>
+        <p>XP بالرسائل والفويس، رتب مكافآت، رسائل لفل أب، وتوب للمتفاعلين.</p>
+      </article>
+      <article class="feature reveal">
+        <div class="feature-icon">⚙️</div>
+        <h3>كل شي تتحكم فيه</h3>
+        <p>شغّل وطفّ أي بلوقن بضغطة من <code>/plugins</code>، وكل الإعدادات بأوامر سلاش مرتبة.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" id="plugins">
+    <div class="section-head reveal">
+      <span class="eyebrow">البلوقنات</span>
+      <h2>اثنا عشر سيف في غمد واحد</h2>
+      <p class="muted">اضغط على أي بلوقن عشان تشوف أوامره.</p>
+    </div>
+    <div class="plugins" id="plugin-grid"></div>
+  </section>
+
+  <section class="section" id="commands">
+    <div class="section-head reveal">
+      <span class="eyebrow">الأوامر</span>
+      <h2>كل الأوامر في مكان واحد</h2>
+      <p class="muted"><code>&lt;&gt;</code> إجباري • <code>[]</code> اختياري • اضغط على أي أمر لنسخه</p>
+    </div>
+    <div class="toolbar">
+      <div class="search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="search" type="search" placeholder="ابحث عن أمر… مثلاً ban أو تذكرة" autocomplete="off">
+      </div>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="command-list" id="command-list"></div>
+    <p class="empty" id="empty" hidden>ما لقينا أمر بهذا الاسم ⚔️</p>
+  </section>
+
+  <footer class="footer">
+    <img class="katana small" src="/assets/line.png" alt="">
+    <div class="footer-brand"><img src="/assets/logo-96.png" alt=""><span>Sword • Private Server</span></div>
+    <p class="muted">صُنع بحب لمجتمع Sword ⚔️</p>
+  </footer>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/app.js"></script>
+</body>
+</html>
