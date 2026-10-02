@@ -2,12 +2,11 @@
 const { MessageFlags } = require('discord.js');
 const { I } = require('../../core/icons');
 const { simple, DIVIDER } = require('../../core/theme');
-const { lobby, finish, button, rows, pick, rand, shuffle, mention, matches, clean, cfgOf, post, points, ButtonStyle } = require('./engine');
+const { lobby, finish, button, rows, pick, rand, mention, matches, clean, cfgOf, post, points, ButtonStyle, art, AttachmentBuilder } = require('./engine');
 const { WORDS } = require('./data');
 
 const S = ButtonStyle;
 const ends = (seconds) => `<t:${Math.floor(Date.now() / 1000) + seconds}:R>`;
-const left = (alive) => `الباقين (${alive.length}): ${alive.map(mention).join(' ')}`;
 const note = (i, content) => i.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => null);
 const without = (list, gone) => list.filter((p) => !gone.some((g) => g.id === p.id));
 
@@ -22,6 +21,16 @@ async function done(session, game, alive) {
 }
 
 // ── روليت / روليتز ────────────────────────────────────────────────
+async function wheelMessage(session, alive, chosenIndex, round, text, components = []) {
+  const embed = simple(text, 'primary', `${I.roulette} الجولة ${round} — ${alive.length} لاعبين`).setImage('attachment://wheel.png');
+  try {
+    const file = new AttachmentBuilder(await art.wheel(alive, chosenIndex), { name: 'wheel.png' });
+    return session.send({ embeds: [embed], files: [file], components });
+  } catch {
+    return session.send({ embeds: [embed.setImage(null)], components });
+  }
+}
+
 async function roulette(session, interaction, game, { random = false } = {}) {
   let alive = await lobby(session, interaction, {
     game,
@@ -30,38 +39,39 @@ async function roulette(session, interaction, game, { random = false } = {}) {
       : 'كل جولة تدور العجلة وتوقف على لاعب، وهو **يختار مين يطرد**. إذا ما اختار خلال 20 ثانية يطلع هو. آخر واحد يبقى يفوز.',
   });
   if (!alive) return;
-  while (alive.length > 1 && session.active) {
-    const msg = await session.say(`العجلة تدور...\n${left(alive)}`, { title: game.name, icon: I[game.icon] });
-    await session.sleep(2500);
-    if (!session.active) return;
-    const chosen = pick(alive);
+  for (let round = 1; alive.length > 1 && session.active; round += 1) {
+    const order = [...alive]; // wheel order = button numbers
+    const index = rand(order.length);
+    const chosen = order[index];
     if (random) {
+      await wheelMessage(session, order, index, round, `${I.rouletteZ} وقفت العجلة على ${mention(chosen)} — **طلع من اللعبة**`);
       alive = without(alive, [chosen]);
-      await msg?.edit({ embeds: [simple(`${I.rouletteZ} وقفت العجلة على ${mention(chosen)} — **طلع من اللعبة**\n${left(alive)}`, 'accent', game.name)] });
-      await session.sleep(2500);
+      await session.sleep(3000);
       continue;
     }
-    const others = without(alive, [chosen]);
-    const choices = others.slice(0, 24).map((p) => button(session.cid('kick', p.id), p.name));
+    const choices = order.map((p, n) => ({ p, n })).filter(({ p }) => p.id !== chosen.id).slice(0, 22)
+      .map(({ p, n }) => button(session.cid('kick', p.id), `${n + 1}  ${p.name}`));
     choices.push(button(session.cid('kick', 'random'), 'عشوائي', S.Primary, I.dice));
-    await msg?.edit({
-      embeds: [simple(`${I.roulette} وقفت العجلة على ${mention(chosen)}!\nاختار مين تطرده — ينتهي ${ends(20)}`, 'primary', game.name)],
-      components: rows(choices),
-    });
+    choices.push(button(session.cid('kick', 'self'), 'انسحاب', S.Danger, I.leave));
+    const msg = await wheelMessage(session, order, index, round, `${mention(chosen)}، لديك **20 ثانية** لاختيار شخص لطرده.`, rows(choices));
     const i = await session.waitComponent({ time: 20_000, accept: (x) => x.user.id === chosen.id, deny: 'مو أنت اللي وقفت عليه العجلة' });
     if (!session.active) return;
+    const others = without(alive, [chosen]);
     let gone;
     let why;
+    const id = i && session.part(i, 3);
     if (!i) {
       gone = chosen;
       why = 'ما اختار أحد، فطلع هو';
+    } else if (id === 'self') {
+      gone = chosen;
+      why = 'انسحب من اللعبة';
     } else {
-      const id = session.part(i, 3);
       gone = id === 'random' ? pick(others) : others.find((p) => p.id === id) || pick(others);
       why = `طرده ${mention(chosen)}`;
-      await i.update({ components: [] }).catch(() => null);
     }
-    if (!i) await msg?.edit({ components: [] }).catch(() => null);
+    if (i) await i.update({ components: [] }).catch(() => null);
+    else await msg?.edit({ components: [] }).catch(() => null);
     alive = without(alive, [gone]);
     await out(session, game, [gone], why);
     await session.sleep(1500);
@@ -289,7 +299,7 @@ async function chairs(session, interaction, game) {
     const seats = new Map(); // chair -> player
     const render = () => rows(Array.from({ length: Math.min(count, 25) }, (_, c) => {
       const p = seats.get(c);
-      return p ? button(session.cid('chair', c), p.name, S.Success, null, true) : button(session.cid('chair', c), `كرسي ${c + 1}`, S.Secondary, I.chairs);
+      return p ? button(session.cid('chair', c), p.name, S.Success, null, true) : button(session.cid('chair', c), null, S.Secondary, I.chairs);
     }));
     await msg?.edit({ embeds: [simple('# اقعدوا!', 'accent', game.name)], components: render() }).catch(() => null);
     const ids = new Set(alive.map((p) => p.id));
@@ -347,58 +357,68 @@ async function dice(session, interaction, game) {
 }
 
 // ── هايد ──────────────────────────────────────────────────────────
-const SPOTS = ['الخزانة', 'تحت السرير', 'المطبخ', 'السطح', 'الحمام', 'المخزن', 'ورا الباب', 'الحديقة', 'السيارة', 'القبو',
-  'الشرفة', 'المكتبة', 'الدرج', 'الصالة', 'المرآب', 'ورا الستارة', 'الملحق', 'غرفة الغسيل', 'الخيمة', 'المجلس'];
-
+// Everyone hides behind a numbered button, then players take turns searching one button each.
 async function hide(session, interaction, game) {
   let alive = await lobby(session, interaction, {
     game,
-    rules: 'كل جولة اختار مكان تتخبى فيه (محد يشوف اختيارك).\nبعدها الباحث يدور في كم مكان — اللي ينلقى أو ما يتخبى يطلع.',
+    rules: 'كل لاعب يتخبى ورا زر من **1** إلى **12** (محد يشوف اختيارك).\nبعدها بالدور، كل لاعب يختار زر يدور فيه — اللي يكون مختبي فيه يطلع. آخر واحد يبقى يفوز.',
   });
   if (!alive) return;
-  let stale = 0;
-  let allCaught = 0;
-  while (alive.length > 1 && session.active) {
-    const spots = shuffle(SPOTS).slice(0, Math.min(alive.length + 3, SPOTS.length));
-    const hidden = new Map();
-    const ids = new Set(alive.map((p) => p.id));
-    const msg = await session.send({
-      embeds: [simple(`تخبوا! اختار مكانك — ينتهي ${ends(15)}`, 'primary', `${I.hideSeek} ${game.name}`)],
-      components: rows(spots.map((s, n) => button(session.cid('spot', n), s))),
+  const SPOTS = 12;
+  const hidden = new Map();
+  const ids = new Set(alive.map((p) => p.id));
+  const hideMsg = await session.send({
+    embeds: [simple(`تخبوا! اختار رقم تتخبى وراه — ينتهي ${ends(20)}`, 'primary', `${I.hideSeek} ${game.name}`)],
+    components: rows(Array.from({ length: SPOTS }, (_, n) => button(session.cid('spot', n), String(n + 1))), 3),
+  });
+  await new Promise((resolve) => {
+    const c = session.components({ time: 20_000, filter: (i) => session.part(i) === 'spot' });
+    c.on('collect', (i) => {
+      if (!ids.has(i.user.id)) return note(i, 'أنت مو باللعبة');
+      const n = Number(session.part(i, 3));
+      hidden.set(i.user.id, n);
+      note(i, `تخبيت ورا الزر رقم **${n + 1}**`);
+      if (hidden.size === alive.length) c.stop('all');
     });
-    await new Promise((resolve) => {
-      const c = session.components({ time: 15_000 });
-      c.on('collect', (i) => {
-        if (!ids.has(i.user.id)) return note(i, 'أنت مو باللعبة');
-        const n = Number(session.part(i, 3));
-        hidden.set(i.user.id, n);
-        note(i, `تخبيت في **${spots[n]}**`);
-        if (hidden.size === alive.length) c.stop('all');
-      });
-      c.once('end', resolve);
-    });
-    if (!session.active) return;
-    await msg?.edit({ components: [] }).catch(() => null);
-    // The seeker checks more places the longer nobody gets caught.
-    const searched = new Set(shuffle(spots.map((_, n) => n)).slice(0, Math.max(1, Math.floor(alive.length / 2)) + stale));
-    await session.say(`الباحث يدور في: ${[...searched].map((n) => `**${spots[n]}**`).join(' ، ')}...`, { icon: I.hideSeek, title: game.name });
-    await session.sleep(2500);
-    let gone = alive.filter((p) => !hidden.has(p.id) || searched.has(hidden.get(p.id)));
-    if (gone.length === alive.length) {
-      allCaught += 1;
-      if (allCaught < 2) {
-        await session.say('انمسك الكل! نعيد الجولة', { color: 'warn' });
-        continue;
-      }
-      const lucky = pick(alive); // second time in a row: one lucky survivor
-      gone = without(alive, [lucky]);
-      await session.say(`انمسك الكل مرة ثانية — ${mention(lucky)} هرب بالحظ!`, { color: 'warn' });
-    } else allCaught = 0;
-    stale = gone.length ? 0 : stale + 1;
-    alive = without(alive, gone);
-    if (gone.length) await out(session, game, gone, 'انمسكوا أو ما تخبوا');
-    else await session.say('محد انمسك!', { color: 'success' });
+    c.once('end', resolve);
+  });
+  if (!session.active) return;
+  await hideMsg?.edit({ components: [] }).catch(() => null);
+  const lazy = alive.filter((p) => !hidden.has(p.id));
+  if (lazy.length === alive.length) return session.say('محد تخبى — انلغت اللعبة', { color: 'warn' });
+  if (lazy.length) {
+    alive = without(alive, lazy);
+    await out(session, game, lazy, 'ما تخبوا');
   }
+
+  const searched = new Set();
+  let turn = 0;
+  let last = '';
+  while (alive.length > 1 && session.active) {
+    const seeker = alive[turn % alive.length];
+    const board = await session.send({
+      embeds: [simple(`${last}${mention(seeker)} اختر زر للبحث عن اللاعبين المختبئين!\nاللاعبين المتبقين: **${alive.length}** • ينتهي ${ends(20)}`, 'primary', `${I.hideSeek} ${game.name}`)],
+      components: rows(Array.from({ length: SPOTS }, (_, n) => button(session.cid('seek', n), String(n + 1), searched.has(n) ? S.Danger : S.Secondary, null, searched.has(n))), 3),
+    });
+    const i = await session.waitComponent({ time: 20_000, accept: (x) => x.user.id === seeker.id && session.part(x) === 'seek', deny: 'مو دورك تدور' });
+    if (!session.active) return;
+    const open = Array.from({ length: SPOTS }, (_, n) => n).filter((n) => !searched.has(n));
+    const spot = i ? Number(session.part(i, 3)) : pick(open);
+    if (i) await i.update({ components: [] }).catch(() => null);
+    else await board?.edit({ components: [] }).catch(() => null);
+    searched.add(spot);
+    const found = alive.filter((p) => p.id !== seeker.id && hidden.get(p.id) === spot);
+    const who = i ? `اللاعب ${mention(seeker)}` : `${mention(seeker)} تأخر، فالبوت دور بداله و`;
+    if (found.length) {
+      alive = without(alive, found);
+      last = `${I.skull} ${who} وجد ${found.map(mention).join(' ، ')} في الزر رقم **${spot + 1}**!\n`;
+    } else {
+      last = `${who} لم يجد أي لاعبين في الزر رقم **${spot + 1}**.\n`;
+    }
+    if (alive.length > 1) turn = (alive.findIndex((p) => p.id === seeker.id) + 1) % alive.length;
+    if (searched.size === SPOTS) searched.clear(); // everyone left shares a spot with a seeker; start over
+  }
+  if (last && session.active) await session.say(last.trim(), { title: game.name, icon: I.hideSeek });
   await done(session, game, alive);
 }
 

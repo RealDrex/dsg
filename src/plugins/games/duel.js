@@ -2,20 +2,20 @@
 const { MessageFlags } = require('discord.js');
 const { I } = require('../../core/icons');
 const { simple } = require('../../core/theme');
-const { button, rows, pick, rand, mention, points, cfgOf, post, ButtonStyle } = require('./engine');
+const { button, rows, pick, rand, mention, points, cfgOf, post, ButtonStyle, playerOf } = require('./engine');
 
 const S = ButtonStyle;
 const ends = (seconds) => `<t:${Math.floor(Date.now() / 1000) + seconds}:R>`;
 
 // Resolves the two sides, asking a human opponent to accept first.
 async function sides(session, interaction, game) {
-  const host = { id: interaction.user.id, name: interaction.member.displayName };
+  const host = playerOf(interaction.user, interaction.member);
   const target = interaction.options.getUser('user');
   const me = interaction.client.user;
   if (!target || target.id === me.id) return { host, rival: { id: me.id, name: me.username, bot: true } };
   if (target.bot) return { error: 'ما تقدر تتحدى بوت ثاني' };
   if (target.id === host.id) return { error: 'ما تقدر تتحدى نفسك' };
-  const rival = { id: target.id, name: interaction.options.getMember('user')?.displayName || target.username };
+  const rival = playerOf(target, interaction.options.getMember('user'));
   const msg = await post(interaction, {
     content: mention(rival),
     embeds: [simple(`${mention(host)} يتحداك في **${game.name}**! تقبل؟ (ينتهي ${ends(30)})`, 'primary', `${I[game.icon]} تحدي`)],

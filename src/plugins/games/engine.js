@@ -1,12 +1,14 @@
 // Shared game machinery: one session per channel, lobbies, waiting helpers and points.
 const crypto = require('node:crypto');
 const {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, InteractionCollector, InteractionType, MessageFlags, PermissionFlagsBits,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, InteractionCollector, InteractionType, MessageFlags, PermissionFlagsBits, AttachmentBuilder,
 } = require('discord.js');
+const images = require('../../core/images');
+const art = require('./art');
 const db = require('../../core/db');
 const store = require('../../core/store');
 const { card, simple, DIVIDER } = require('../../core/theme');
-const { I, setIcon, text: iconText } = require('../../core/icons');
+const { I, setIcon, asEmoji, text: iconText } = require('../../core/icons');
 const { normalize: squash } = require('../../core/i18n');
 const logger = require('../../core/logger');
 
@@ -36,6 +38,15 @@ const shuffle = (list) => {
   return a;
 };
 const mention = (p) => `<@${p.id}>`;
+const avatarOf = (user) => user?.displayAvatarURL?.({ extension: 'png', size: 128 }) || null;
+const playerOf = (user, member) => ({ id: user.id, name: member?.displayName || user.globalName || user.username, avatar: avatarOf(user) });
+
+// Lobby image: the server's uploaded image for this game, or the generated Sword banner.
+async function lobbyImage(guildId, game) {
+  const custom = images.find(guildId, 'games', game.key);
+  if (custom) return new AttachmentBuilder(custom.file, { name: `lobby.${custom.ext}` });
+  return new AttachmentBuilder(await art.banner(game), { name: 'lobby.png' });
+}
 
 // ── Text matching ─────────────────────────────────────────────────
 // Loose compare: ignores diacritics, hamza forms, ة/ه, ى/ي, spaces, punctuation and a leading "ال".
@@ -173,8 +184,9 @@ async function post(interaction, payload) {
 const button = (customId, label, style = ButtonStyle.Secondary, icon, disabled = false) => {
   const b = new ButtonBuilder().setCustomId(customId).setStyle(style).setDisabled(disabled);
   if (label) b.setLabel(String(label).slice(0, 80));
-  if (icon) setIcon(b, icon);
-  if (!label && !icon) b.setLabel('‎');
+  const hasIcon = icon && asEmoji(icon);
+  if (hasIcon) setIcon(b, icon);
+  if (!label && !hasIcon) b.setLabel('‎'); // a button needs a label or an emoji
   return b;
 };
 const rows = (buttons, perRow = 5) => {
@@ -190,29 +202,29 @@ async function lobby(session, interaction, { game, min = 2, max = 20, rules }) {
   const cfg = cfgOf(session.guildId);
   const seconds = cfg.lobbyTime;
   const endsAt = Math.floor(Date.now() / 1000) + seconds;
-  const players = new Map([[interaction.user.id, { id: interaction.user.id, name: interaction.member.displayName }]]);
+  const players = new Map([[interaction.user.id, playerOf(interaction.user, interaction.member)]]);
+  const image = await lobbyImage(session.guildId, game);
 
-  const render = (closed = false, note) => {
+  const render = (closed = false, note, first = false) => {
     const list = [...players.values()].map((p, i) => `\`${String(i + 1).padStart(2, '0')}\` ${mention(p)}`).join('\n');
-    const { embed, files } = card({
-      title: game.name,
-      icon: I[game.icon],
+    const { embed } = card({
+      brand: false,
       description: `${rules}\n${DIVIDER}\n**اللاعبين (${players.size}/${max})**\n${list}\n${DIVIDER}\n${note || (closed ? 'بدأت اللعبة' : `تبدأ <t:${endsAt}:R> • الحد الأدنى ${min} لاعبين`)}`,
+      image: `attachment://${image.name}`,
       footer: `Sword Games • ${game.name}`,
     });
     return {
       embeds: [embed],
-      files,
+      ...(first ? { files: [image] } : {}),
       components: closed ? [] : rows([
         button(session.cid('join'), 'دخول', ButtonStyle.Success, I.plus),
         button(session.cid('leave'), 'خروج', ButtonStyle.Secondary, I.minus),
         button(session.cid('start'), 'ابدأ الحين', ButtonStyle.Primary, I.fast),
       ]),
-      attachments: [],
     };
   };
 
-  const message = await post(interaction, render());
+  const message = await post(interaction, render(false, null, true));
   const result = await new Promise((resolve) => {
     const c = session.components({ time: seconds * 1000 });
     c.on('collect', async (i) => {
@@ -220,7 +232,7 @@ async function lobby(session, interaction, { game, min = 2, max = 20, rules }) {
       if (action === 'join') {
         if (players.has(i.user.id)) return i.reply({ content: 'أنت داخل أصلاً', flags: MessageFlags.Ephemeral }).catch(() => null);
         if (players.size >= max) return i.reply({ content: 'اللعبة ممتلئة', flags: MessageFlags.Ephemeral }).catch(() => null);
-        players.set(i.user.id, { id: i.user.id, name: i.member?.displayName || i.user.username });
+        players.set(i.user.id, playerOf(i.user, i.member));
       } else if (action === 'leave') {
         if (!players.delete(i.user.id)) return i.reply({ content: 'أنت مو داخل', flags: MessageFlags.Ephemeral }).catch(() => null);
       } else if (action === 'start') {
@@ -249,7 +261,17 @@ async function finish(session, game, winners, amount) {
   if (!list.length) return session.say('ما فيه فائز هالمرة', { title: `${game.name} — انتهت`, icon: I.flag, color: 'warn' });
   for (const w of list) points.award(session.guildId, w.id, game.key, amount);
   const names = list.map(mention).join(' ، ');
-  return session.say(`${I.crown} ${names}\n${I.coins} **+${amount}** نقطة`, { title: `${game.name} — الفائز`, icon: I.trophy, color: 'success' });
+  const embed = simple(`${I.crown} ${names}\n${I.coins} **+${amount}** نقطة`, 'success', `${iconText(I.trophy)} ${game.name} — الفائز`);
+  if (list.length === 1) {
+    try {
+      const file = new AttachmentBuilder(await art.winnerCard(list[0], game, amount), { name: 'winner.png' });
+      embed.setImage('attachment://winner.png');
+      return session.send({ embeds: [embed], files: [file] });
+    } catch (err) {
+      logger.warn('winner card:', err.message);
+    }
+  }
+  return session.send({ embeds: [embed] });
 }
 
 /** Runs a game: one per channel, stoppable with "ايقاف", errors logged. */
@@ -278,5 +300,5 @@ function canStop(interaction, session) {
 
 module.exports = {
   Session, sessions, current, run, lobby, finish, post, button, rows, points, cfgOf,
-  rand, pick, shuffle, mention, matches, clean, canStop, ButtonStyle, scaled,
+  rand, pick, shuffle, mention, matches, clean, canStop, ButtonStyle, scaled, playerOf, art, AttachmentBuilder,
 };

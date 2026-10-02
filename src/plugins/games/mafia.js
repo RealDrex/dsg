@@ -74,7 +74,10 @@ async function mafia(session, interaction, game) {
     return null;
   };
 
-  for (let round = 1; session.active && !winner(); round += 1) {
+  const MAX_ROUNDS = 15;
+  let lastSaved = null; // the doctor can't protect the same player two nights in a row
+  let round = 1;
+  for (; session.active && !winner() && round <= MAX_ROUNDS; round += 1) {
     // ── Night ──
     const kills = new Map();
     let saved = null;
@@ -94,7 +97,7 @@ async function mafia(session, interaction, game) {
           if (r === 'citizen') return eph(i, 'أنت مواطن — ما عندك إجراء، نام زين');
           if (acted.has(i.user.id)) return eph(i, 'سويت إجراءك الليلة');
           const targets = r === 'mafia' ? alive.filter((p) => role.get(p.id) !== 'mafia')
-            : r === 'detective' ? alive.filter((p) => p.id !== i.user.id) : alive;
+            : r === 'detective' ? alive.filter((p) => p.id !== i.user.id) : alive.filter((p) => p.id !== lastSaved);
           const verb = { mafia: 'مين تقتلون؟', doctor: 'مين تحمي؟', detective: 'مين تحقق فيه؟' }[r];
           return eph(i, `${I[ROLES[r].icon]} ${verb}`, { components: [select(session.cid('act', round), verb, targets)] });
         }
@@ -115,6 +118,7 @@ async function mafia(session, interaction, game) {
     });
     if (!session.active) return;
 
+    lastSaved = saved;
     const { top } = tallyTop(kills);
     const victimId = top.length ? pick(top) : null;
     let morning;
@@ -160,6 +164,10 @@ async function mafia(session, interaction, game) {
   if (!session.active) return;
   reveal.stop('end');
   const side = winner();
+  if (!side) {
+    const roster = players.map((p) => `${I[ROLES[role.get(p.id)].icon]} ${mention(p)} — ${ROLES[role.get(p.id)].name}`).join('\n');
+    return session.say(`${roster}\n${DIVIDER}\nخلصت ${MAX_ROUNDS} جولة بدون حسم — تعادل!`, { title: game.name, icon: I.mafia, color: 'warn' });
+  }
   const roster = players.map((p) => `${I[ROLES[role.get(p.id)].icon]} ${mention(p)} — ${ROLES[role.get(p.id)].name}${isAlive(p.id) ? '' : ' (ميت)'}`).join('\n');
   await session.say(roster, { title: side === 'mafia' ? 'فازت المافيا!' : 'فاز المواطنين!', icon: side === 'mafia' ? I.mafia : I.trophy, color: side === 'mafia' ? 'accent' : 'success' });
   const winners = players.filter((p) => (side === 'mafia') === (role.get(p.id) === 'mafia'));

@@ -11,6 +11,7 @@ const { describeCommands, usage } = require('../core/loader');
 const { ASSETS } = require('../core/theme');
 const schema = require('./schema');
 const { LIST: ICONS } = require('../core/icons');
+const images = require('../core/images');
 
 const started = Date.now();
 const SESSION_DAYS = 7;
@@ -158,6 +159,7 @@ function start(client, plugins = client?.plugins) {
       config: schema.present(sections, store.get(guild.id, configKey(plugin))),
       actions: Object.entries(plugin.actions || {}).map(([id, a]) => ({ id, label: a.label, description: a.description, params: a.params || [], danger: !!a.danger })),
       commands: commands.filter((c) => c.plugin === plugin.id),
+      images: (plugin.images || []).map((im) => ({ ...im, custom: !!images.find(guild.id, plugin.id, im.key) })),
     };
   }
 
@@ -232,6 +234,51 @@ function start(client, plugins = client?.plugins) {
       logger.error('dashboard action:', err);
       res.status(500).json({ error: err.rawError?.message || 'فشل الإجراء — تأكد من صلاحيات البوت' });
     }
+  });
+
+  // ── Custom images (e.g. game banners) ────────────────────────
+  const imageTarget = (req, res) => {
+    const plugin = plugins.get(req.params.pluginId);
+    const entry = plugin?.images?.find((im) => im.key === req.params.key);
+    if (!entry) {
+      res.status(404).json({ error: 'صورة غير موجودة' });
+      return null;
+    }
+    return plugin;
+  };
+
+  app.get('/api/guilds/:guildId/plugins/:pluginId/images/:key', auth, guildAccess, async (req, res) => {
+    const plugin = imageTarget(req, res);
+    if (!plugin) return;
+    const custom = images.find(req.guild.id, plugin.id, req.params.key);
+    res.set('Cache-Control', 'no-store');
+    if (custom) return res.type(custom.type).sendFile(custom.file);
+    try {
+      res.type('image/png').send(await plugin.renderImage(req.params.key, req.guild));
+    } catch (err) {
+      logger.error('render image:', err);
+      res.status(500).end();
+    }
+  });
+
+  app.put('/api/guilds/:guildId/plugins/:pluginId/images/:key', auth, guildAccess,
+    express.raw({ type: () => true, limit: images.MAX_BYTES }), (req, res) => {
+      const plugin = imageTarget(req, res);
+      if (!plugin) return;
+      try {
+        images.save(req.guild.id, plugin.id, req.params.key, req.body);
+        logger.info(`🌐 ${req.user.username} رفع صورة ${plugin.id}/${req.params.key} في ${req.guild.name}`);
+        res.json(pluginPayload(req.guild, plugin));
+      } catch (err) {
+        res.status(400).json({ error: err.userFacing ? err.message : 'فشل رفع الصورة' });
+      }
+    });
+
+  app.delete('/api/guilds/:guildId/plugins/:pluginId/images/:key', auth, guildAccess, (req, res) => {
+    const plugin = imageTarget(req, res);
+    if (!plugin) return;
+    images.remove(req.guild.id, plugin.id, req.params.key);
+    res.json(pluginPayload(req.guild, plugin));
   });
 
   // ── Static ───────────────────────────────────────────────────

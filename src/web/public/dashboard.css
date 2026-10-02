@@ -180,3 +180,13 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .icon-pick:hover { color: var(--text); background: var(--card-2); }
 .icon-pick.active { color: #fff; border-color: var(--accent-2); background: rgba(196,42,49,.15); }
 .icon-pick .ic { width: 20px; height: 20px; }
+
+/* ── Image uploads ────────────────────── */
+.image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.image-card { display: grid; gap: 10px; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: #0a0a0b; }
+.image-preview { width: 100%; aspect-ratio: 5 / 2; object-fit: cover; border-radius: 10px; background: #111; border: 1px solid var(--line); }
+.image-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.image-meta b { display: inline-flex; align-items: center; gap: 8px; }
+.image-meta small { color: var(--muted); font-size: 12px; }
+.image-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.image-actions .btn { flex: 1; }

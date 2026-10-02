@@ -176,14 +176,14 @@
     $('#p-toggle-wrap').hidden = !p.toggleable;
     $('#p-toggle').checked = p.enabled;
     $$('.tab').forEach((t) => {
-      const counts = { settings: null, actions: p.actions.length, commands: p.commands.length };
+      const counts = { settings: null, actions: p.actions.length, images: p.images.length, commands: p.commands.length };
       t.classList.toggle('active', t.dataset.tab === state.tab);
-      const label = { settings: 'الإعدادات', actions: 'الإجراءات', commands: 'الأوامر' }[t.dataset.tab];
+      const label = { settings: 'الإعدادات', actions: 'الإجراءات', images: 'الصور', commands: 'الأوامر' }[t.dataset.tab];
       t.innerHTML = '';
       t.append(label, counts[t.dataset.tab] != null ? el('span', { class: 'count', text: ` (${counts[t.dataset.tab]})` }) : '');
-      t.hidden = t.dataset.tab === 'actions' && !p.actions.length;
+      t.hidden = (t.dataset.tab === 'actions' && !p.actions.length) || (t.dataset.tab === 'images' && !p.images.length);
     });
-    if (state.tab === 'actions' && !p.actions.length) state.tab = 'settings';
+    if ((state.tab === 'actions' && !p.actions.length) || (state.tab === 'images' && !p.images.length)) state.tab = 'settings';
     const panel = $('#panel');
     panel.innerHTML = '';
     if (p.toggleable && !p.enabled) {
@@ -192,6 +192,7 @@
     if (state.tab === 'settings') renderSettings(panel, p);
     if (state.tab === 'actions') renderActions(panel, p);
     if (state.tab === 'commands') renderCommands(panel, p);
+    if (state.tab === 'images') renderImages(panel, p);
   }
 
   function renderSettings(panel, p) {
@@ -408,6 +409,52 @@
         el('div', {}, el('h2', {}, icon('sparkles'), action.label), action.description ? el('p', { class: 'card-desc', text: action.description }) : null),
         row));
     }
+  }
+
+  function renderImages(panel, p) {
+    const base = `/api/guilds/${state.data.guild.id}/plugins/${p.id}/images`;
+    const grid = el('div', { class: 'image-grid' });
+    for (const im of p.images) {
+      const preview = el('img', { class: 'image-preview', alt: im.label, loading: 'lazy', src: `${base}/${im.key}?v=${Date.now()}` });
+      const input = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', hidden: true });
+      const upload = el('button', { class: 'btn btn-primary btn-sm', type: 'button', onclick: () => input.click() }, icon('image'), im.custom ? 'تغيير الصورة' : 'رفع صورة');
+      input.addEventListener('change', async () => {
+        const file = input.files[0];
+        if (!file) return;
+        if (file.size > 8 * 1024 * 1024) return toast('الصورة أكبر من 8 ميقا', true);
+        upload.disabled = true;
+        try {
+          const res = await fetch(`${base}/${im.key}`, { method: 'PUT', body: file, headers: { 'Content-Type': file.type || 'application/octet-stream' }, credentials: 'same-origin' });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.error || 'فشل الرفع');
+          toast(`تم رفع صورة ${im.label}`);
+          replacePlugin(body, { keepDraft: dirty() });
+        } catch (e) {
+          toast(e.message, true);
+          upload.disabled = false;
+        }
+      });
+      const reset = im.custom ? el('button', {
+        class: 'btn btn-ghost btn-sm', type: 'button',
+        onclick: async () => {
+          try {
+            const plugin = await api(`${base}/${im.key}`, { method: 'DELETE' });
+            toast('رجعت الصورة الافتراضية');
+            replacePlugin(plugin, { keepDraft: dirty() });
+          } catch (e) { toast(e.message, true); }
+        },
+      }, icon('trash'), 'الافتراضية') : null;
+      grid.append(el('div', { class: 'image-card' },
+        preview,
+        el('div', { class: 'image-meta' },
+          el('b', {}, icon(im.icon || 'image'), im.label),
+          el('small', { text: im.custom ? 'صورة مرفوعة' : 'الصورة الافتراضية' })),
+        el('div', { class: 'image-actions' }, upload, reset, input)));
+    }
+    panel.append(el('section', { class: 'card' },
+      el('h2', {}, icon('image'), 'صور الألعاب'),
+      el('p', { class: 'card-desc', text: 'هذي الصورة تطلع فوق غرفة الانتظار لكل لعبة. ارفع صورتك (PNG / JPG / GIF / WEBP حتى 8 ميقا)، والمقاس الأنسب 1000×400.' }),
+      el('div', { style: 'margin-top:16px' }, grid)));
   }
 
   function renderCommands(panel, p) {

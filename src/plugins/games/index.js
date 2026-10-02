@@ -194,6 +194,9 @@ module.exports = {
   description: 'ألعاب جماعية (روليت، مافيا، كراسي...)، تحديات، أسئلة سريعة، نقاط وتوب وتحويل وتصويت.',
   defaults: { channels: [], groupWin: 5, duelWin: 3, quizPoint: 1, quizTime: 20, lobbyTime: 30 },
   commands: [...GAMES.map(gameCommand), topCommand, pointsCommand, transferCommand, voteCommand, stopCommand],
+  // Lobby images: each game shows the generated Sword banner unless the server uploads its own.
+  images: GAMES.filter((g) => g.kind === 'group' || g.kind === 'duel').map((g) => ({ key: g.key, label: g.name, icon: g.icon })),
+  renderImage: (key) => engine.art.banner(byKey.get(key)),
   dashboard: [
     {
       title: 'رومات الألعاب',

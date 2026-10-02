@@ -121,7 +121,8 @@ function autoplay(players, extra = () => {}) {
       if (action === 'role' || action === 'night') players.forEach((p) => click(p, id, null, message));
       if (action === 'act' || action === 'vote') {
         const opts = comp.options || [];
-        players.forEach((p, n) => click(p, id, [opts[n % opts.length].value], message));
+        // night: spread choices; day: everyone votes the same player so votes resolve
+        players.forEach((p, n) => click(p, id, [opts[action === 'vote' ? 0 : n % opts.length].value], message));
       }
     }
     extra(view);
