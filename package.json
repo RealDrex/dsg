@@ -10,7 +10,8 @@
     "web": "node src/web/standalone.js",
     "check": "node scripts/check.js",
     "test": "node --test scripts/test.js",
-    "icons": "node scripts/build-icons.js"
+    "icons": "node scripts/build-icons.js",
+    "sim:games": "node scripts/sim-games.js"
   },
   "engines": {
     "node": ">=22.5.0"

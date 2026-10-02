@@ -9,7 +9,7 @@ const COMMANDS = {
   warn: 'تحذير', warnings: 'تحذيرات', history: 'سجل', clear: 'مسح', lock: 'قفل', unlock: 'فتح',
   hide: 'إخفاء', show: 'إظهار', slowmode: 'وضع_بطيء', nick: 'لقب', role: 'رتبة', say: 'قول',
   protection: 'حماية', welcome: 'ترحيب', logs: 'لوقات',
-  rank: 'رانك', top: 'توب', levels: 'لفلات',
+  rank: 'رانك', top: 'توب_التفاعل', levels: 'لفلات',
   autorole: 'رتب_تلقائية', reactionrole: 'رتب_رياكشن', rolepanel: 'بانل_رتب',
   ticket: 'تذكرة', autoreply: 'رد_تلقائي', autoreact: 'رياكشن_تلقائي', autoline: 'خط_تلقائي',
   counter: 'عداد', colors: 'ألوان',
@@ -42,6 +42,18 @@ const invert = (map) => Object.fromEntries(Object.entries(map).map(([en, ar]) =>
 const COMMANDS_EN = invert(COMMANDS);
 const WORDS_EN = invert(WORDS);
 
+// Plugins can add their own Arabic names before commands are loaded.
+function register({ commands = {}, words = {} } = {}) {
+  for (const [en, ar] of Object.entries(commands)) {
+    COMMANDS[en] = ar;
+    COMMANDS_EN[ar] = en;
+  }
+  for (const [en, ar] of Object.entries(words)) {
+    WORDS[en] = ar;
+    WORDS_EN[ar] = en;
+  }
+}
+
 const ar = (name) => WORDS[name] || name;
 const en = (name) => WORDS_EN[name] || name;
 const commandAr = (name) => COMMANDS[name] || name;
@@ -68,4 +80,4 @@ function normalize(text) {
     .replace(/[_\-\s]+/g, '');
 }
 
-module.exports = { COMMANDS, WORDS, ar, en, commandAr, commandEn, translateCommand, normalize };
+module.exports = { COMMANDS, WORDS, ar, en, commandAr, commandEn, translateCommand, normalize, register };

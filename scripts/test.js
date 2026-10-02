@@ -98,3 +98,24 @@ test('slash adapter maps Arabic names back to English', () => {
   assert.equal(options.getSubcommand(), 'add');
   assert.equal(options.getMentionable('target'), member);
 });
+
+test('game commands resolve by Arabic name, including ة/ه spelling', () => {
+  assert.equal(aliases.get(normalize('حجره')).key, 'rps');
+  assert.equal(aliases.get(normalize('حجرة')).key, 'rps');
+  assert.equal(aliases.get(normalize('روليتز')).key, 'roulettez');
+  assert.equal(aliases.get(normalize('توب')).key, 'gtop');
+  assert.equal(aliases.get(normalize('توب_التفاعل')).key, 'top');
+  assert.equal(aliases.get(normalize('ايقاف')).key, 'gstop');
+});
+
+test('game prefix arguments: transfer, top, vote, duel', async () => {
+  let r = await parse('transfer', `<@${USER_ID}> 50`);
+  assert.equal(r.options.getUser('user').id, USER_ID);
+  assert.equal(r.options.getInteger('amount'), 50);
+  r = await parse('gtop', 'روليت');
+  assert.equal(r.options.getString('game'), 'روليت');
+  r = await parse('vote', 'أفضل لعبة؟ | روليت | مافيا');
+  assert.equal(r.options.getString('question'), 'أفضل لعبة؟ | روليت | مافيا');
+  r = await parse('rps', '');
+  assert.equal(r.options.getUser('user'), null);
+});
