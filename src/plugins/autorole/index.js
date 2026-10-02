@@ -75,5 +75,15 @@ module.exports = {
   description: 'رتب تلقائية للأعضاء الجدد وللبوتات مع إمكانية التأخير.',
   defaults: { humans: [], bots: [], delay: 0 },
   commands: [{ data, execute }],
+  dashboard: [
+    {
+      title: '✅ الرتب التلقائية',
+      fields: [
+        { key: 'humans', type: 'roles', label: '👤 رتب الأعضاء الجدد' },
+        { key: 'bots', type: 'roles', label: '🤖 رتب البوتات' },
+        { key: 'delay', type: 'number', label: 'التأخير (ثواني)', min: 0, max: 600, hint: 'مفيد إذا عندك نظام تحقق' },
+      ],
+    },
+  ],
   events: { guildMemberAdd: onJoin },
 };

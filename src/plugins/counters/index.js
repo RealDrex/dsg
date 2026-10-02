@@ -68,13 +68,19 @@ async function execute(interaction) {
   }
 
   await interaction.deferReply({ flags: 64 });
-  if (sub === 'create' && ['humans', 'bots'].includes(interaction.options.getString('type'))) await guild.members.fetch().catch(() => null);
+  const channel = await createCounter(guild, interaction.options.getString('type'), interaction.options.getString('template'));
+  return reply.success(interaction, `تم إنشاء العداد ${channel}`);
+}
+
+async function createCounter(guild, type, template) {
+  const cfg = store.get(guild.id, 'counters');
+  if (['humans', 'bots'].includes(type)) await guild.members.fetch().catch(() => null);
   let category = cfg.categoryId && guild.channels.cache.get(cfg.categoryId);
   if (!category) {
     category = await guild.channels.create({ name: '📊 Sword Stats', type: ChannelType.GuildCategory, position: 0 });
     store.update(guild.id, 'counters', (c) => { c.categoryId = category.id; });
   }
-  const counter = { type: interaction.options.getString('type'), template: interaction.options.getString('template') || null };
+  const counter = { type, template: template || null };
   if (counter.template && !counter.template.includes('{count}')) counter.template += ' {count}';
   const channel = await guild.channels.create({
     name: nameFor(guild, counter),
@@ -87,7 +93,7 @@ async function execute(interaction) {
   });
   counter.channelId = channel.id;
   store.update(guild.id, 'counters', (c) => { c.counters.push(counter); });
-  return reply.success(interaction, `تم إنشاء العداد ${channel}`);
+  return channel;
 }
 
 module.exports = {
@@ -98,6 +104,46 @@ module.exports = {
   description: 'رومات فويس تعرض عدد الأعضاء، البوتات، الفويس، البوستات وغيرها وتتحدث تلقائياً.',
   defaults: { categoryId: null, counters: [] },
   commands: [{ data, execute }],
+  dashboard: [
+    {
+      title: '📊 العدادات الحالية',
+      description: 'تقدر تعدل شكل الاسم ({count} = الرقم) أو تحذف عداد — الحذف يحذف رومه.',
+      fields: [
+        {
+          key: 'counters', type: 'list', label: 'العدادات', addLabel: null, max: 20,
+          fields: [
+            { key: 'channelId', type: 'text', label: 'آيدي الروم', pattern: '^\\d{17,20}$', required: true, readonly: true },
+            { key: 'type', type: 'select', label: 'النوع', options: Object.entries(TYPES).map(([value, t]) => ({ value, label: t.label })) },
+            { key: 'template', type: 'text', label: 'شكل الاسم', max: 90, nullable: true },
+          ],
+        },
+      ],
+    },
+  ],
+  validate(cfg) {
+    cfg.counters = cfg.counters.map((c) => ({ ...c, template: c.template && !c.template.includes('{count}') ? `${c.template} {count}` : c.template }));
+  },
+  async dashboardSaved(guild, previous, next) {
+    const kept = new Set(next.counters.map((c) => c.channelId));
+    for (const old of previous.counters) {
+      if (!kept.has(old.channelId)) await guild.channels.cache.get(old.channelId)?.delete('Sword Counters').catch(() => null);
+    }
+    await refresh(guild);
+  },
+  actions: {
+    create: {
+      label: 'إنشاء عداد جديد',
+      params: [
+        { key: 'type', type: 'select', label: 'النوع', options: Object.entries(TYPES).map(([value, t]) => ({ value, label: t.label })) },
+        { key: 'template', type: 'text', label: 'شكل الاسم (اختياري)', max: 90, nullable: true },
+      ],
+      async run(guild, { type, template }) {
+        const channel = await createCounter(guild, type, template);
+        return `تم إنشاء ${channel.name}`;
+      },
+    },
+    refresh: { label: 'تحديث العدادات الحين', async run(guild) { await refresh(guild); return 'تم التحديث'; } },
+  },
   async ready(client) {
     for (const guild of client.guilds.cache.values()) {
       const cfg = store.get(guild.id, 'counters');

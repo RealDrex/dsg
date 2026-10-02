@@ -46,7 +46,7 @@ function update(guildId, plugin, mutate) {
 }
 
 // Plugin on/off state lives in the "core" config.
-registerDefaults('core', { disabled: [] });
+registerDefaults('core', { disabled: [], prefix: '!' });
 
 const isEnabled = (guildId, pluginId) => !get(guildId, 'core').disabled.includes(pluginId);
 

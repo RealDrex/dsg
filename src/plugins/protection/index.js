@@ -337,6 +337,47 @@ module.exports = {
     whitelist: { users: [], roles: [] },
     ignoredChannels: [],
   },
+  dashboard: [
+    {
+      title: 'الحمايات المفعلة',
+      fields: Object.entries(FEATURES).map(([key, f]) => ({ key: `features.${key}`, type: 'bool', label: `${f.emoji} ${f.label}`, hint: f.desc })),
+    },
+    {
+      title: '💬 مضاد السبام',
+      fields: [
+        { key: 'spam.messages', type: 'number', label: 'عدد الرسائل', min: 3, max: 20 },
+        { key: 'spam.seconds', type: 'number', label: 'خلال (ثواني)', min: 2, max: 60 },
+        { key: 'spam.action', type: 'select', label: 'العقوبة', options: [{ value: 'timeout', label: 'تايم أوت' }, { value: 'kick', label: 'طرد' }] },
+        { key: 'spam.minutes', type: 'number', label: 'مدة التايم أوت (دقائق)', min: 1, max: 10080 },
+      ],
+    },
+    {
+      title: '🔗 الروابط والمنشن',
+      fields: [
+        { key: 'links.invitesOnly', type: 'bool', label: 'منع روابط الدعوات فقط', hint: 'إذا طفيته ينمنع أي رابط' },
+        { key: 'mentions.max', type: 'number', label: 'أقصى منشن في رسالة', min: 2, max: 50 },
+      ],
+    },
+    {
+      title: '🚪 الرايد و 💣 التخريب',
+      fields: [
+        { key: 'raid.joins', type: 'number', label: 'عدد الداخلين = رايد', min: 3, max: 100 },
+        { key: 'raid.seconds', type: 'number', label: 'خلال (ثواني)', min: 3, max: 300 },
+        { key: 'raid.minutes', type: 'number', label: 'مدة وضع الرايد (دقائق)', min: 1, max: 120 },
+        { key: 'nuke.limit', type: 'number', label: 'عدد الإجراءات التخريبية', min: 2, max: 20 },
+        { key: 'nuke.seconds', type: 'number', label: 'خلال (ثواني)', min: 5, max: 600 },
+      ],
+    },
+    {
+      title: '🤍 الاستثناءات والكلمات',
+      fields: [
+        { key: 'whitelist.roles', type: 'roles', label: 'رتب الوايت ليست' },
+        { key: 'whitelist.users', type: 'tags', label: 'أعضاء الوايت ليست (آيديات)', snowflake: true, hint: 'الصق آيدي العضو واضغط Enter' },
+        { key: 'ignoredChannels', type: 'channels', label: 'رومات مستثناة من فلاتر الرسائل' },
+        { key: 'words', type: 'tags', label: 'الكلمات الممنوعة', lowercase: true, max: 300 },
+      ],
+    },
+  ],
   commands: [{ data, execute }],
   components: {
     async toggle(interaction) {

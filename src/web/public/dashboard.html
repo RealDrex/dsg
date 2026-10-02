@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sword — لوحة التحكم</title>
+  <meta name="theme-color" content="#050505">
+  <link rel="icon" href="/assets/logo-96.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;800&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/dashboard.css">
+</head>
+<body class="dash">
+  <!-- Login / states -->
+  <section class="gate" id="gate" hidden>
+    <div class="gate-card">
+      <img class="gate-logo" src="/assets/logo-round.png" alt="Sword">
+      <h1>لوحة تحكم Sword</h1>
+      <img class="katana small" src="/assets/line.png" alt="">
+      <p class="muted" id="gate-text">سجّل دخولك بحساب ديسكورد عشان تتحكم بإعدادات البوت.</p>
+      <a class="btn btn-primary" id="gate-login" href="/auth/login">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.6 1.3a18.3 18.3 0 0 0-5.6 0L8.6 3a19.7 19.7 0 0 0-4.9 1.5C.6 9.1-.3 13.7.1 18.2a19.9 19.9 0 0 0 6 3l1.3-2a12.9 12.9 0 0 1-2-1l.5-.4a14.2 14.2 0 0 0 12.2 0l.5.4c-.6.4-1.3.7-2 1l1.3 2a19.8 19.8 0 0 0 6-3c.5-5.2-.9-9.8-3.6-13.8ZM8 15.4c-1.2 0-2.2-1.1-2.2-2.4S6.8 10.6 8 10.6s2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Zm8 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Z"/></svg>
+        تسجيل الدخول بديسكورد
+      </a>
+      <div class="guild-pick" id="guild-pick"></div>
+      <a class="back-home" href="/">← الرجوع للموقع</a>
+    </div>
+  </section>
+
+  <!-- Dashboard -->
+  <div class="app" id="app" hidden>
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="/"><img src="/assets/logo-96.png" alt=""><span>SWORD</span></a>
+      <button class="server" id="server-btn" type="button">
+        <img id="server-icon" src="/assets/logo-96.png" alt="">
+        <span><b id="server-name">—</b><small id="server-meta"></small></span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+      </button>
+      <div class="menu-label">القوائم</div>
+      <nav class="menu" id="menu"></nav>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn menu-toggle" id="menu-toggle" type="button" aria-label="القائمة">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="crumbs" id="crumbs"></div>
+        <div class="me">
+          <img id="me-avatar" src="/assets/logo-96.png" alt="">
+          <span id="me-name">—</span>
+          <a class="logout" href="/auth/logout" title="تسجيل الخروج">خروج</a>
+        </div>
+      </header>
+
+      <section class="page" id="page">
+        <div class="page-head">
+          <div class="page-icon" id="p-icon"></div>
+          <div class="page-titles">
+            <h1 id="p-title"></h1>
+            <span class="tag" id="p-tag"></span>
+            <p class="muted" id="p-desc"></p>
+          </div>
+          <label class="switch big" id="p-toggle-wrap" title="تشغيل/إيقاف البلوقن">
+            <input type="checkbox" id="p-toggle"><span></span>
+          </label>
+        </div>
+        <div class="tabs" id="tabs">
+          <button class="tab active" data-tab="settings">الإعدادات</button>
+          <button class="tab" data-tab="actions">الإجراءات</button>
+          <button class="tab" data-tab="commands">الأوامر</button>
+        </div>
+        <div class="panel" id="panel"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="savebar" id="savebar">
+    <span>⚠️ عندك تغييرات ما انحفظت</span>
+    <div>
+      <button class="btn btn-ghost btn-sm" id="reset-btn" type="button">تراجع</button>
+      <button class="btn btn-primary btn-sm" id="save-btn" type="button">حفظ التغييرات</button>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/dashboard.js"></script>
+</body>
+</html>

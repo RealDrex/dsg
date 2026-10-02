@@ -408,6 +408,17 @@ module.exports = {
   defaults: {
     warnPunish: { enabled: true, at: 3, action: 'timeout', duration: 3_600_000 },
   },
+  dashboard: [
+    {
+      title: '⚠️ العقوبة التلقائية للتحذيرات',
+      fields: [
+        { key: 'warnPunish.enabled', type: 'bool', label: 'تفعيل العقوبة التلقائية' },
+        { key: 'warnPunish.at', type: 'number', label: 'كل كم تحذير', min: 1, max: 20 },
+        { key: 'warnPunish.action', type: 'select', label: 'العقوبة', options: [{ value: 'timeout', label: 'تايم أوت' }, { value: 'kick', label: 'طرد' }, { value: 'ban', label: 'باند' }] },
+        { key: 'warnPunish.duration', type: 'number', label: 'مدة التايم أوت (دقائق)', min: 1, max: 40320, scale: 60_000 },
+      ],
+    },
+  ],
   commands,
 };
 

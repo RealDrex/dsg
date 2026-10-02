@@ -9,6 +9,7 @@ const { ts } = require('../../utils/time');
 const { truncate } = require('../../utils/text');
 
 let commandIndex = null;
+const prefixOf = (interaction) => store.get(interaction.guildId, 'core').prefix || '!';
 const commandsOf = (client, pluginId) => {
   commandIndex ??= describeCommands(client.plugins);
   return commandIndex.filter((c) => c.plugin === pluginId);
@@ -40,7 +41,7 @@ function helpHome(interaction) {
     .join('\n');
   const { embed, files } = card({
     title: `${emoji.sword} Sword — قائمة الأوامر`,
-    description: `أهلاً بك في بوت **Sword** ${emoji.gate}\nاختر بلوقن من القائمة تحت عشان تشوف أوامره بالتفصيل.\n${DIVIDER}\n${list}\n${DIVIDER}\n\`<>\` إجباري  •  \`[]\` اختياري`,
+    description: `أهلاً بك في بوت **Sword** ${emoji.gate}\nاختر بلوقن من القائمة تحت عشان تشوف أوامره بالتفصيل.\n${DIVIDER}\n${list}\n${DIVIDER}\n⌨️ كل أمر يشتغل بالسلاش \`/\` أو بالبريفكس \`${prefixOf(interaction)}\`\nمثال: \`${prefixOf(interaction)}باند @عضو السبب\`\n\`<>\` إجباري  •  \`[]\` اختياري`,
     image: 'banner',
   });
   return { embeds: [embed], files, components: [helpMenu(client)] };
@@ -50,6 +51,7 @@ function helpPlugin(interaction, pluginId) {
   const { client } = interaction;
   const plugin = client.plugins.get(pluginId);
   const lines = commandsOf(client, pluginId).map((c) => `${emoji.dot} \`${usage(c)}\`\n${c.description}`);
+  lines.unshift(`البريفكس: \`${prefixOf(interaction)}\` — مثال: \`${prefixOf(interaction)}${commandsOf(client, pluginId)[0]?.name || ''}\``);
   const { embed, files } = card({
     title: `${plugin.emoji} ${plugin.nameAr}`,
     description: `${plugin.description}\n${DIVIDER}\n${truncate(lines.join('\n\n'), 3800) || 'ما فيه أوامر.'}`,
@@ -100,6 +102,19 @@ const commands = [
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
     async execute(interaction) {
       await interaction.reply({ ...pluginsPanel(interaction), flags: MessageFlags.Ephemeral });
+    },
+  },
+  {
+    data: new SlashCommandBuilder()
+      .setName('prefix')
+      .setDescription('تغيير بريفكس البوت (مثل ! أو . أو -)')
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+      .addStringOption((o) => o.setName('value').setDescription('البريفكس الجديد (حتى 5 حروف)').setRequired(true).setMaxLength(5)),
+    async execute(interaction) {
+      const value = interaction.options.getString('value').trim();
+      if (!value || /\s/.test(value)) return reply.error(interaction, 'البريفكس ما يكون فاضي أو فيه مسافة.');
+      store.update(interaction.guildId, 'core', (cfg) => { cfg.prefix = value; });
+      return reply.success(interaction, `البريفكس صار \`${value}\`\nمثال: \`${value}مساعدة\` أو \`${value}باند @عضو\``, { hidden: false });
     },
   },
   {
@@ -211,7 +226,17 @@ module.exports = {
   name: 'Bot Settings',
   nameAr: 'إعدادات البوت',
   emoji: '⚙️',
-  description: 'قائمة الأوامر، تشغيل وإيقاف البلوقنات، ومعلومات عامة عن البوت والسيرفر.',
+  description: 'قائمة الأوامر، البريفكس، تشغيل وإيقاف البلوقنات، ومعلومات عامة عن البوت والسيرفر.',
+  configKey: 'core',
+  dashboard: [
+    {
+      title: 'البريفكس',
+      description: 'كل أوامر السلاش تشتغل كذلك بالبريفكس، مثل !باند @عضو أو !مساعدة',
+      fields: [
+        { key: 'prefix', type: 'text', label: 'البريفكس', max: 5, required: true, pattern: '^\\S{1,5}$', hint: 'حرف أو رمز بدون مسافات، مثل ! أو . أو -' },
+      ],
+    },
+  ],
   toggleable: false,
   commands,
   components: {

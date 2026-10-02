@@ -60,6 +60,12 @@ db.exec(`
     created_at INTEGER NOT NULL,
     closed_at  INTEGER
   );
+
+  CREATE TABLE IF NOT EXISTS sessions (
+    id      TEXT PRIMARY KEY,
+    data    TEXT NOT NULL,
+    expires INTEGER NOT NULL
+  );
 `);
 
 module.exports = db;

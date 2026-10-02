@@ -151,5 +151,46 @@ module.exports = {
     { data: reactData, execute: reactCommand },
     { data: lineData, execute: lineCommand },
   ],
+  dashboard: [
+    {
+      title: '💬 الردود التلقائية',
+      description: 'المتغيرات في الرد: {user} {username} {server}',
+      fields: [
+        {
+          key: 'replies', type: 'list', label: 'الردود', addLabel: 'إضافة رد', max: 100,
+          fields: [
+            { key: 'trigger', type: 'text', label: 'الكلمة', max: 200, required: true },
+            { key: 'response', type: 'textarea', label: 'الرد', max: 1800, required: true },
+            { key: 'match', type: 'select', label: 'المطابقة', options: Object.entries(MATCH).map(([value, m]) => ({ value, label: m.label })) },
+            { key: 'reply', type: 'bool', label: 'رد على الرسالة نفسها' },
+            { key: 'embed', type: 'bool', label: 'داخل إمبد' },
+          ],
+        },
+      ],
+    },
+    {
+      title: '😀 الرياكشن التلقائي',
+      fields: [
+        {
+          key: 'reactions', type: 'list', label: 'الرومات', addLabel: 'إضافة روم', max: 50,
+          fields: [
+            { key: 'channelId', type: 'channel', label: 'الروم', required: true },
+            { key: 'emojis', type: 'tags', label: 'الإيموجيات', max: 5, itemMax: 64 },
+          ],
+        },
+      ],
+    },
+    {
+      title: '🗡️ الخط التلقائي',
+      fields: [
+        { key: 'lines.channels', type: 'channels', label: 'رومات الخط' },
+        { key: 'lines.image', type: 'text', label: 'رابط صورة خط مخصصة', max: 500, nullable: true, pattern: '^https?://\\S+$', hint: 'فاضي = خط سيف Sword' },
+      ],
+    },
+  ],
+  validate(cfg) {
+    cfg.replies = cfg.replies.map((r) => ({ ...r, trigger: r.trigger.trim().toLowerCase(), match: r.match || 'exact' }));
+    cfg.reactions = cfg.reactions.filter((r) => r.channelId && r.emojis.length);
+  },
   events: { messageCreate: onMessage },
 };

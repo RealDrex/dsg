@@ -181,7 +181,7 @@ async function panelCommand(interaction) {
       c.panels[panel.id] = panel;
       c.nextPanel += 1;
     });
-    return reply.success(interaction, `تم إنشاء البانل \`#${panel.id}\` في ${channel}.\nأضف رتب بـ \`/rolepanel add panel:${panel.id}\``);
+    return reply.success(interaction, `تم إنشاء البانل \`#${panel.id}\` في ${channel}.\nأضف رتب بـ \`/بانل_رتب إضافة لوحة:${panel.id}\``);
   }
 
   const panel = cfg.panels[o.getInteger('panel')];
@@ -236,6 +236,23 @@ module.exports = {
   commands: [
     { data: reactionData, execute: reactionCommand },
     { data: panelData, execute: panelCommand, autocomplete: panelAutocomplete },
+  ],
+  dashboard: [
+    {
+      title: '🎭 البانلات والرياكشن رولز',
+      description: 'البانلات تنشأ من ديسكورد عشان تختار مكانها: /بانل_رتب إنشاء ثم /بانل_رتب إضافة. والرياكشن رولز بـ /رتب_رياكشن إضافة. تقدر تحذفها من هنا.',
+      fields: [
+        {
+          key: 'reactions', type: 'list', label: 'الرياكشن رولز', addLabel: null, max: 200,
+          fields: [
+            { key: 'channelId', type: 'channel', label: 'الروم' },
+            { key: 'messageId', type: 'text', label: 'آيدي الرسالة', pattern: '^\\d{17,20}$', required: true },
+            { key: 'emoji', type: 'text', label: 'الإيموجي', max: 64, required: true },
+            { key: 'roleId', type: 'role', label: 'الرتبة', required: true },
+          ],
+        },
+      ],
+    },
   ],
   events: {
     messageReactionAdd: (reaction, user) => onReaction(reaction, user, true),

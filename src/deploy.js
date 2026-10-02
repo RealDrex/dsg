@@ -10,7 +10,7 @@ const { loadPlugins } = require('./core/loader');
     process.exit(1);
   }
   const { commands } = loadPlugins();
-  const body = [...commands.values()].map((c) => c.data.toJSON());
+  const body = [...commands.values()].map((c) => c.json);
   const rest = new REST().setToken(config.token);
   const route = config.guildId
     ? Routes.applicationGuildCommands(config.clientId, config.guildId)

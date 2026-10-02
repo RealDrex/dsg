@@ -7,6 +7,7 @@ const store = require('../../core/store');
 const { card, simple, emoji, DIVIDER, reply } = require('../../core/theme');
 const { ts } = require('../../utils/time');
 const transcript = require('./transcript');
+const { userError } = require('../../core/errors');
 
 const P = PermissionFlagsBits;
 const pad = (n) => String(n).padStart(4, '0');
@@ -224,7 +225,7 @@ async function execute(interaction) {
         c.pingStaff = o.getBoolean('ping_staff') ?? c.pingStaff;
         c.dmTranscript = o.getBoolean('dm_transcript') ?? c.dmTranscript;
       });
-      return reply.success(interaction, `تم إعداد التذاكر ${emoji.sword}\nالحين أرسل البانل بـ \`/ticket panel\``);
+      return reply.success(interaction, `تم إعداد التذاكر ${emoji.sword}\nالحين أرسل البانل بـ \`/تذكرة لوحة\``);
     case 'panel': {
       const channel = o.getChannel('channel') || interaction.channel;
       store.update(guildId, 'tickets', (c) => {
@@ -307,6 +308,62 @@ module.exports = {
     ],
   },
   commands: [{ data, execute, autocomplete }],
+  dashboard: [
+    {
+      title: '⚙️ الإعداد',
+      fields: [
+        { key: 'categoryId', type: 'category', label: 'كاتقوري التذاكر', hint: 'المكان اللي تنفتح فيه رومات التذاكر' },
+        { key: 'staffRoles', type: 'roles', label: 'رتب فريق الدعم', max: 10 },
+        { key: 'logChannelId', type: 'channel', label: 'روم الترانسكربت واللوق' },
+        { key: 'maxOpen', type: 'number', label: 'أقصى تذاكر مفتوحة للعضو', min: 1, max: 5 },
+        { key: 'pingStaff', type: 'bool', label: 'منشن فريق الدعم عند فتح تذكرة' },
+        { key: 'dmTranscript', type: 'bool', label: 'إرسال الترانسكربت لصاحب التذكرة' },
+        { key: 'askReason', type: 'bool', label: 'سؤال العضو عن موضوع التذكرة قبل الفتح' },
+      ],
+    },
+    {
+      title: '🎫 البانل والرسائل',
+      fields: [
+        { key: 'panel.title', type: 'text', label: 'عنوان البانل', max: 100, required: true },
+        { key: 'panel.description', type: 'textarea', label: 'وصف البانل', max: 1500 },
+        { key: 'welcomeMessage', type: 'textarea', label: 'رسالة الترحيب داخل التذكرة', max: 1000 },
+      ],
+    },
+    {
+      title: '📂 أنواع التذاكر',
+      description: 'تظهر كقائمة اختيار في البانل (حد أقصى 25)',
+      fields: [
+        {
+          key: 'types', type: 'list', label: 'الأنواع', addLabel: 'إضافة نوع', max: 25, idKey: 'id',
+          fields: [
+            { key: 'emoji', type: 'text', label: 'الإيموجي', max: 64, required: true },
+            { key: 'label', type: 'text', label: 'الاسم', max: 80, required: true },
+            { key: 'description', type: 'text', label: 'الوصف', max: 100 },
+          ],
+        },
+      ],
+    },
+  ],
+  validate(cfg) {
+    if (!cfg.types.length) throw userError('لازم يكون فيه نوع تذكرة واحد على الأقل');
+  },
+  async dashboardSaved(guild) {
+    await refreshPanel(guild, cfgOf(guild.id));
+  },
+  actions: {
+    sendPanel: {
+      label: 'إرسال بانل التذاكر',
+      description: 'يرسل البانل ببانر TICKETS وشعار Sword في الروم اللي تختاره',
+      params: [{ key: 'channelId', type: 'channel', label: 'الروم' }],
+      async run(guild, { channelId }) {
+        const channel = channelId && guild.channels.cache.get(channelId);
+        if (!channel) throw userError('اختر الروم');
+        const message = await channel.send(panelPayload(cfgOf(guild.id)));
+        store.update(guild.id, 'tickets', (c) => { c.panel.channelId = channel.id; c.panel.messageId = message.id; });
+        return `تم إرسال البانل في #${channel.name}`;
+      },
+    },
+  },
   components: {
     async open(interaction) {
       const typeId = interaction.values[0];

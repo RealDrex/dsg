@@ -2,6 +2,7 @@ const { Guild, MessageFlags } = require('discord.js');
 const store = require('./store');
 const { reply, simple, emoji } = require('./theme');
 const logger = require('./logger');
+const { fromSlash } = require('./options');
 
 function guildIdOf(args) {
   for (const arg of args) {
@@ -44,6 +45,8 @@ async function handleInteraction(interaction) {
     if (interaction.isChatInputCommand() || interaction.isAutocomplete()) {
       const command = client.commands.get(interaction.commandName);
       if (!command) return;
+      // Plugins read English option names; translate the Arabic ones Discord sent.
+      Object.defineProperty(interaction, 'options', { value: fromSlash(interaction), configurable: true });
       if (interaction.isAutocomplete()) return await command.autocomplete?.(interaction);
 
       if (!interaction.inCachedGuild()) {
@@ -51,7 +54,7 @@ async function handleInteraction(interaction) {
       }
       const { plugin } = command;
       if (plugin.toggleable && !store.isEnabled(interaction.guildId, plugin.id)) {
-        return reply.error(interaction, `${plugin.emoji} **${plugin.nameAr}** مقفل حالياً. شغّله من \`/plugins\`.`);
+        return reply.error(interaction, `${plugin.emoji} **${plugin.nameAr}** مقفل حالياً. شغّله من \`/البلوقنات\`.`);
       }
       return await command.execute(interaction);
     }

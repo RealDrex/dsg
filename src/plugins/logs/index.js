@@ -190,6 +190,12 @@ async function execute(interaction) {
     return reply.success(interaction, channel ? `لوق **${TYPES[type].label}** ← ${channel}` : `تم إيقاف لوق **${TYPES[type].label}**`);
   }
   await interaction.deferReply({ flags: 64 });
+  const { category, count } = await setupLogs(guild);
+  await interaction.editReply({ embeds: [new EmbedBuilder().setColor(colors.success).setDescription(`${emoji.success} تم إنشاء ${category} مع ${count} رومات لوق (مخفية عن الأعضاء).`)] });
+}
+
+// Creates a hidden "Sword Logs" category with one channel per log type.
+async function setupLogs(guild) {
   const category = await guild.channels.create({
     name: '📜 Sword Logs',
     type: ChannelType.GuildCategory,
@@ -203,7 +209,7 @@ async function execute(interaction) {
     created[key] = (await guild.channels.create({ name: `${t.emoji}・${t.channel}`, parent: category, type: ChannelType.GuildText })).id;
   }
   store.update(guild.id, 'logs', (cfg) => { cfg.channels = created; });
-  await interaction.editReply({ embeds: [new EmbedBuilder().setColor(colors.success).setDescription(`${emoji.success} تم إنشاء ${category} مع ${Object.keys(created).length} رومات لوق (مخفية عن الأعضاء).`)] });
+  return { category, count: Object.keys(created).length };
 }
 
 module.exports = {
@@ -214,5 +220,22 @@ module.exports = {
   description: 'تسجيل الرسائل، الأعضاء، العقوبات، الرومات والرتب، الفويس وتنبيهات الحماية.',
   defaults: { channels: Object.fromEntries(Object.keys(TYPES).map((k) => [k, null])) },
   commands: [{ data, execute }],
+  dashboard: [
+    {
+      title: '📋 رومات اللوقات',
+      description: 'حدد روم لكل نوع — الفاضي يعني النوع مقفل',
+      fields: Object.entries(TYPES).map(([key, t]) => ({ key: `channels.${key}`, type: 'channel', label: `${t.emoji} ${t.label}` })),
+    },
+  ],
+  actions: {
+    setup: {
+      label: 'إنشاء رومات اللوقات تلقائياً',
+      description: 'يسوي كاتقوري "📜 Sword Logs" مخفية فيها 6 رومات ويربطها',
+      async run(guild) {
+        const { count } = await setupLogs(guild);
+        return `تم إنشاء ${count} رومات لوق`;
+      },
+    },
+  },
   events,
 };

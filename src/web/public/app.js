@@ -55,6 +55,7 @@
       countUp($('[data-stat="commands"]'), s.commands);
       countUp($('[data-stat="members"]'), s.members);
       $('[data-stat="uptime"]').textContent = s.online ? uptime(s.uptime) : '—';
+      if (s.prefix) $('#prefix-code').textContent = s.prefix;
       if (s.invite) $$('.invite-link').forEach((a) => { a.href = s.invite; a.target = '_blank'; a.rel = 'noopener'; a.hidden = false; });
     } catch {
       $('.status-text').textContent = 'تعذر جلب الحالة';
@@ -122,7 +123,7 @@
       plugin: p,
       items: commands.filter((c) => c.plugin === p.id
         && (active === 'all' || active === p.id)
-        && (!q || c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q))),
+        && (!q || `${c.name} ${c.key}`.toLowerCase().includes(q) || c.description.toLowerCase().includes(q))),
     })).filter((g) => g.items.length);
 
     list.innerHTML = groups.map((g) => `

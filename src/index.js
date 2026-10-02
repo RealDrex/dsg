@@ -3,6 +3,7 @@ const config = require('./config');
 const logger = require('./core/logger');
 const { loadPlugins } = require('./core/loader');
 const { bindEvents, handleInteraction } = require('./core/handler');
+const { handlePrefix } = require('./core/prefix');
 
 if (!config.token) {
   logger.error('DISCORD_TOKEN مو موجود. انسخ .env.example إلى .env وحط التوكن.');
@@ -24,16 +25,18 @@ const client = new Client({
   allowedMentions: { parse: ['users', 'roles'], repliedUser: false },
 });
 
-const { plugins, commands } = loadPlugins();
+const { plugins, commands, aliases } = loadPlugins();
 client.plugins = plugins;
 client.commands = commands;
+client.aliases = aliases;
 
 bindEvents(client);
 client.on(Events.InteractionCreate, handleInteraction);
+client.on(Events.MessageCreate, handlePrefix);
 
 client.once(Events.ClientReady, async () => {
   logger.info(`⚔️  ${client.user.tag} جاهز — ${plugins.size} بلوقن، ${commands.size} أمر، ${client.guilds.cache.size} سيرفر`);
-  client.user.setPresence({ activities: [{ name: 'Sword ⚔️ /help', type: ActivityType.Watching }], status: 'online' });
+  client.user.setPresence({ activities: [{ name: 'Sword ⚔️ /مساعدة', type: ActivityType.Watching }], status: 'online' });
   for (const plugin of plugins.values()) {
     try {
       await plugin.ready?.(client);

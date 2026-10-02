@@ -2,6 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('disco
 const store = require('../../core/store');
 const { card, simple, emoji, DIVIDER, reply } = require('../../core/theme');
 const { fill, memberVars } = require('../../utils/text');
+const { userError } = require('../../core/errors');
 
 const VARS_HELP = '`{user}` منشن • `{username}` الاسم • `{server}` السيرفر • `{count}` عدد الأعضاء';
 
@@ -114,6 +115,45 @@ module.exports = {
     mention: true,
     dm: { enabled: false, message: 'أهلاً {username}! حيّاك في **{server}** ⚔️\nلا تنسى تقرأ القوانين.' },
     leave: { channelId: null, message: '🍂 **{username}** غادر السيرفر... صرنا {count}' },
+  },
+  dashboard: [
+    {
+      title: '👋 الترحيب',
+      description: 'المتغيرات: {user} منشن • {username} الاسم • {server} السيرفر • {count} عدد الأعضاء',
+      fields: [
+        { key: 'channelId', type: 'channel', label: 'روم الترحيب', hint: 'فاضي = الترحيب مقفل' },
+        { key: 'message', type: 'textarea', label: 'رسالة الترحيب', max: 1500 },
+        { key: 'image', type: 'bool', label: 'بانر WELCOME الساموراي' },
+        { key: 'mention', type: 'bool', label: 'منشن العضو فوق الرسالة' },
+      ],
+    },
+    {
+      title: '✉️ رسالة الخاص',
+      fields: [
+        { key: 'dm.enabled', type: 'bool', label: 'إرسال رسالة خاص للعضو الجديد' },
+        { key: 'dm.message', type: 'textarea', label: 'نص رسالة الخاص', max: 1500 },
+      ],
+    },
+    {
+      title: '🍂 المغادرة',
+      fields: [
+        { key: 'leave.channelId', type: 'channel', label: 'روم المغادرة', hint: 'فاضي = مقفل' },
+        { key: 'leave.message', type: 'textarea', label: 'رسالة المغادرة', max: 1500 },
+      ],
+    },
+  ],
+  actions: {
+    test: {
+      label: 'تجربة الترحيب',
+      description: 'يرسل رسالة ترحيب تجريبية في روم الترحيب باسم البوت',
+      async run(guild) {
+        const cfg = store.get(guild.id, 'welcome');
+        const channel = cfg.channelId && guild.channels.cache.get(cfg.channelId);
+        if (!channel) throw userError('حدد روم الترحيب واحفظ أول');
+        await channel.send(welcomePayload(guild.members.me, cfg));
+        return `تم الإرسال في #${channel.name}`;
+      },
+    },
   },
   commands: [{ data, execute }],
   events: { guildMemberAdd: onJoin, guildMemberRemove: onLeave },

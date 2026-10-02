@@ -263,6 +263,49 @@ module.exports = {
     { data: topData, execute: top },
     { data: adminData, execute: admin },
   ],
+  dashboard: [
+    {
+      title: '⚔️ الخبرة (XP)',
+      fields: [
+        { key: 'xpMin', type: 'number', label: 'أقل XP للرسالة', min: 1, max: 500 },
+        { key: 'xpMax', type: 'number', label: 'أعلى XP للرسالة', min: 1, max: 500 },
+        { key: 'cooldown', type: 'number', label: 'الانتظار بين كل XP (ثواني)', min: 0, max: 3600 },
+        { key: 'voiceXp', type: 'number', label: 'XP لكل دقيقة فويس (0 = إيقاف)', min: 0, max: 500 },
+      ],
+    },
+    {
+      title: '🎉 رسائل اللفل أب',
+      fields: [
+        { key: 'announce', type: 'bool', label: 'تفعيل رسائل اللفل أب' },
+        { key: 'channelId', type: 'channel', label: 'روم مخصص', hint: 'فاضي = نفس الروم اللي تفاعل فيه العضو' },
+        { key: 'message', type: 'textarea', label: 'الرسالة', max: 500, hint: '{user} {username} {level}' },
+      ],
+    },
+    {
+      title: '🎁 رتب المكافآت',
+      fields: [
+        { key: 'stackRewards', type: 'bool', label: 'يحتفظ العضو بكل رتب المكافآت', hint: 'إذا طفيته ياخذ آخر رتبة بس' },
+        {
+          key: 'rewards', type: 'list', label: 'المكافآت', addLabel: 'إضافة مكافأة', max: 50,
+          fields: [
+            { key: 'level', type: 'number', label: 'اللفل', min: 1, max: 500 },
+            { key: 'roleId', type: 'role', label: 'الرتبة', required: true },
+          ],
+        },
+      ],
+    },
+    {
+      title: '🚫 بدون XP',
+      fields: [
+        { key: 'ignoredChannels', type: 'channels', label: 'رومات ما تعطي XP' },
+        { key: 'ignoredRoles', type: 'roles', label: 'رتب ما تاخذ XP' },
+      ],
+    },
+  ],
+  validate(cfg) {
+    if (cfg.xpMin > cfg.xpMax) [cfg.xpMin, cfg.xpMax] = [cfg.xpMax, cfg.xpMin];
+    cfg.rewards = cfg.rewards.filter((r) => r.roleId);
+  },
   events: { messageCreate: onMessage },
   ready(client) {
     setInterval(() => voiceTick(client), 60_000).unref();

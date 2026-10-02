@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, ActionRowBuilder, StringSelectMenuBuilder, MessageFlags } = require('discord.js');
 const store = require('../../core/store');
 const { card, DIVIDER, reply } = require('../../core/theme');
+const { userError } = require('../../core/errors');
 
 const PALETTE = [
   ['قرمزي', 0xdc143c], ['أحمر', 0xff4d4d], ['برتقالي', 0xff8c42], ['ذهبي', 0xffd166], ['أصفر', 0xfff275],
@@ -58,6 +59,28 @@ async function refreshPanel(guild) {
   if (message) await message.edit(panelPayload(guild)).catch(() => null);
 }
 
+async function createColors(guild, wanted) {
+  const cfg = store.get(guild.id, 'colors');
+  const me = guild.members.me;
+  const count = Math.min(wanted, MAX - liveRoles(guild, cfg).length, PALETTE.length);
+  if (count <= 0) return 0;
+  const created = [];
+  for (const [name, color] of PALETTE.slice(0, count)) {
+    const role = await guild.roles.create({
+      name: `🎨 ${name}`, colors: { primaryColor: color }, permissions: [], mentionable: false, reason: 'Sword Colors',
+    });
+    // Directly under the bot's role so the colour wins over other roles.
+    await role.setPosition(me.roles.highest.position - 1).catch(() => null);
+    created.push(role.id);
+  }
+  store.update(guild.id, 'colors', (c) => {
+    c.roles.push(...created);
+    c.created.push(...created);
+  });
+  await refreshPanel(guild);
+  return created.length;
+}
+
 const data = new SlashCommandBuilder()
   .setName('colors')
   .setDescription('علبة الألوان — رتب ألوان للأعضاء')
@@ -103,24 +126,10 @@ async function execute(interaction) {
       return reply.success(interaction, `تمت إزالة ${role}`);
     }
     case 'setup': {
-      const count = Math.min(interaction.options.getInteger('count') || PALETTE.length, MAX - liveRoles(guild, cfg).length);
-      if (count <= 0) return reply.error(interaction, 'وصلت الحد الأقصى للألوان.');
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-      const created = [];
-      for (const [name, color] of PALETTE.slice(0, count)) {
-        const role = await guild.roles.create({
-          name: `🎨 ${name}`, colors: { primaryColor: color }, permissions: [], mentionable: false, reason: 'Sword Colors',
-        });
-        // Directly under the bot's role so the colour wins over other roles.
-        await role.setPosition(me.roles.highest.position - 1).catch(() => null);
-        created.push(role.id);
-      }
-      store.update(guild.id, 'colors', (c) => {
-        c.roles.push(...created);
-        c.created.push(...created);
-      });
-      await refreshPanel(guild);
-      return reply.success(interaction, `تم إنشاء \`${created.length}\` لون 🎨\nأرسل البانل بـ \`/colors panel\``);
+      const created = await createColors(guild, interaction.options.getInteger('count') || PALETTE.length);
+      if (!created) return reply.error(interaction, 'وصلت الحد الأقصى للألوان.');
+      return reply.success(interaction, `تم إنشاء \`${created}\` لون 🎨\nأرسل البانل بـ \`/ألوان لوحة\``);
     }
     case 'reset': {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -147,6 +156,39 @@ module.exports = {
   description: 'رتب ألوان جاهزة وبانل اختيار لون الاسم بشعار Sword.',
   defaults: { roles: [], created: [], panel: { channelId: null, messageId: null } },
   commands: [{ data, execute }],
+  dashboard: [
+    {
+      title: '🎨 رتب الألوان',
+      description: 'الرتب اللي تظهر في بانل الألوان (حد أقصى 24) — رتب الألوان لازم تكون تحت رتبة البوت',
+      fields: [{ key: 'roles', type: 'roles', label: 'الألوان', max: MAX }],
+    },
+  ],
+  async dashboardSaved(guild) {
+    await refreshPanel(guild);
+  },
+  actions: {
+    setup: {
+      label: 'إنشاء ألوان جاهزة',
+      description: `ينشئ لين ${PALETTE.length} رتبة لون بأسماء عربية تحت رتبة البوت`,
+      params: [{ key: 'count', type: 'number', label: 'العدد', min: 1, max: PALETTE.length }],
+      async run(guild, { count }) {
+        const created = await createColors(guild, count || PALETTE.length);
+        if (!created) throw userError('وصلت الحد الأقصى للألوان');
+        return `تم إنشاء ${created} لون`;
+      },
+    },
+    sendPanel: {
+      label: 'إرسال بانل الألوان',
+      params: [{ key: 'channelId', type: 'channel', label: 'الروم' }],
+      async run(guild, { channelId }) {
+        const channel = channelId && guild.channels.cache.get(channelId);
+        if (!channel) throw userError('اختر الروم');
+        const message = await channel.send(panelPayload(guild));
+        store.update(guild.id, 'colors', (c) => { c.panel = { channelId: channel.id, messageId: message.id }; });
+        return `تم إرسال البانل في #${channel.name}`;
+      },
+    },
+  },
   components: {
     async pick(interaction) {
       const { guild, member } = interaction;
