@@ -21,15 +21,26 @@ async function done(session, game, alive) {
 }
 
 // ── روليت / روليتز ────────────────────────────────────────────────
-async function wheelMessage(session, alive, chosenIndex, round, text, components = []) {
-  const embed = simple(text, 'primary', `${I.roulette} الجولة ${round} — ${alive.length} لاعبين`).setImage('attachment://wheel.png');
+// Spins the wheel: sends the animated GIF, lets it land, then returns the message
+// (which freezes on the chosen slice). `extra` is edited in afterwards (text + buttons).
+async function spin(session, order, index, round) {
+  const title = `${I.roulette} الجولة ${round} — ${order.length} لاعبين`;
+  const image = `attachment://wheel.${'gif'}`;
+  const embed = simple('العجلة تدور...', 'primary', title);
   try {
-    const file = new AttachmentBuilder(await art.wheel(alive, chosenIndex), { name: 'wheel.png' });
-    return session.send({ embeds: [embed], files: [file], components });
+    const gif = new AttachmentBuilder(await art.spinGif(order, index, { title: `الجولة ${round}` }), { name: 'wheel.gif' });
+    const msg = await session.send({ embeds: [embed.setImage(image)], files: [gif] });
+    await session.sleep(2800); // let the GIF settle on the winner
+    return { msg, embed };
   } catch {
-    return session.send({ embeds: [embed.setImage(null)], components });
+    const png = new AttachmentBuilder(await art.wheel(order, index, { title: `الجولة ${round}` }), { name: 'wheel.png' });
+    const msg = await session.send({ embeds: [embed.setImage('attachment://wheel.png')], files: [png] });
+    return { msg, embed };
   }
 }
+
+// Updates the spin message in place: new text + optional buttons (keeps the wheel image).
+const settle = ({ msg, embed }, text, components = []) => msg?.edit({ embeds: [embed.setDescription(text)], components }).catch(() => null);
 
 async function roulette(session, interaction, game, { random = false } = {}) {
   let alive = await lobby(session, interaction, {
@@ -43,17 +54,20 @@ async function roulette(session, interaction, game, { random = false } = {}) {
     const order = [...alive]; // wheel order = button numbers
     const index = rand(order.length);
     const chosen = order[index];
+    const spun = await spin(session, order, index, round);
+    if (!session.active) return;
     if (random) {
-      await wheelMessage(session, order, index, round, `${I.rouletteZ} وقفت العجلة على ${mention(chosen)} — **طلع من اللعبة**`);
+      await settle(spun, `${I.rouletteZ} وقفت العجلة على ${mention(chosen)} — **طلع من اللعبة**`);
       alive = without(alive, [chosen]);
-      await session.sleep(3000);
+      await out(session, game, [chosen], 'وقفت عليه العجلة');
+      await session.sleep(1500);
       continue;
     }
     const choices = order.map((p, n) => ({ p, n })).filter(({ p }) => p.id !== chosen.id).slice(0, 22)
       .map(({ p, n }) => button(session.cid('kick', p.id), `${n + 1}  ${p.name}`));
     choices.push(button(session.cid('kick', 'random'), 'عشوائي', S.Primary, I.dice));
     choices.push(button(session.cid('kick', 'self'), 'انسحاب', S.Danger, I.leave));
-    const msg = await wheelMessage(session, order, index, round, `${mention(chosen)}، لديك **20 ثانية** لاختيار شخص لطرده.`, rows(choices));
+    await settle(spun, `${mention(chosen)}، لديك **20 ثانية** لاختيار شخص لطرده.`, rows(choices));
     const i = await session.waitComponent({ time: 20_000, accept: (x) => x.user.id === chosen.id, deny: 'مو أنت اللي وقفت عليه العجلة' });
     if (!session.active) return;
     const others = without(alive, [chosen]);
@@ -71,7 +85,7 @@ async function roulette(session, interaction, game, { random = false } = {}) {
       why = `طرده ${mention(chosen)}`;
     }
     if (i) await i.update({ components: [] }).catch(() => null);
-    else await msg?.edit({ components: [] }).catch(() => null);
+    else await spun.msg?.edit({ components: [] }).catch(() => null);
     alive = without(alive, [gone]);
     await out(session, game, [gone], why);
     await session.sleep(1500);

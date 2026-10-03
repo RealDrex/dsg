@@ -170,23 +170,20 @@ async function banner(game, subtitle = 'للدخول إلى اللعبة اضغ�
  * Roulette wheel: one slice per player, rotated so the chosen slice sits at the pointer,
  * with the chosen player's avatar in the middle.
  */
-async function wheel(players, chosenIndex, { title } = {}) {
-  const size = 760;
-  const canvas = createCanvas(size, size);
-  const ctx = canvas.getContext('2d');
-  await backdrop(ctx, size, size, { samurai: false });
-  const cx = size / 2;
-  const cy = size / 2 + 10;
-  const R = 320;
+// Draws the wheel body (rim, slices, labels, hub ring, pointer) rotated by `rotation`.
+// `hubImage` is drawn in the center circle when given (the chosen avatar on the final frame).
+function drawWheelBody(ctx, players, rotation, { cx, cy, R, hubImage, hubName }) {
   const n = players.length;
   const slice = (Math.PI * 2) / n;
-  const rotation = -(chosenIndex + 0.5) * slice; // chosen slice centred at angle 0 (pointer on the right)
 
   // rim
   ctx.beginPath();
-  ctx.arc(cx, cy, R + 14, 0, Math.PI * 2);
-  ctx.fillStyle = '#1b1d22';
+  ctx.arc(cx, cy, R + 16, 0, Math.PI * 2);
+  ctx.fillStyle = '#17181c';
   ctx.fill();
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = '#2b2d33';
+  ctx.stroke();
 
   const palette = [C.silver, C.slate];
   players.forEach((p, i) => {
@@ -194,7 +191,6 @@ async function wheel(players, chosenIndex, { title } = {}) {
     const a1 = a0 + slice;
     let fill = palette[i % 2];
     if (n % 2 === 1 && i === n - 1 && n > 1) fill = C.steel; // avoid two equal neighbours
-    if (i === chosenIndex) fill = C.crimson;
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.arc(cx, cy, R, a0, a1);
@@ -202,10 +198,9 @@ async function wheel(players, chosenIndex, { title } = {}) {
     ctx.fillStyle = fill;
     ctx.fill();
     ctx.strokeStyle = '#0b0b0d';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3;
     ctx.stroke();
 
-    // label along the radius
     ctx.save();
     ctx.translate(cx, cy);
     const mid = a0 + slice / 2;
@@ -214,51 +209,116 @@ async function wheel(players, chosenIndex, { title } = {}) {
     ctx.fillStyle = light ? '#15161a' : '#f2f2f2';
     ctx.textBaseline = 'middle';
     const label = ellipsis(p.name, 12);
-    fit(ctx, label, R - 160, 'Cairo Heavy', n > 14 ? 20 : 28);
     const flip = Math.cos(mid) < 0; // keep text upright on the left half
     if (flip) ctx.rotate(Math.PI);
-    const edge = flip ? -(R - 34) : R - 34;
     ctx.textAlign = 'center';
-    ctx.fillText(String(i + 1), edge, 0); // slice number at the rim
-    const font = ctx.font;
-    fit(ctx, label, R - 160, 'Cairo Heavy', n > 14 ? 20 : 28);
+    ctx.font = `${n > 14 ? 18 : 24}px "Cairo Heavy"`;
+    ctx.fillText(String(i + 1), flip ? -(R - 30) : R - 30, 0);
+    fit(ctx, label, R - 150, 'Cairo Heavy', n > 14 ? 18 : 26);
     ctx.textAlign = flip ? 'left' : 'right';
-    ctx.fillText(label, flip ? -(R - 66) : R - 66, 0);
-    ctx.font = font;
+    ctx.fillText(label, flip ? -(R - 58) : R - 58, 0);
     ctx.restore();
   });
 
-  // hub with the chosen avatar
+  // hub
   ctx.beginPath();
-  ctx.arc(cx, cy, 96, 0, Math.PI * 2);
+  ctx.arc(cx, cy, R * 0.28, 0, Math.PI * 2);
   ctx.fillStyle = '#0b0b0d';
   ctx.fill();
   ctx.lineWidth = 6;
   ctx.strokeStyle = C.silver;
   ctx.stroke();
-  const chosen = players[chosenIndex];
-  circleImage(ctx, await avatar(chosen?.avatar), cx, cy, 84, chosen?.name);
+  if (hubImage !== undefined) circleImage(ctx, hubImage, cx, cy, R * 0.26, hubName);
 
-  // pointer
+  // pointer (fixed at the right)
   ctx.beginPath();
-  ctx.moveTo(cx + R - 18, cy);
-  ctx.lineTo(cx + R + 40, cy - 26);
-  ctx.lineTo(cx + R + 40, cy + 26);
+  ctx.moveTo(cx + R - 10, cy);
+  ctx.lineTo(cx + R + 42, cy - 26);
+  ctx.lineTo(cx + R + 42, cy + 26);
   ctx.closePath();
   ctx.fillStyle = C.crimsonLight;
   ctx.fill();
   ctx.lineWidth = 4;
   ctx.strokeStyle = '#0b0b0d';
   ctx.stroke();
+}
 
+// Rotation that puts slice `index` centred under the pointer (angle 0, to the right).
+const finalRotation = (index, n) => -(index + 0.5) * ((Math.PI * 2) / n);
+
+/** Static wheel PNG with the chosen slice under the pointer and its avatar in the hub. */
+async function wheel(players, chosenIndex, { title } = {}) {
+  const size = 640;
+  const canvas = createCanvas(size, size);
+  const ctx = canvas.getContext('2d');
+  await backdrop(ctx, size, size, { samurai: true });
+  const cx = size / 2;
+  const cy = size / 2 + 8;
+  const R = 268;
+  drawWheelBody(ctx, players, finalRotation(chosenIndex, players.length), {
+    cx, cy, R, hubImage: await avatar(players[chosenIndex]?.avatar), hubName: players[chosenIndex]?.name,
+  });
   if (title) {
     ctx.direction = 'rtl';
     ctx.textAlign = 'center';
     ctx.fillStyle = C.text;
-    fit(ctx, title, size - 80, 'Cairo Heavy', 34);
-    ctx.fillText(title, cx, 44);
+    fit(ctx, title, size - 80, 'Cairo Heavy', 30);
+    ctx.fillText(title, cx, 38);
   }
   return canvas.toBuffer('image/png');
+}
+
+/**
+ * Animated spinning wheel GIF that decelerates and lands on `chosenIndex`.
+ * Plays once and holds on the final frame (so it "stops" on the winner).
+ */
+async function spinGif(players, chosenIndex, { title } = {}) {
+  const { GIFEncoder, quantize, applyPalette } = require('gifenc');
+  const size = 420;
+  const cx = size / 2;
+  const cy = size / 2 + 6;
+  const R = 176;
+  const n = players.length;
+  const target = finalRotation(chosenIndex, n);
+  const turns = 4 + (chosenIndex % 3); // a little variety
+  const start = target - (Math.PI * 2 * turns) - Math.PI; // spin clockwise into place
+  const frames = 26;
+
+  const canvas = createCanvas(size, size);
+  const ctx = canvas.getContext('2d');
+  const bg = await (async () => {
+    const c = createCanvas(size, size);
+    await backdrop(c.getContext('2d'), size, size, { samurai: true });
+    return c;
+  })();
+
+  const gif = GIFEncoder();
+  const easeOut = (t) => 1 - (1 - t) ** 3;
+  for (let f = 0; f < frames; f += 1) {
+    const t = easeOut(f / (frames - 1));
+    const rotation = start + (target - start) * t;
+    ctx.clearRect(0, 0, size, size);
+    ctx.drawImage(bg, 0, 0);
+    drawWheelBody(ctx, players, rotation, { cx, cy, R });
+    if (title) {
+      ctx.direction = 'rtl';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = C.text;
+      fit(ctx, title, size - 60, 'Cairo Heavy', 24);
+      ctx.fillText(title, cx, 30);
+    }
+    const { data } = ctx.getImageData(0, 0, size, size);
+    const palette = quantize(data, 128);
+    const index = applyPalette(data, palette);
+    const last = f === frames - 1;
+    gif.writeFrame(index, size, size, {
+      palette,
+      delay: last ? 2000 : 45 + Math.round(70 * t), // slows down as it lands, holds at the end
+      repeat: -1, // play once, then freeze on the last frame
+    });
+  }
+  gif.finish();
+  return Buffer.from(gif.bytes());
 }
 
 /** Winner card: avatar, name, game and points. */
@@ -297,4 +357,4 @@ async function winnerCard(player, game, amount) {
   return canvas.toBuffer('image/png');
 }
 
-module.exports = { banner, wheel, winnerCard };
+module.exports = { banner, wheel, spinGif, winnerCard };
