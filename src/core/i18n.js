@@ -3,7 +3,7 @@
 
 // Top-level command names.
 const COMMANDS = {
-  help: 'مساعدة', plugins: 'البلوقنات', prefix: 'البريفكس', update: 'تحديث', ping: 'بنق', botinfo: 'معلومات_البوت',
+  help: 'مساعدة', plugins: 'الأقسام', prefix: 'البريفكس', update: 'تحديث', ping: 'بنق', botinfo: 'معلومات_البوت',
   serverinfo: 'معلومات_السيرفر', userinfo: 'معلومات_عضو', avatar: 'افتار',
   ban: 'باند', unban: 'فك_باند', kick: 'طرد', timeout: 'تايم_اوت', untimeout: 'فك_تايم_اوت',
   warn: 'تحذير', warnings: 'تحذيرات', history: 'سجل', clear: 'مسح', lock: 'قفل', unlock: 'فتح',

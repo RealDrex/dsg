@@ -34,7 +34,7 @@ const commandsOf = (client, pluginId) => {
 function helpMenu(client, selected) {
   const menu = new StringSelectMenuBuilder()
     .setCustomId('settings:help')
-    .setPlaceholder('اختر البلوقن لعرض أوامره')
+    .setPlaceholder('اختر القسم لعرض أوامره')
     .addOptions(
       [...client.plugins.values()].map((p) => ({
         label: p.nameAr,
@@ -57,7 +57,7 @@ function helpHome(interaction) {
     .join('\n');
   const { embed, files } = card({
     title: `${emoji.sword} Sword — قائمة الأوامر`,
-    description: `أهلاً بك في بوت **Sword** ${emoji.gate}\nاختر بلوقن من القائمة تحت عشان تشوف أوامره بالتفصيل.\n${DIVIDER}\n${list}\n${DIVIDER}\n${I.keyboard} كل أمر يشتغل بالسلاش \`/\` أو بالبريفكس \`${prefixOf(interaction)}\`\nمثال: \`${prefixOf(interaction)}باند @عضو السبب\`\n\`<>\` إجباري  •  \`[]\` اختياري`,
+    description: `أهلاً بك في بوت **Sword** ${emoji.gate}\nاختر قسم من القائمة تحت عشان تشوف أوامره بالتفصيل.\n${DIVIDER}\n${list}\n${DIVIDER}\n${I.keyboard} كل أمر يشتغل بالسلاش \`/\` أو بالبريفكس \`${prefixOf(interaction)}\`\nمثال: \`${prefixOf(interaction)}باند @عضو السبب\`\n\`<>\` إجباري  •  \`[]\` اختياري`,
     image: 'banner',
   });
   return { embeds: [embed], files, components: [helpMenu(client)] };
@@ -85,7 +85,7 @@ function pluginsPanel(interaction) {
     .join('\n');
   const menu = new StringSelectMenuBuilder()
     .setCustomId('settings:plugins')
-    .setPlaceholder('حدد البلوقنات اللي تبيها شغالة')
+    .setPlaceholder('حدد الأقسام اللي تبيها شغالة')
     .setMinValues(0)
     .setMaxValues(toggleable.length)
     .addOptions(
@@ -98,15 +98,15 @@ function pluginsPanel(interaction) {
       })),
     );
   const { embed, files } = card({
-    title: `${emoji.gate} إدارة البلوقنات`,
-    description: `فعّل أو عطّل أي بلوقن من القائمة.\nالمحدد = شغال ${emoji.on}  •  غير المحدد = مقفل ${emoji.off}\n${DIVIDER}\n${list}`,
+    title: `${emoji.gate} إدارة الأقسام`,
+    description: `فعّل أو عطّل أي قسم من القائمة.\nالمحدد = شغال ${emoji.on}  •  غير المحدد = مقفل ${emoji.off}\n${DIVIDER}\n${list}`,
   });
   return { embeds: [embed], files, components: [new ActionRowBuilder().addComponents(menu)], attachments: [] };
 }
 
 const commands = [
   {
-    data: new SlashCommandBuilder().setName('help').setDescription('قائمة أوامر Sword مقسمة حسب البلوقنات'),
+    data: new SlashCommandBuilder().setName('help').setDescription('قائمة أوامر Sword مقسمة حسب الأقسام'),
     async execute(interaction) {
       await interaction.reply({ ...helpHome(interaction), flags: MessageFlags.Ephemeral });
     },
@@ -114,7 +114,7 @@ const commands = [
   {
     data: new SlashCommandBuilder()
       .setName('plugins')
-      .setDescription('تشغيل وإيقاف بلوقنات البوت')
+      .setDescription('تشغيل وإيقاف أقسام البوت')
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
     async execute(interaction) {
       await interaction.reply({ ...pluginsPanel(interaction), flags: MessageFlags.Ephemeral });
@@ -178,7 +178,7 @@ const commands = [
         fields: [
           { name: `${I.clock} شغال من`, value: ts(Date.now() - client.uptime), inline: true },
           { name: `${I.signal} البنق`, value: `\`${Math.round(client.ws.ping)}ms\``, inline: true },
-          { name: `${I.puzzle} البلوقنات`, value: `\`${client.plugins.size}\``, inline: true },
+          { name: `${I.puzzle} الأقسام`, value: `\`${client.plugins.size}\``, inline: true },
           { name: `${I.keyboard} الأوامر`, value: `\`${client.commands.size}\``, inline: true },
           { name: `${I.server} السيرفرات`, value: `\`${client.guilds.cache.size}\``, inline: true },
           { name: `${I.package} المكتبة`, value: `\`discord.js v${djsVersion}\``, inline: true },
@@ -267,7 +267,7 @@ module.exports = {
   name: 'Bot Settings',
   nameAr: 'إعدادات البوت',
   emoji: I.settings,
-  description: 'قائمة الأوامر، البريفكس، تشغيل وإيقاف البلوقنات، ومعلومات عامة عن البوت والسيرفر.',
+  description: 'قائمة الأوامر، البريفكس، تشغيل وإيقاف الأقسام، ومعلومات عامة عن البوت والسيرفر.',
   configKey: 'core',
   dashboard: [
     {

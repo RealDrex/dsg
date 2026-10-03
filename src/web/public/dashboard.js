@@ -187,7 +187,7 @@
     const panel = $('#panel');
     panel.innerHTML = '';
     if (p.toggleable && !p.enabled) {
-      panel.append(el('div', { class: 'notice disabled-note' }, icon('off'), el('span', { text: 'هذا البلوقن مقفل — أوامره وأحداثه موقفة. شغّله من الزر فوق.' })));
+      panel.append(el('div', { class: 'notice disabled-note' }, icon('off'), el('span', { text: 'هذا القسم مقفل — أوامره وأحداثه موقفة. شغّله من الزر فوق.' })));
     }
     if (state.tab === 'settings') renderSettings(panel, p);
     if (state.tab === 'actions') renderActions(panel, p);
@@ -197,7 +197,7 @@
 
   function renderSettings(panel, p) {
     if (!p.sections.length) {
-      panel.append(el('div', { class: 'card' }, el('h2', {}, icon('info'), 'ما فيه إعدادات هنا'), el('p', { class: 'card-desc', text: 'هذا البلوقن يُدار بالأوامر — شوف تبويب الأوامر.' })));
+      panel.append(el('div', { class: 'card' }, el('h2', {}, icon('info'), 'ما فيه إعدادات هنا'), el('p', { class: 'card-desc', text: 'هذا القسم يُدار بالأوامر — شوف تبويب الأوامر.' })));
       return;
     }
     for (const section of p.sections) {
@@ -503,7 +503,7 @@
       const plugin = await api(`/api/guilds/${state.data.guild.id}/plugins/${state.pluginId}`, { method: 'PUT', body: { enabled } });
       plugin.config = current().config;
       replacePlugin(plugin, { keepDraft: true });
-      toast(enabled ? 'تم تشغيل البلوقن' : 'تم إيقاف البلوقن');
+      toast(enabled ? 'تم تشغيل القسم' : 'تم إيقاف القسم');
     } catch (err) {
       e.target.checked = !enabled;
       toast(err.message, true);

@@ -99,8 +99,8 @@ async function createCounter(guild, type, template) {
 
 module.exports = {
   id: 'counters',
-  name: 'Counters Plugin',
-  nameAr: 'بلوقن العدادات',
+  name: 'Counters',
+  nameAr: 'العدادات',
   emoji: I.counters,
   description: 'رومات فويس تعرض عدد الأعضاء، البوتات، الفويس، البوستات وغيرها وتتحدث تلقائياً.',
   defaults: { categoryId: null, counters: [] },

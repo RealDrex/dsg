@@ -203,7 +203,7 @@ function start(client, plugins = client?.plugins) {
 
   app.put('/api/guilds/:guildId/plugins/:pluginId', auth, guildAccess, async (req, res) => {
     const plugin = plugins.get(req.params.pluginId);
-    if (!plugin) return res.status(404).json({ error: 'بلوقن غير موجود' });
+    if (!plugin) return res.status(404).json({ error: 'قسم غير موجود' });
     const { guild } = req;
     try {
       if (typeof req.body.enabled === 'boolean' && plugin.toggleable) store.setEnabled(guild.id, plugin.id, req.body.enabled);
@@ -228,7 +228,7 @@ function start(client, plugins = client?.plugins) {
     const plugin = plugins.get(req.params.pluginId);
     const action = plugin?.actions?.[req.params.actionId];
     if (!action) return res.status(404).json({ error: 'إجراء غير موجود' });
-    if (plugin.toggleable && !store.isEnabled(req.guild.id, plugin.id)) return res.status(400).json({ error: 'شغّل البلوقن أول' });
+    if (plugin.toggleable && !store.isEnabled(req.guild.id, plugin.id)) return res.status(400).json({ error: 'شغّل القسم أول' });
     try {
       const params = schema.apply([{ fields: action.params || [] }], {}, req.body.params || {}, req.guild);
       const message = await action.run(req.guild, params, req.user);

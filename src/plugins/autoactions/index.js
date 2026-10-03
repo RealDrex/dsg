@@ -134,8 +134,8 @@ async function lineCommand(interaction) {
 
 module.exports = {
   id: 'autoactions',
-  name: 'Autoactions Plugin',
-  nameAr: 'بلوقن الرد والرياكشن والخطوط التلقائية',
+  name: 'Autoactions',
+  nameAr: 'الرد والرياكشن والخطوط التلقائية',
   emoji: I.autoactions,
   description: 'ردود تلقائية، رياكشن تلقائي على رومات، وخط سيف فاصل بعد الرسائل.',
   defaults: { replies: [], reactions: [], lines: { channels: [], image: null } },

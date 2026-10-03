@@ -54,7 +54,7 @@ async function handleInteraction(interaction) {
       }
       const { plugin } = command;
       if (plugin.toggleable && !store.isEnabled(interaction.guildId, plugin.id)) {
-        return reply.error(interaction, `${plugin.emoji} **${plugin.nameAr}** مقفل حالياً. شغّله من \`/البلوقنات\`.`);
+        return reply.error(interaction, `${plugin.emoji} **${plugin.nameAr}** مقفل حالياً. شغّله من \`/الأقسام\`.`);
       }
       return await command.execute(interaction);
     }

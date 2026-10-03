@@ -99,7 +99,7 @@
   function renderChips() {
     const chips = $('#chips');
     chips.innerHTML = [`<button class="chip" data-plugin="all">الكل</button>`]
-      .concat(plugins.map((p) => `<button class="chip" data-plugin="${esc(p.id)}">${ic(esc(p.icon))} ${esc(p.nameAr.replace(/^بلوقن\s*/, ''))}</button>`))
+      .concat(plugins.map((p) => `<button class="chip" data-plugin="${esc(p.id)}">${ic(esc(p.icon))} ${esc(p.nameAr.replace(/^قسم\s*/, ''))}</button>`))
       .join('');
     $$('.chip', chips).forEach((c) => c.addEventListener('click', () => setFilter(c.dataset.plugin)));
   }

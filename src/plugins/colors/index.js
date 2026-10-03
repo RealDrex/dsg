@@ -151,8 +151,8 @@ async function execute(interaction) {
 
 module.exports = {
   id: 'colors',
-  name: 'Colors Plugin',
-  nameAr: 'بلوقن علبة الألوان',
+  name: 'Colors',
+  nameAr: 'علبة الألوان',
   emoji: I.colors,
   description: 'رتب ألوان جاهزة وبانل اختيار لون الاسم بشعار Sword.',
   defaults: { roles: [], created: [], panel: { channelId: null, messageId: null } },

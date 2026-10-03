@@ -188,8 +188,8 @@ const stopCommand = {
 
 module.exports = {
   id: 'games',
-  name: 'Games Plugin',
-  nameAr: 'بلوقن الألعاب',
+  name: 'Games',
+  nameAr: 'الألعاب',
   emoji: I.games,
   description: 'ألعاب جماعية (روليت، مافيا، كراسي...)، تحديات، أسئلة سريعة، نقاط وتوب وتحويل وتصويت.',
   defaults: { channels: [], groupWin: 5, duelWin: 3, quizPoint: 1, quizTime: 20, lobbyTime: 30 },

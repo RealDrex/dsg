@@ -215,8 +215,8 @@ async function setupLogs(guild) {
 
 module.exports = {
   id: 'logs',
-  name: 'Logs Plugin',
-  nameAr: 'بلوقن اللوقات',
+  name: 'Logs',
+  nameAr: 'اللوقات',
   emoji: I.logs,
   description: 'تسجيل الرسائل، الأعضاء، العقوبات، الرومات والرتب، الفويس وتنبيهات الحماية.',
   defaults: { channels: Object.fromEntries(Object.keys(TYPES).map((k) => [k, null])) },

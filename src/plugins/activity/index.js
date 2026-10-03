@@ -242,8 +242,8 @@ async function admin(interaction) {
 
 module.exports = {
   id: 'activity',
-  name: 'Activity Plugin',
-  nameAr: 'بلوقن الرانك والتفاعل',
+  name: 'Activity',
+  nameAr: 'الرانك والتفاعل',
   emoji: I.activity,
   description: 'لفلات بالرسائل والفويس، رتب مكافآت، رسائل لفل أب، وتوب التفاعل.',
   defaults: {

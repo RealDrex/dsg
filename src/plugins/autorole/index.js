@@ -71,8 +71,8 @@ async function execute(interaction) {
 
 module.exports = {
   id: 'autorole',
-  name: 'Autorole Plugin',
-  nameAr: 'بلوقن الرولات التلقائية',
+  name: 'Autorole',
+  nameAr: 'الرولات التلقائية',
   emoji: I.autorole,
   description: 'رتب تلقائية للأعضاء الجدد وللبوتات مع إمكانية التأخير.',
   defaults: { humans: [], bots: [], delay: 0 },

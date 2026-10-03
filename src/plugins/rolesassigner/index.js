@@ -229,8 +229,8 @@ async function panelAutocomplete(interaction) {
 
 module.exports = {
   id: 'rolesassigner',
-  name: 'Rolesassigner Plugin',
-  nameAr: 'بلوقن الرياكشن والسلكت رول',
+  name: 'Rolesassigner',
+  nameAr: 'الرياكشن والسلكت رول',
   emoji: I.roles,
   description: 'رتب بالرياكشن، وبانلات رتب بأزرار أو قائمة اختيار بثيم Sword.',
   defaults: { reactions: [], panels: {}, nextPanel: 1 },

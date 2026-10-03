@@ -134,8 +134,8 @@ const command = {
 
 module.exports = {
   id: 'voicebots',
-  name: 'Voicebots Plugin',
-  nameAr: 'بلوقن بوتات الفويس',
+  name: 'Voicebots',
+  nameAr: 'بوتات الفويس',
   emoji: I.bot,
   description: 'أضف توكنات بوتات وخلها تقعد في روم فويس 24/7 — تشغيل وإيقاف وتغيير الروم من لوحة.',
   defaults: { bots: [] },

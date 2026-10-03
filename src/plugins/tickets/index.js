@@ -281,8 +281,8 @@ async function autocomplete(interaction) {
 
 module.exports = {
   id: 'tickets',
-  name: 'Tickets Plugin',
-  nameAr: 'بلوقن التذاكر',
+  name: 'Tickets',
+  nameAr: 'التذاكر',
   emoji: I.ticket,
   description: 'تذاكر ببانل وشعار Sword، أنواع متعددة، استلام، وترانسكربت HTML بثيم السيرفر.',
   defaults: {

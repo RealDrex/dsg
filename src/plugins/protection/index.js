@@ -323,8 +323,8 @@ async function execute(interaction) {
 
 module.exports = {
   id: 'protection',
-  name: 'Protection Plugin',
-  nameAr: 'بلوقن الحماية',
+  name: 'Protection',
+  nameAr: 'الحماية',
   emoji: I.protection,
   description: 'مضاد سبام، روابط، منشن، كلمات ممنوعة، رايد، تخريب (Anti-Nuke) وبوتات.',
   defaults: {

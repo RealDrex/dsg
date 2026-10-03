@@ -402,8 +402,8 @@ const commands = [
 
 module.exports = {
   id: 'admin',
-  name: 'Admin Plugin',
-  nameAr: 'بلوقن الإدارة',
+  name: 'Admin',
+  nameAr: 'الإدارة',
   emoji: I.admin,
   description: 'باند، طرد، تايم أوت، تحذيرات بعقوبات تلقائية، مسح، قفل وإخفاء الرومات، والرتب.',
   defaults: {

@@ -105,8 +105,8 @@ async function execute(interaction) {
 
 module.exports = {
   id: 'welcome',
-  name: 'Welcome Plugin',
-  nameAr: 'بلوقن الترحيب',
+  name: 'Welcome',
+  nameAr: 'الترحيب',
   emoji: I.welcome,
   description: 'ترحيب بإمبد وبانر Sword، رسالة خاص للعضو الجديد، ورسالة مغادرة.',
   defaults: {
