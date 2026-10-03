@@ -32,10 +32,9 @@ const liveRoles = (guild, cfg) => cfg.roles.map((id) => guild.roles.cache.get(id
 
 function panelPayload(guild) {
   const roles = liveRoles(guild, store.get(guild.id, 'colors'));
-  const grid = roles.map((r, i) => `\`${String(i + 1).padStart(2, '0')}\` ${r}`).join('\n');
   const { embed, files } = card({
     title: 'علبة الألوان', icon: 'colors',
-    description: `اختر لون اسمك من القائمة تحت ${I.down}\n${DIVIDER}\n${grid || '*ما فيه ألوان للحين*'}\n${DIVIDER}`,
+    description: roles.length ? `اختر لون اسمك من القائمة تحت ${I.down}` : '*ما فيه ألوان للحين*',
     image: 'colors',
     footer: 'Sword • Colors',
   });
