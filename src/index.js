@@ -5,6 +5,7 @@ const { loadPlugins } = require('./core/loader');
 const { bindEvents, handleInteraction } = require('./core/handler');
 const { handlePrefix } = require('./core/prefix');
 const icons = require('./core/icons');
+const updater = require('./core/updater');
 const path = require('node:path');
 
 // Exit code 78 = configuration problem: start.bat stops instead of restarting.
@@ -47,6 +48,7 @@ client.once(Events.ClientReady, async () => {
   } catch (err) {
     logger.warn('تعذر رفع الأيقونات:', err.message);
   }
+  updater.schedule(client);
   for (const plugin of plugins.values()) {
     try {
       await plugin.ready?.(client);

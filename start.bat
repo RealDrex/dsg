@@ -20,14 +20,12 @@ echo     Website / Dashboard:  http://localhost:3000
 echo     Logs folder:          %~dp0logs
 echo     Stop:                 Ctrl+C  then  Y
 echo  ==================================================
-echo.
-
-echo  Registering slash commands...
-call node src\deploy.js
-if errorlevel 1 echo  [!] Could not register commands - check DISCORD_TOKEN and CLIENT_ID in .env
 
 :loop
 echo.
+echo  Registering slash commands...
+call node src\deploy.js
+if errorlevel 1 echo  [!] Could not register commands - check DISCORD_TOKEN and CLIENT_ID in .env
 echo  [%date% %time%] Starting Sword...
 node src\index.js
 set CODE=%errorlevel%
@@ -36,6 +34,10 @@ if "%CODE%"=="78" (
   echo  [X] Configuration problem ^(see the message above^). Fix .env and run start.bat again.
   pause
   exit /b 78
+)
+if "%CODE%"=="75" (
+  echo  [%date% %time%] Updated - restarting with the new version...
+  goto loop
 )
 echo  [%date% %time%] Sword stopped ^(code %CODE%^) - restarting in 5 seconds...  ^(Ctrl+C to quit^)
 timeout /t 5 /nobreak >nul

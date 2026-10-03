@@ -7,7 +7,22 @@ const { card, simple, emoji, DIVIDER, reply } = require('../../core/theme');
 const { describeCommands, usage } = require('../../core/loader');
 const { ts } = require('../../utils/time');
 const { truncate } = require('../../utils/text');
-const { I, asEmoji } = require('../../core/icons');
+const updater = require('../../core/updater');
+const config = require('../../config');
+const { ButtonBuilder, ButtonStyle } = require('discord.js');
+
+const isOwner = (interaction) => config.ownerIds.includes(interaction.user.id) || interaction.guild?.ownerId === interaction.user.id;
+
+const UPDATE_TEXT = {
+  'up-to-date': 'البوت على آخر نسخة',
+  'no-git': 'التحديث التلقائي يحتاج تثبيت البوت عن طريق **git clone** — شوف README',
+  'no-upstream': 'الفرع الحالي مو مربوط بـ GitHub (git branch --set-upstream-to)',
+  'fetch-failed': 'ما قدرت أوصل لـ GitHub',
+  busy: 'فيه تحديث شغال الحين',
+  dirty: 'فيه ملفات معدلة يدوياً على الخادم — ما أقدر أحدث فوقها',
+  failed: 'النسخة الجديدة فشلت الفحص — رجعت للنسخة السابقة',
+};
+const { I, asEmoji, setIcon } = require('../../core/icons');
 
 let commandIndex = null;
 const prefixOf = (interaction) => store.get(interaction.guildId, 'core').prefix || '!';
@@ -119,6 +134,30 @@ const commands = [
     },
   },
   {
+    data: new SlashCommandBuilder()
+      .setName('update')
+      .setDescription('فحص تحديثات البوت وتحديثه (لمالك السيرفر)')
+      .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    async execute(interaction) {
+      if (!isOwner(interaction)) return reply.error(interaction, 'للمالك فقط');
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const v = await updater.version();
+      const result = await updater.check();
+      const lines = [`${emoji.dot} **النسخة الحالية:** \`${v.hash}\`${v.date ? ` • ${ts(v.date)}` : ''}`,
+        `${emoji.dot} **التحديث التلقائي:** ${process.env.AUTO_UPDATE === 'false' ? `${emoji.off} مقفل` : `${emoji.on} شغال`}`];
+      let components = [];
+      if (result.status === 'available') {
+        lines.push(`${emoji.dot} **فيه تحديث:** ${result.behind} تعديل جديد\n${result.log.map((l) => `> \`${l.slice(0, 7)}\` ${l.slice(8)}`).join('\n')}`);
+        components = [new ActionRowBuilder().addComponents(
+          setIcon(new ButtonBuilder().setCustomId('settings:doupdate').setLabel('حدّث الحين').setStyle(ButtonStyle.Success), I.fast),
+        )];
+      } else {
+        lines.push(`${emoji.dot} ${UPDATE_TEXT[result.status] || result.status}${result.error ? `\n\`${result.error.slice(0, 200)}\`` : ''}`);
+      }
+      return interaction.editReply({ embeds: [simple(lines.join('\n'), 'primary', `${I.fast} تحديث البوت`)], components });
+    },
+  },
+  {
     data: new SlashCommandBuilder().setName('ping').setDescription('سرعة استجابة البوت'),
     async execute(interaction) {
       const sent = Date.now();
@@ -143,6 +182,7 @@ const commands = [
           { name: `${I.keyboard} الأوامر`, value: `\`${client.commands.size}\``, inline: true },
           { name: `${I.server} السيرفرات`, value: `\`${client.guilds.cache.size}\``, inline: true },
           { name: `${I.package} المكتبة`, value: `\`discord.js v${djsVersion}\``, inline: true },
+          { name: `${I.fast} النسخة`, value: `\`${(await updater.version()).hash}\``, inline: true },
         ],
         image: 'banner',
       });
@@ -243,6 +283,15 @@ module.exports = {
   components: {
     async help(interaction) {
       await interaction.update(helpPlugin(interaction, interaction.values[0]));
+    },
+    async doupdate(interaction) {
+      if (!isOwner(interaction)) return reply.error(interaction, 'للمالك فقط');
+      await interaction.update({ embeds: [simple(`${I.clock} جاري التحديث...`)], components: [] });
+      const result = await updater.updateAndRestart(interaction.client, { reason: interaction.user.tag });
+      const text = result.status === 'updated'
+        ? `${emoji.success} تحدّث من \`${result.from}\` إلى \`${result.to}\` — البوت بيرجع خلال ثواني`
+        : `${emoji.error} ${UPDATE_TEXT[result.status] || result.status}`;
+      return interaction.editReply({ embeds: [simple(text, result.status === 'updated' ? 'success' : 'error')] });
     },
     async plugins(interaction) {
       if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {
