@@ -30,7 +30,9 @@ function cookies(req) {
 }
 
 const baseUrl = () => (config.web.publicUrl || `http://localhost:${config.web.port}`).replace(/\/$/, '');
-const redirectUri = () => `${baseUrl()}/auth/callback`;
+// Without PUBLIC_URL, use the address the visitor actually opened (IP or localhost).
+const siteUrl = (req) => (config.web.publicUrl ? baseUrl() : `${req.protocol}://${req.get('host')}`);
+const redirectUri = (req) => `${siteUrl(req)}/auth/callback`;
 const oauthReady = () => !!(config.clientId && config.clientSecret);
 const secure = () => baseUrl().startsWith('https://');
 
@@ -75,25 +77,28 @@ function start(client, plugins = client?.plugins) {
   app.get('/auth/login', (req, res) => {
     if (!oauthReady()) return res.redirect('/dashboard?error=oauth');
     const state = crypto.randomBytes(16).toString('hex');
-    states.set(state, Date.now());
-    for (const [k, t] of states) if (Date.now() - t > 600_000) states.delete(k);
+    const redirect = redirectUri(req);
+    states.set(state, { at: Date.now(), redirect });
+    for (const [k, v] of states) if (Date.now() - v.at > 600_000) states.delete(k);
     const url = new URL('https://discord.com/oauth2/authorize');
     url.search = new URLSearchParams({
-      client_id: config.clientId, response_type: 'code', scope: 'identify', redirect_uri: redirectUri(), state, prompt: 'none',
+      client_id: config.clientId, response_type: 'code', scope: 'identify', redirect_uri: redirect, state, prompt: 'none',
     });
     res.redirect(url.toString());
   });
 
   app.get('/auth/callback', async (req, res) => {
     const { code, state } = req.query;
-    if (!code || !states.delete(String(state))) return res.redirect('/dashboard?error=state');
+    const pending = states.get(String(state));
+    if (!code || !pending) return res.redirect('/dashboard?error=state');
+    states.delete(String(state));
     try {
       const token = await fetch('https://discord.com/api/v10/oauth2/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
           client_id: config.clientId, client_secret: config.clientSecret, grant_type: 'authorization_code',
-          code: String(code), redirect_uri: redirectUri(),
+          code: String(code), redirect_uri: pending.redirect,
         }),
       }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`token ${r.status}`))));
       const me = await fetch('https://discord.com/api/v10/users/@me', {
