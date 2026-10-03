@@ -7,7 +7,7 @@ const {
 } = require('discord.js');
 const store = require('../../core/store');
 const config = require('../../config');
-const { card, simple, emoji, DIVIDER, reply } = require('../../core/theme');
+const { card, simple, emoji, reply } = require('../../core/theme');
 const { I, asEmoji, setIcon } = require('../../core/icons');
 const { register } = require('../../core/i18n');
 const { encrypt } = require('../../core/secrets');
@@ -54,17 +54,17 @@ function panelPayload(guildId) {
   const { embed, files } = card({
     title: 'بوتات الفويس',
     icon: I.voice,
-    description: `بوتات تقعد في روم الفويس اللي تحدده 24/7.\n${DIVIDER}\n${list || '*ما فيه بوتات للحين — اضغط إضافة توكن*'}\n${DIVIDER}\n${emoji.dot} التوكنات مشفرة وما تنعرض لأحد\n${emoji.dot} لازم يكون **توكن بوت** (من Developer Portal) — توكنات الحسابات الشخصية ممنوعة`,
+    description: `${list || '*ما فيه بوتات — اضغط Add Token*'}`,
     image: 'banner',
-    footer: `Sword • ${bots.length}/${MAX_BOTS} بوت`,
+    footer: `Sword • ${bots.length}/${MAX_BOTS}`,
   });
   return {
     embeds: [embed],
     files,
     components: [new ActionRowBuilder().addComponents(
-      setIcon(new ButtonBuilder().setCustomId('voicebots:add').setLabel('إضافة توكن').setStyle(ButtonStyle.Success), I.plus),
-      setIcon(new ButtonBuilder().setCustomId('voicebots:control').setLabel('تحكم').setStyle(ButtonStyle.Primary), I.settings),
-      setIcon(new ButtonBuilder().setCustomId('voicebots:delete').setLabel('حذف توكن').setStyle(ButtonStyle.Danger), I.trash),
+      setIcon(new ButtonBuilder().setCustomId('voicebots:add').setLabel('Add Token').setStyle(ButtonStyle.Success), I.plus),
+      setIcon(new ButtonBuilder().setCustomId('voicebots:control').setLabel('Control').setStyle(ButtonStyle.Primary), I.settings),
+      setIcon(new ButtonBuilder().setCustomId('voicebots:delete').setLabel('Delete Token').setStyle(ButtonStyle.Danger), I.trash),
     )],
   };
 }
@@ -84,16 +84,14 @@ function controlView(guildId, bot) {
   const s = manager.status(bot.id);
   const running = s.status === 'running' || s.status === 'starting';
   const embed = simple([
-    `${emoji.dot} **البوت:** <@${bot.botId}> (${bot.name})`,
-    `${emoji.dot} **السيرفر:** \`${bot.guildId}\`${s.guildName ? ` — ${s.guildName}` : ''}`,
-    `${emoji.dot} **الروم:** <#${bot.channelId}>`,
-    `${emoji.dot} **الحالة:** ${statusLine(bot)}`,
-  ].join('\n'), 'primary', `${I.bot} تحكم — ${bot.name}`);
+    `${emoji.dot} <@${bot.botId}> — <#${bot.channelId}>`,
+    `${emoji.dot} ${statusLine(bot)}`,
+  ].join('\n'), 'primary', `${I.bot} ${bot.name}`);
   return eph(embed, [new ActionRowBuilder().addComponents(
-    setIcon(new ButtonBuilder().setCustomId(`voicebots:on:${bot.id}`).setLabel(running ? 'إعادة تشغيل' : 'تشغيل').setStyle(ButtonStyle.Success), I.fast),
-    setIcon(new ButtonBuilder().setCustomId(`voicebots:off:${bot.id}`).setLabel('إيقاف').setStyle(ButtonStyle.Secondary).setDisabled(!running), I.stop),
-    setIcon(new ButtonBuilder().setCustomId(`voicebots:move:${bot.id}`).setLabel('تغيير الروم').setStyle(ButtonStyle.Primary), I.voice),
-    setIcon(new ButtonBuilder().setCustomId(`voicebots:refresh:${bot.id}`).setLabel('تحديث').setStyle(ButtonStyle.Secondary), I.history),
+    setIcon(new ButtonBuilder().setCustomId(`voicebots:on:${bot.id}`).setLabel(running ? 'Restart' : 'Start').setStyle(ButtonStyle.Success), I.fast),
+    setIcon(new ButtonBuilder().setCustomId(`voicebots:off:${bot.id}`).setLabel('Stop').setStyle(ButtonStyle.Secondary).setDisabled(!running), I.stop),
+    setIcon(new ButtonBuilder().setCustomId(`voicebots:move:${bot.id}`).setLabel('Move').setStyle(ButtonStyle.Primary), I.voice),
+    setIcon(new ButtonBuilder().setCustomId(`voicebots:refresh:${bot.id}`).setLabel('Refresh').setStyle(ButtonStyle.Secondary), I.history),
   )]);
 }
 
