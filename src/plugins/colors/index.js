@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, ActionRowBuilder, StringSelectMenuBuilder, MessageFlags, AttachmentBuilder } = require('discord.js');
 const store = require('../../core/store');
-const { card, DIVIDER, reply } = require('../../core/theme');
+const { DIVIDER, reply } = require('../../core/theme');
 const { userError } = require('../../core/errors');
 const { I, asEmoji } = require('../../core/icons');
 const art = require('../games/art');
@@ -31,34 +31,25 @@ const MAX = 24; // 25 select options minus "remove colour"
 
 const liveRoles = (guild, cfg) => cfg.roles.map((id) => guild.roles.cache.get(id)).filter(Boolean);
 
+// The panel is just the palette image + the number picker — no embed box.
 async function panelPayload(guild) {
   const roles = liveRoles(guild, store.get(guild.id, 'colors'));
-  const components = [];
+  if (!roles.length) return { content: 'ما فيه ألوان للحين.', embeds: [], files: [], components: [], attachments: [] };
   const files = [];
-  const { embed } = card({
-    title: 'علبة الألوان', icon: 'colors',
-    description: roles.length ? `اختر رقم اللون من القائمة تحت ${I.down}` : '*ما فيه ألوان للحين*',
-    footer: 'Sword • Colors',
-  });
-  if (roles.length) {
-    // Banner drawn from the actual colours, each swatch numbered to match the picker.
-    try {
-      const swatches = roles.map((r, i) => ({ color: r.hexColor && r.hexColor !== '#000000' ? r.hexColor : '#8a8a8a', label: String(i + 1) }));
-      files.push(new AttachmentBuilder(await art.paletteBanner(swatches), { name: 'colors.png' }));
-      embed.setImage('attachment://colors.png');
-    } catch {
-      /* no banner if rendering fails */
-    }
-    const menu = new StringSelectMenuBuilder()
-      .setCustomId('colors:pick')
-      .setPlaceholder('اختر رقم لونك')
-      .addOptions([
-        ...roles.map((r, i) => ({ label: `${i + 1}`, value: r.id, emoji: asEmoji(circleFor(r.color)) })),
-        { label: 'إزالة اللون', value: 'none', emoji: asEmoji(I.close) },
-      ]);
-    components.push(new ActionRowBuilder().addComponents(menu));
+  try {
+    const swatches = roles.map((r, i) => ({ color: r.hexColor && r.hexColor !== '#000000' ? r.hexColor : '#8a8a8a', label: String(i + 1) }));
+    files.push(new AttachmentBuilder(await art.paletteBanner(swatches), { name: 'colors.png' }));
+  } catch {
+    /* no banner if rendering fails */
   }
-  return { embeds: [embed], files, components, attachments: [] };
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId('colors:pick')
+    .setPlaceholder('اختر رقم لونك')
+    .addOptions([
+      ...roles.map((r, i) => ({ label: `${i + 1}`, value: r.id, emoji: asEmoji(circleFor(r.color)) })),
+      { label: 'إزالة اللون', value: 'none', emoji: asEmoji(I.close) },
+    ]);
+  return { content: '', embeds: [], files, components: [new ActionRowBuilder().addComponents(menu)], attachments: [] };
 }
 
 async function refreshPanel(guild) {
