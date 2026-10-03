@@ -9,7 +9,7 @@ const PLUGINS_DIR = path.join(__dirname, '..', 'plugins');
 const ORDER = [
   'settings', 'protection', 'admin', 'welcome', 'logs',
   'activity', 'autorole', 'rolesassigner', 'tickets',
-  'autoactions', 'counters', 'colors', 'games',
+  'autoactions', 'counters', 'colors', 'games', 'voicebots',
 ];
 
 /**
