@@ -188,28 +188,28 @@ function drawWheelBody(ctx, players, rotation, { cx, cy, R, hubImage, hubName })
   ctx.strokeStyle = '#2b2d33';
   ctx.stroke();
 
-  const palette = [C.silver, C.slate];
+  const palette = ['#eeeeee', '#0a0a0b']; // pure black & white
   players.forEach((p, i) => {
     const a0 = rotation + i * slice;
     const a1 = a0 + slice;
     let fill = palette[i % 2];
-    if (n % 2 === 1 && i === n - 1 && n > 1) fill = C.steel; // avoid two equal neighbours
+    if (n % 2 === 1 && i === n - 1 && n > 1) fill = '#1a1a1d'; // avoid two equal neighbours
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.arc(cx, cy, R, a0, a1);
     ctx.closePath();
     ctx.fillStyle = fill;
     ctx.fill();
-    ctx.strokeStyle = '#0b0b0d';
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#3a3a40'; // light separator so black slices stay distinct
+    ctx.lineWidth = 2;
     ctx.stroke();
 
     ctx.save();
     ctx.translate(cx, cy);
     const mid = a0 + slice / 2;
     ctx.rotate(mid);
-    const light = fill === C.silver;
-    ctx.fillStyle = light ? '#15161a' : '#f2f2f2';
+    const light = fill === '#eeeeee';
+    ctx.fillStyle = light ? '#111' : '#f2f2f2';
     ctx.textBaseline = 'middle';
     const label = ellipsis(p.name, 12);
     const flip = Math.cos(mid) < 0; // keep text upright on the left half
