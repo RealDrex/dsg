@@ -73,17 +73,20 @@ function circleImage(ctx, image, x, y, r, fallbackText) {
 }
 
 // Dark Sword backdrop: gradient, crimson glow, samurai on the left, logo watermark.
-async function backdrop(ctx, w, h, { samurai = true } = {}) {
+async function backdrop(ctx, w, h, { samurai = true, glow = 'crimson' } = {}) {
   const g = ctx.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, '#0d0d0f');
   g.addColorStop(1, '#000000');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
-  const glow = ctx.createRadialGradient(w * 0.78, h * 0.45, 10, w * 0.78, h * 0.45, w * 0.55);
-  glow.addColorStop(0, 'rgba(158,27,27,0.28)');
-  glow.addColorStop(1, 'rgba(158,27,27,0)');
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, w, h);
+  if (glow) {
+    const rg = ctx.createRadialGradient(w * 0.78, h * 0.45, 10, w * 0.78, h * 0.45, w * 0.55);
+    // 'crimson' for most games, 'mono' (white) for the black-and-white roulette
+    rg.addColorStop(0, glow === 'mono' ? 'rgba(220,220,230,0.14)' : 'rgba(158,27,27,0.28)');
+    rg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, w, h);
+  }
 
   if (samurai) {
     // Samurai faded into the background through an alpha mask (no hard edge).
@@ -236,7 +239,7 @@ function drawWheelBody(ctx, players, rotation, { cx, cy, R, hubImage, hubName })
   ctx.lineTo(cx + R + 42, cy - 26);
   ctx.lineTo(cx + R + 42, cy + 26);
   ctx.closePath();
-  ctx.fillStyle = C.crimsonLight;
+  ctx.fillStyle = C.silver;
   ctx.fill();
   ctx.lineWidth = 4;
   ctx.strokeStyle = '#0b0b0d';
@@ -251,7 +254,7 @@ async function wheel(players, chosenIndex, { title } = {}) {
   const size = 640;
   const canvas = createCanvas(size, size);
   const ctx = canvas.getContext('2d');
-  await backdrop(ctx, size, size, { samurai: true });
+  await backdrop(ctx, size, size, { samurai: true, glow: 'mono' });
   const cx = size / 2;
   const cy = size / 2 + 8;
   const R = 268;
@@ -288,7 +291,7 @@ async function spinGif(players, chosenIndex, { title } = {}) {
   const ctx = canvas.getContext('2d');
   const bg = await (async () => {
     const c = createCanvas(size, size);
-    await backdrop(c.getContext('2d'), size, size, { samurai: true });
+    await backdrop(c.getContext('2d'), size, size, { samurai: true, glow: 'mono' });
     return c;
   })();
 
