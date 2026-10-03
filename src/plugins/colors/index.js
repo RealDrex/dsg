@@ -1,8 +1,9 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, ActionRowBuilder, StringSelectMenuBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, ActionRowBuilder, StringSelectMenuBuilder, MessageFlags, AttachmentBuilder } = require('discord.js');
 const store = require('../../core/store');
 const { card, DIVIDER, reply } = require('../../core/theme');
 const { userError } = require('../../core/errors');
 const { I, asEmoji } = require('../../core/icons');
+const art = require('../games/art');
 
 const PALETTE = [
   ['قرمزي', 0xdc143c], ['أحمر', 0xff4d4d], ['برتقالي', 0xff8c42], ['ذهبي', 0xffd166], ['أصفر', 0xfff275],
@@ -30,21 +31,29 @@ const MAX = 24; // 25 select options minus "remove colour"
 
 const liveRoles = (guild, cfg) => cfg.roles.map((id) => guild.roles.cache.get(id)).filter(Boolean);
 
-function panelPayload(guild) {
+async function panelPayload(guild) {
   const roles = liveRoles(guild, store.get(guild.id, 'colors'));
-  const { embed, files } = card({
+  const components = [];
+  const files = [];
+  const { embed } = card({
     title: 'علبة الألوان', icon: 'colors',
-    description: roles.length ? `اختر لون اسمك من القائمة تحت ${I.down}` : '*ما فيه ألوان للحين*',
-    image: 'colors',
+    description: roles.length ? `اختر رقم اللون من القائمة تحت ${I.down}` : '*ما فيه ألوان للحين*',
     footer: 'Sword • Colors',
   });
-  const components = [];
   if (roles.length) {
+    // Banner drawn from the actual colours, each swatch numbered to match the picker.
+    try {
+      const swatches = roles.map((r, i) => ({ color: r.hexColor && r.hexColor !== '#000000' ? r.hexColor : '#8a8a8a', label: String(i + 1) }));
+      files.push(new AttachmentBuilder(await art.paletteBanner(swatches), { name: 'colors.png' }));
+      embed.setImage('attachment://colors.png');
+    } catch {
+      /* no banner if rendering fails */
+    }
     const menu = new StringSelectMenuBuilder()
       .setCustomId('colors:pick')
-      .setPlaceholder('اختر لونك')
+      .setPlaceholder('اختر رقم لونك')
       .addOptions([
-        ...roles.map((r) => ({ label: r.name.replace(/^🎨\s*/u, '').slice(0, 100) || r.name, value: r.id, emoji: asEmoji(circleFor(r.color)) })),
+        ...roles.map((r, i) => ({ label: `${i + 1}`, value: r.id, emoji: asEmoji(circleFor(r.color)) })),
         { label: 'إزالة اللون', value: 'none', emoji: asEmoji(I.close) },
       ]);
     components.push(new ActionRowBuilder().addComponents(menu));
@@ -56,7 +65,7 @@ async function refreshPanel(guild) {
   const { panel } = store.get(guild.id, 'colors');
   if (!panel.messageId) return;
   const message = await guild.channels.cache.get(panel.channelId)?.messages.fetch(panel.messageId).catch(() => null);
-  if (message) await message.edit(panelPayload(guild)).catch(() => null);
+  if (message) await message.edit(await panelPayload(guild)).catch(() => null);
 }
 
 async function createColors(guild, wanted) {
@@ -107,7 +116,7 @@ async function execute(interaction) {
       return reply.info(interaction, `${I.colors} **الألوان (${cfg.roles.length})**\n${DIVIDER}\n${liveRoles(guild, cfg).map((r) => `${circleFor(r.color)} ${r}`).join('\n') || '—'}`);
     case 'panel': {
       const channel = interaction.options.getChannel('channel') || interaction.channel;
-      const message = await channel.send(panelPayload(guild));
+      const message = await channel.send(await panelPayload(guild));
       store.update(guild.id, 'colors', (c) => { c.panel = { channelId: channel.id, messageId: message.id }; });
       return reply.success(interaction, `تم إرسال بانل الألوان في ${channel}`);
     }
@@ -183,7 +192,7 @@ module.exports = {
       async run(guild, { channelId }) {
         const channel = channelId && guild.channels.cache.get(channelId);
         if (!channel) throw userError('اختر الروم');
-        const message = await channel.send(panelPayload(guild));
+        const message = await channel.send(await panelPayload(guild));
         store.update(guild.id, 'colors', (c) => { c.panel = { channelId: channel.id, messageId: message.id }; });
         return `تم إرسال البانل في #${channel.name}`;
       },

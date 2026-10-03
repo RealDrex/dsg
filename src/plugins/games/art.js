@@ -360,4 +360,91 @@ async function winnerCard(player, game, amount) {
   return canvas.toBuffer('image/png');
 }
 
-module.exports = { banner, wheel, spinGif, winnerCard };
+// Relative luminance → pick black/white text for contrast on a swatch.
+function readable(hex) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#111' : '#fff';
+}
+
+/**
+ * Colors palette banner: numbered colour swatches in a glowing white frame,
+ * samurai on the right. `swatches` = [{ color: '#hex', label: '1' }].
+ */
+async function paletteBanner(swatches) {
+  const count = swatches.length;
+  const perRow = count <= 12 ? count : Math.ceil(count / 2);
+  const rows = Math.ceil(count / perRow) || 1;
+  const w = 1000;
+  const sideForSamurai = 150;
+  const trayX = 28;
+  const trayW = w - sideForSamurai - trayX - 20;
+  const pad = 22;
+  const gap = 12;
+  const cell = Math.max(34, Math.min(84, Math.floor((trayW - pad * 2 - gap * (perRow - 1)) / perRow)));
+  const trayH = pad * 2 + cell * rows + gap * (rows - 1);
+  const h = trayH + 56;
+  const canvas = createCanvas(w, h);
+  const ctx = canvas.getContext('2d');
+  await backdrop(ctx, w, h, { samurai: false, glow: 'mono' });
+
+  // samurai on the right (facing the palette)
+  try {
+    const s = await img('samurai.png');
+    const sh = h * 1.05;
+    const sw = (s.width / s.height) * sh;
+    const layer = createCanvas(Math.ceil(sw), h);
+    const lc = layer.getContext('2d');
+    lc.drawImage(s, 0, (h - sh) / 2, sw, sh);
+    lc.globalCompositeOperation = 'destination-in';
+    const mask = lc.createLinearGradient(0, 0, sw, 0);
+    mask.addColorStop(0, 'rgba(0,0,0,0)');
+    mask.addColorStop(0.5, 'rgba(0,0,0,0.65)');
+    mask.addColorStop(1, 'rgba(0,0,0,0.85)');
+    lc.fillStyle = mask;
+    lc.fillRect(0, 0, sw, h);
+    ctx.drawImage(layer, w - sw, 0);
+  } catch {
+    /* no samurai if the asset is missing */
+  }
+
+  // glowing white rounded frame
+  const trayY = (h - trayH) / 2;
+  ctx.save();
+  ctx.shadowColor = 'rgba(255,255,255,0.5)';
+  ctx.shadowBlur = 26;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.roundRect(trayX, trayY, trayW, trayH, 30);
+  ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = '#060606';
+  ctx.beginPath();
+  ctx.roundRect(trayX + 3, trayY + 3, trayW - 6, trayH - 6, 27);
+  ctx.fill();
+
+  swatches.forEach((sw, i) => {
+    const row = Math.floor(i / perRow);
+    const inRow = i % perRow;
+    const rowCount = Math.min(perRow, count - row * perRow);
+    const rowW = rowCount * cell + (rowCount - 1) * gap;
+    const startX = trayX + (trayW - rowW) / 2;
+    const x = startX + inRow * (cell + gap);
+    const y = trayY + pad + row * (cell + gap);
+    // swatch
+    ctx.fillStyle = sw.color;
+    ctx.beginPath();
+    ctx.roundRect(x, y, cell, cell, cell * 0.28);
+    ctx.fill();
+    // number
+    ctx.fillStyle = readable(sw.color);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `${Math.round(cell * 0.42)}px "Cairo Heavy"`;
+    ctx.fillText(sw.label, x + cell / 2, y + cell / 2 + 1);
+  });
+  return canvas.toBuffer('image/png');
+}
+
+module.exports = { banner, wheel, spinGif, winnerCard, paletteBanner };
