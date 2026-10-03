@@ -1,5 +1,6 @@
 // Voice bots panel: add extra *bot* tokens that sit 24/7 in a voice channel.
 // Admin only. Tokens are verified as bot tokens and stored encrypted (never shown again).
+// UI is in English by request.
 const crypto = require('node:crypto');
 const {
   SlashCommandBuilder, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder,
@@ -28,10 +29,10 @@ const isAdmin = (i) => i.memberPermissions?.has(P.Administrator) || config.owner
 const eph = (embed, components = []) => ({ embeds: [embed], components, flags: MessageFlags.Ephemeral });
 
 const STATUS = {
-  running: { label: 'شغال', icon: 'on' },
-  starting: { label: 'يشتغل...', icon: 'clock' },
-  stopped: { label: 'متوقف', icon: 'off' },
-  error: { label: 'خطأ', icon: 'error' },
+  running: { label: 'Online', icon: 'on' },
+  starting: { label: 'Starting...', icon: 'clock' },
+  stopped: { label: 'Offline', icon: 'off' },
+  error: { label: 'Error', icon: 'error' },
 };
 const statusLine = (bot) => {
   const s = manager.status(bot.id);
@@ -52,9 +53,9 @@ function panelPayload(guildId) {
   const bots = cfgOf(guildId).bots;
   const list = bots.map((b, n) => `\`${n + 1}\` **${b.name}** — <#${b.channelId}>\n${statusLine(b)}`).join('\n');
   const { embed, files } = card({
-    title: 'بوتات الفويس',
+    title: 'Voice Bots',
     icon: I.voice,
-    description: `${list || '*ما فيه بوتات — اضغط Add Token*'}`,
+    description: `${list || '*No bots yet — press Add Token*'}`,
     image: 'banner',
     footer: `Sword • ${bots.length}/${MAX_BOTS}`,
   });
@@ -76,7 +77,7 @@ function picker(customId, guildId, placeholder) {
     .setPlaceholder(placeholder)
     .addOptions(bots.map((b) => {
       const s = STATUS[manager.status(b.id).status] || STATUS.stopped;
-      return { label: b.name.slice(0, 100), value: b.id, description: `${s.label} • روم ${b.channelId}`.slice(0, 100), emoji: asEmoji(I[s.icon]) };
+      return { label: b.name.slice(0, 100), value: b.id, description: `${s.label} • channel ${b.channelId}`.slice(0, 100), emoji: asEmoji(I[s.icon]) };
     })));
 }
 
@@ -115,7 +116,7 @@ async function startBot(guildId, bot) {
 }
 
 const guard = (fn) => async (interaction, args) => {
-  if (!isAdmin(interaction)) return reply.error(interaction, 'هذي اللوحة للأدمن فقط');
+  if (!isAdmin(interaction)) return reply.error(interaction, 'This panel is for admins only.');
   return fn(interaction, args);
 };
 
@@ -125,7 +126,7 @@ const command = {
     .setDescription('لوحة بوتات الفويس: إضافة توكن بوت، تشغيله في روم، وحذفه')
     .setDefaultMemberPermissions(P.Administrator),
   async execute(interaction) {
-    if (!isAdmin(interaction)) return reply.error(interaction, 'للأدمن فقط');
+    if (!isAdmin(interaction)) return reply.error(interaction, 'Admins only.');
     await interaction.reply(panelPayload(interaction.guildId));
   },
 };
@@ -140,13 +141,13 @@ module.exports = {
   commands: [command],
   components: {
     add: guard(async (interaction) => {
-      if (cfgOf(interaction.guildId).bots.length >= MAX_BOTS) return reply.error(interaction, `الحد الأقصى ${MAX_BOTS} بوت`);
-      const modal = new ModalBuilder().setCustomId('voicebots:addmodal').setTitle('إضافة توكن بوت').addComponents(
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('token').setLabel('توكن البوت (Bot Token)')
-          .setStyle(TextInputStyle.Short).setRequired(true).setMinLength(50).setMaxLength(120).setPlaceholder('من Developer Portal ← Bot ← Reset Token')),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('guild').setLabel('آيدي السيرفر')
+      if (cfgOf(interaction.guildId).bots.length >= MAX_BOTS) return reply.error(interaction, `Max is ${MAX_BOTS} bots.`);
+      const modal = new ModalBuilder().setCustomId('voicebots:addmodal').setTitle('Add Bot Token').addComponents(
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('token').setLabel('Bot Token')
+          .setStyle(TextInputStyle.Short).setRequired(true).setMinLength(50).setMaxLength(120).setPlaceholder('Developer Portal -> Bot -> Reset Token')),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('guild').setLabel('Server ID')
           .setStyle(TextInputStyle.Short).setRequired(true).setMinLength(17).setMaxLength(20).setValue(interaction.guildId)),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('channel').setLabel('آيدي روم الفويس')
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('channel').setLabel('Voice Channel ID')
           .setStyle(TextInputStyle.Short).setRequired(true).setMinLength(17).setMaxLength(20)),
       );
       return interaction.showModal(modal);
@@ -157,25 +158,25 @@ module.exports = {
       const token = interaction.fields.getTextInputValue('token').trim().replace(/^Bot\s+/i, '');
       const guildId = interaction.fields.getTextInputValue('guild').trim();
       const channelId = interaction.fields.getTextInputValue('channel').trim();
-      if (!SNOWFLAKE.test(guildId) || !SNOWFLAKE.test(channelId)) return reply.error(interaction, 'آيدي السيرفر أو الروم غير صحيح');
-      if (!TOKEN_SHAPE.test(token)) return reply.error(interaction, 'شكل التوكن غير صحيح');
+      if (!SNOWFLAKE.test(guildId) || !SNOWFLAKE.test(channelId)) return reply.error(interaction, 'Invalid server or channel ID.');
+      if (!TOKEN_SHAPE.test(token)) return reply.error(interaction, 'Invalid token format.');
 
       let me;
       try {
         me = await discord(token, '/users/@me');
       } catch {
-        return reply.error(interaction, 'ما قدرت أتواصل مع ديسكورد، حاول بعد شوي');
+        return reply.error(interaction, 'Could not reach Discord, try again in a bit.');
       }
-      if (!me.ok || !me.body?.bot) return reply.error(interaction, 'التوكن غير صالح، أو مو **توكن بوت** — توكنات الحسابات الشخصية ممنوعة');
-      if (me.body.id === interaction.client.user.id) return reply.error(interaction, 'هذا توكن Sword نفسه');
+      if (!me.ok || !me.body?.bot) return reply.error(interaction, 'Invalid token, or not a **bot token** — user/account tokens are not allowed.');
+      if (me.body.id === interaction.client.user.id) return reply.error(interaction, "That's Sword's own token.");
 
       const inGuild = await discord(token, `/guilds/${guildId}`).catch(() => ({ ok: false }));
       if (!inGuild.ok) {
-        return reply.info(interaction, `${I.warn} البوت **${me.body.username}** مو داخل السيرفر \`${guildId}\`.\nدخّله من هنا ثم اضغط إضافة توكن مرة ثانية:\n${inviteUrl(me.body.id, guildId)}`);
+        return reply.info(interaction, `${I.warn} **${me.body.username}** is not in server \`${guildId}\`.\nInvite it here, then press Add Token again:\n${inviteUrl(me.body.id, guildId)}`);
       }
       const channel = await discord(token, `/channels/${channelId}`).catch(() => ({ ok: false }));
       if (!channel.ok || channel.body.guild_id !== guildId || ![2, 13].includes(channel.body.type)) {
-        return reply.error(interaction, 'ما لقيت روم فويس بهذا الآيدي في السيرفر (أو البوت ما يشوفه)');
+        return reply.error(interaction, 'No voice channel with that ID in the server (or the bot cannot see it).');
       }
 
       const cfg = cfgOf(interaction.guildId);
@@ -195,26 +196,26 @@ module.exports = {
         c.bots = c.bots.filter((b) => b.botId !== entry.botId);
         c.bots.push(entry);
       });
-      logger.info(`voice bot ${entry.name} أضافه ${interaction.user.tag}`);
+      logger.info(`voice bot ${entry.name} added by ${interaction.user.tag}`);
       await startBot(interaction.guildId, entry);
       await refreshPanel(interaction);
       return interaction.editReply(controlView(interaction.guildId, entry));
     }),
 
     control: guard(async (interaction) => {
-      if (!cfgOf(interaction.guildId).bots.length) return reply.error(interaction, 'ما فيه بوتات — أضف توكن أول');
-      return interaction.reply(eph(simple('اختر البوت اللي تبي تتحكم فيه', 'primary', `${I.settings} تحكم`), [picker('voicebots:pick', interaction.guildId, 'اختر البوت')]));
+      if (!cfgOf(interaction.guildId).bots.length) return reply.error(interaction, 'No bots yet — add a token first.');
+      return interaction.reply(eph(simple('Pick a bot to control.', 'primary', `${I.settings} Control`), [picker('voicebots:pick', interaction.guildId, 'Select a bot')]));
     }),
 
     pick: guard(async (interaction) => {
       const bot = findBot(interaction.guildId, interaction.values[0]);
-      if (!bot) return reply.error(interaction, 'البوت ما عاد موجود');
+      if (!bot) return reply.error(interaction, 'That bot is gone.');
       return interaction.update(controlView(interaction.guildId, bot));
     }),
 
     on: guard(async (interaction, [id]) => {
       const bot = findBot(interaction.guildId, id);
-      if (!bot) return reply.error(interaction, 'البوت ما عاد موجود');
+      if (!bot) return reply.error(interaction, 'That bot is gone.');
       await interaction.deferUpdate();
       await startBot(interaction.guildId, bot);
       await interaction.editReply(controlView(interaction.guildId, bot));
@@ -223,7 +224,7 @@ module.exports = {
 
     off: guard(async (interaction, [id]) => {
       const bot = findBot(interaction.guildId, id);
-      if (!bot) return reply.error(interaction, 'البوت ما عاد موجود');
+      if (!bot) return reply.error(interaction, 'That bot is gone.');
       update(interaction.guildId, id, { running: false });
       await manager.stop(id);
       await interaction.update(controlView(interaction.guildId, bot));
@@ -231,24 +232,24 @@ module.exports = {
 
     refresh: guard(async (interaction, [id]) => {
       const bot = findBot(interaction.guildId, id);
-      if (!bot) return reply.error(interaction, 'البوت ما عاد موجود');
+      if (!bot) return reply.error(interaction, 'That bot is gone.');
       return interaction.update(controlView(interaction.guildId, bot));
     }),
 
     move: guard(async (interaction, [id]) => {
       const bot = findBot(interaction.guildId, id);
-      if (!bot) return reply.error(interaction, 'البوت ما عاد موجود');
-      return interaction.showModal(new ModalBuilder().setCustomId(`voicebots:movemodal:${id}`).setTitle(`تغيير روم ${bot.name}`.slice(0, 45)).addComponents(
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('channel').setLabel('آيدي روم الفويس الجديد')
+      if (!bot) return reply.error(interaction, 'That bot is gone.');
+      return interaction.showModal(new ModalBuilder().setCustomId(`voicebots:movemodal:${id}`).setTitle(`Move ${bot.name}`.slice(0, 45)).addComponents(
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('channel').setLabel('New Voice Channel ID')
           .setStyle(TextInputStyle.Short).setRequired(true).setMinLength(17).setMaxLength(20).setValue(bot.channelId)),
       ));
     }),
 
     movemodal: guard(async (interaction, [id]) => {
       const bot = findBot(interaction.guildId, id);
-      if (!bot) return reply.error(interaction, 'البوت ما عاد موجود');
+      if (!bot) return reply.error(interaction, 'That bot is gone.');
       const channelId = interaction.fields.getTextInputValue('channel').trim();
-      if (!SNOWFLAKE.test(channelId)) return reply.error(interaction, 'آيدي غير صحيح');
+      if (!SNOWFLAKE.test(channelId)) return reply.error(interaction, 'Invalid ID.');
       await interaction.deferUpdate();
       update(interaction.guildId, id, { channelId });
       const fresh = findBot(interaction.guildId, id);
@@ -257,17 +258,17 @@ module.exports = {
     }),
 
     delete: guard(async (interaction) => {
-      if (!cfgOf(interaction.guildId).bots.length) return reply.error(interaction, 'ما فيه بوتات');
-      return interaction.reply(eph(simple('اختر البوت اللي تبي تحذف توكنه (بيطلع من الروم)', 'accent', `${I.trash} حذف توكن`), [picker('voicebots:remove', interaction.guildId, 'اختر البوت للحذف')]));
+      if (!cfgOf(interaction.guildId).bots.length) return reply.error(interaction, 'No bots.');
+      return interaction.reply(eph(simple('Pick a bot to delete (it leaves the channel).', 'accent', `${I.trash} Delete Token`), [picker('voicebots:remove', interaction.guildId, 'Select a bot to delete')]));
     }),
 
     remove: guard(async (interaction) => {
       const bot = findBot(interaction.guildId, interaction.values[0]);
-      if (!bot) return reply.error(interaction, 'البوت ما عاد موجود');
+      if (!bot) return reply.error(interaction, 'That bot is gone.');
       await manager.stop(bot.id);
       store.update(interaction.guildId, 'voicebots', (c) => { c.bots = c.bots.filter((b) => b.id !== bot.id); });
-      logger.info(`voice bot ${bot.name} حذفه ${interaction.user.tag}`);
-      return interaction.update(eph(simple(`${I.success} تم حذف **${bot.name}** وانمسح توكنه`, 'success'), []));
+      logger.info(`voice bot ${bot.name} removed by ${interaction.user.tag}`);
+      return interaction.update(eph(simple(`${I.success} Deleted **${bot.name}** and wiped its token.`, 'success'), []));
     }),
   },
   actions: {
