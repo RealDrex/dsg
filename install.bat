@@ -40,15 +40,16 @@ if errorlevel 1 (
 )
 echo  [OK] Packages installed
 
-rem ---- 3) .env -------------------------------------------------------
+rem ---- 3) Setup wizard (.env) ---------------------------------------
 echo.
 if not exist ".env" (
-  copy /y ".env.example" ".env" >nul
-  echo  [!] Created .env - fill in DISCORD_TOKEN, CLIENT_ID, CLIENT_SECRET, GUILD_ID
-  echo      Notepad will open now. Save and close it to continue.
-  start /wait notepad ".env"
+  node scripts\setup.js
+  if errorlevel 1 (
+    pause
+    exit /b 1
+  )
 ) else (
-  echo  [OK] .env already exists
+  echo  [OK] .env already exists - run setup.bat to change the settings
 )
 
 rem ---- 4) Check commands ---------------------------------------------
