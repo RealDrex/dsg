@@ -178,6 +178,8 @@
       const cta = $('#hero-cta');
       cta.href = '/dashboard';
       cta.innerHTML = `${ic('settings')}<span>لوحة التحكم</span>`;
+      const ctaLogin = $('#cta-login');
+      if (ctaLogin) { ctaLogin.href = '/dashboard'; ctaLogin.innerHTML = `${ic('settings')}<span>افتح لوحة التحكم</span>`; }
     } catch { /* stay logged out */ }
   }
 
