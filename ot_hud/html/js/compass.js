@@ -5,6 +5,24 @@
     const VIEW = 78;       // visible degrees on each side for points
     const norm = d => ((d % 360) + 540) % 360 - 180;
     const fmtDist = m => m >= 1000 ? (m / 1000).toFixed(1) + 'km' : m + 'm';
+    const GIF = new Set([0, 2, 3, 11, 12, 13, 14, 15, 41, 42, 161, 353, 422]);
+    const blipUrl = sprite => `blips/${sprite}.${GIF.has(sprite) ? 'gif' : 'png'}`;
+
+    // GTA blip image; with a color it is tinted like the in-game blip
+    function setBlip(el, sprite, color) {
+        const url = `url("${blipUrl(sprite)}")`;
+        if (el._key === sprite + '|' + color) return;
+        el._key = sprite + '|' + color;
+        if (color) {
+            el.style.backgroundImage = 'none';
+            el.style.backgroundColor = color;
+            el.style.webkitMaskImage = url;
+        } else {
+            el.style.backgroundImage = url;
+            el.style.backgroundColor = 'transparent';
+            el.style.webkitMaskImage = 'none';
+        }
+    }
 
     HUD.register('compass', {
         mount(root, cfg) {
@@ -34,9 +52,7 @@
 
             this.promptEl = HUD.el('div', 'cp-prompt', cp);
             const pill = HUD.el('div', 'cp-pill', this.promptEl);
-            this.promptIcon = makeIcon('pin', 14);
-            this.promptIcon.style.fill = 'var(--primary-pale)';
-            pill.appendChild(this.promptIcon);
+            this.promptIcon = HUD.el('div', 'cp-blip-img', pill);
             this.promptText = HUD.el('span', '', pill);
             const act = HUD.el('div', 'cp-action', this.promptEl);
             const key = HUD.el('span', 'cp-key', act);
@@ -112,7 +128,7 @@
                     void this.promptEl.offsetWidth;
                     this.promptEl.style.animation = '';
                 }
-                this.promptIcon.setIcon(p.icon);
+                setBlip(this.promptIcon, p.sprite, p.color);
                 this.promptText.textContent = `${p.label} · ${fmtDist(p.dist)}`;
                 this.promptLabel.textContent = p.active ? this.labels.removeWaypoint : this.labels.setWaypoint;
                 this.promptEl.style.display = '';
@@ -128,15 +144,14 @@
                 seen[p.id] = true;
                 let b = this.pool[p.id];
                 if (!b) {
-                    b = makeIcon(p.icon, 15);
-                    b.classList.add('cp-blip');
-                    this.blips.appendChild(b);
+                    b = HUD.el('div', 'cp-blip', this.blips);
+                    b.img = HUD.el('div', 'cp-blip-img', b);
                     this.pool[p.id] = b;
                 }
-                b.setIcon(p.icon);
+                setBlip(b.img, p.sprite, p.color);
                 b.data = p;
-                b.style.fill = p.active ? 'var(--primary-light)' : '#ffffff';
-                b.style.filter = p.active ? 'drop-shadow(0 0 5px var(--primary))' : 'drop-shadow(0 0 5px rgba(0,0,0,.6))';
+                b.classList.toggle('active', !!p.active);
+                b.classList.toggle('aimed', !!p.aimed);
             });
             for (const id in this.pool) {
                 if (!seen[id]) { this.pool[id].remove(); delete this.pool[id]; }

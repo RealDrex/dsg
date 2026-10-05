@@ -1,17 +1,22 @@
 OT.Compass = {}
 
 local cfg = Config.Compass
-local points = {}       -- static + exported points: id -> { label, icon, coords }
+local promptCfg = cfg.prompt
+local points = {}       -- static + exported points: id -> { label, sprite, color, coords }
 local blipPoints = {}   -- map blips found by sprite
-local aimed = nil       -- point currently in front of the player (prompt)
+local aimed = nil       -- blip the player is looking at (prompt shown)
+local pending = { id = nil, since = 0 }
+
+local WAYPOINT_SPRITE = 8
 
 for i, p in ipairs(cfg.points or {}) do
-    points['cfg_' .. i] = { label = p.label, icon = p.icon or 'pin', coords = p.coords }
+    points['cfg_' .. i] = { label = p.label, sprite = p.sprite or 1, color = p.color, coords = p.coords }
 end
 
+-- exports.ot_hud:addCompassPoint(id, { label = 'Shop', sprite = 52, color = '#ffffff', coords = vec3(...) })
 local function addPoint(id, data)
     if not id or not data or not data.coords then return end
-    points[id] = { label = data.label or tostring(id), icon = data.icon or 'pin', coords = data.coords }
+    points[id] = { label = data.label or tostring(id), sprite = data.sprite or 1, color = data.color, coords = data.coords }
 end
 
 local function removePoint(id)
@@ -47,6 +52,13 @@ local function getStreet(pos)
     return street, GetLabelText(GetNameOfZone(pos.x, pos.y, pos.z))
 end
 
+-- real in-game color of a blip ('#rrggbb'), nil for white blips (keep original image colors)
+local function blipColor(blip)
+    if not cfg.mapBlips.useBlipColor or GetBlipColour(blip) == 0 then return nil end
+    local r, g, b = GetHudColour(GetBlipHudColour(blip))
+    return ('#%02x%02x%02x'):format(r, g, b)
+end
+
 local function isEnabled()
     if not OT.compassVisible or cfg.show == 'never' then return false end
     if cfg.show == 'vehicle' and OT.vehicle == 0 then return false end
@@ -60,13 +72,13 @@ CreateThread(function()
     if not cfg.mapBlips or not cfg.mapBlips.enabled then return end
     while true do
         local found = {}
-        for sprite, info in pairs(cfg.mapBlips.sprites) do
+        for sprite, label in pairs(cfg.mapBlips.sprites) do
             local blip = GetFirstBlipInfoId(sprite)
             local n = 0
             while DoesBlipExist(blip) do
                 n = n + 1
                 found[('blip_%d_%d'):format(sprite, n)] = {
-                    label = info.label, icon = info.icon or 'pin', coords = GetBlipInfoIdCoord(blip),
+                    label = label, sprite = sprite, color = blipColor(blip), coords = GetBlipInfoIdCoord(blip),
                 }
                 blip = GetNextBlipInfoId(sprite)
             end
@@ -78,7 +90,7 @@ end)
 
 -- ─────────────────────────── waypoint key ─────────────────────────
 
-RegisterCommand('ot_hud_waypoint', function()
+RegisterCommand('ot_hud_setwaypoint', function()
     if not aimed or not OT.shown then return end
     if aimed.active then
         SetWaypointOff()
@@ -87,8 +99,43 @@ RegisterCommand('ot_hud_waypoint', function()
     end
 end, false)
 
-if cfg.prompt.enabled then
-    RegisterKeyMapping('ot_hud_waypoint', Config.Labels.keyMaps.waypoint, 'keyboard', cfg.prompt.key)
+if promptCfg.enabled then
+    RegisterKeyMapping('ot_hud_setwaypoint', Config.Labels.keyMaps.waypoint, 'keyboard', promptCfg.key)
+end
+
+-- Pick the blip the compass is pointed at. It must be close (prompt.maxDistance),
+-- inside prompt.angle and stay aimed for prompt.aimTime ms. Once shown it gets a
+-- little extra angle so it doesn't flicker while the camera moves slightly.
+local function updateAim(list, heading, now)
+    if not promptCfg.enabled or (promptCfg.onFootOnly and OT.vehicle ~= 0) then
+        aimed, pending.id = nil, nil
+        return
+    end
+
+    local best, bestAngle, current = nil, nil, nil
+    for _, p in ipairs(list) do
+        if p.id ~= '__waypoint' and p.dist <= promptCfg.maxDistance then
+            local a = math.abs(norm(p.bearing - heading))
+            if aimed and p.id == aimed.id and a <= promptCfg.angle * 1.6 then current = p end
+            if a <= promptCfg.angle and (not bestAngle or a < bestAngle) then
+                best, bestAngle = p, a
+            end
+        end
+    end
+
+    if current then
+        aimed = current
+        return
+    end
+
+    aimed = nil
+    if not best then
+        pending.id = nil
+    elseif pending.id ~= best.id then
+        pending.id, pending.since = best.id, now
+    elseif now - pending.since >= promptCfg.aimTime then
+        aimed = best
+    end
 end
 
 -- ─────────────────────────── main loop ────────────────────────────
@@ -103,7 +150,7 @@ CreateThread(function()
         if enabled ~= wasEnabled then
             wasEnabled = enabled
             if not enabled then
-                aimed = nil
+                aimed, pending.id = nil, nil
                 OT.send('compass', { hidden = true })
             end
         end
@@ -122,7 +169,7 @@ CreateThread(function()
             -- current GPS waypoint (set by us or from the map)
             local wp = nil
             if IsWaypointActive() then
-                local b = GetFirstBlipInfoId(8)
+                local b = GetFirstBlipInfoId(WAYPOINT_SPRITE)
                 if DoesBlipExist(b) then wp = GetBlipInfoIdCoord(b) end
             end
 
@@ -133,7 +180,7 @@ CreateThread(function()
                 local active = wp ~= nil and math.abs(p.coords.x - wp.x) < 3.0 and math.abs(p.coords.y - wp.y) < 3.0
                 if active or dist <= cfg.maxDistance then
                     local item = {
-                        id = id, label = p.label, icon = p.icon, coords = p.coords,
+                        id = id, label = p.label, sprite = p.sprite, color = p.color, coords = p.coords,
                         bearing = bearing(dx, dy), dist = math.floor(dist + 0.5), active = active,
                     }
                     list[#list + 1] = item
@@ -145,7 +192,7 @@ CreateThread(function()
             for id, p in pairs(blipPoints) do consider(id, p) end
 
             if wp and not wpPoint then
-                consider('__waypoint', { label = Config.Labels.waypoint, icon = 'pin', coords = wp })
+                consider('__waypoint', { label = Config.Labels.waypoint, sprite = WAYPOINT_SPRITE, coords = wp })
                 wpPoint = list[#list]
             end
 
@@ -154,24 +201,15 @@ CreateThread(function()
                 return a.dist < b.dist
             end)
 
-            -- point in front of the player
-            aimed = nil
-            if cfg.prompt.enabled and (not cfg.prompt.onFootOnly or OT.vehicle == 0) then
-                local best = nil
-                for _, p in ipairs(list) do
-                    if p.id ~= '__waypoint' and p.dist <= cfg.prompt.maxDistance then
-                        local a = math.abs(norm(p.bearing - heading))
-                        if a <= cfg.prompt.angle and (not best or a < best) then
-                            aimed, best = p, a
-                        end
-                    end
-                end
-            end
+            updateAim(list, heading, now)
 
             local out = {}
             for i = 1, math.min(#list, cfg.maxPoints) do
                 local p = list[i]
-                out[i] = { id = p.id, icon = p.icon, bearing = p.bearing, active = p.active }
+                out[i] = {
+                    id = p.id, sprite = p.sprite, color = p.color, bearing = p.bearing, active = p.active,
+                    aimed = aimed ~= nil and aimed.id == p.id,
+                }
             end
 
             OT.send('compass', {
@@ -181,7 +219,7 @@ CreateThread(function()
                 points = out,
                 waypoint = wpPoint and { label = wpPoint.label, dist = wpPoint.dist } or nil,
                 prompt = aimed and {
-                    label = aimed.label, dist = aimed.dist, icon = aimed.icon, active = aimed.active,
+                    label = aimed.label, dist = aimed.dist, sprite = aimed.sprite, color = aimed.color, active = aimed.active,
                 } or nil,
             })
         end

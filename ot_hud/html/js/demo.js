@@ -1,14 +1,14 @@
 // Browser preview only (not used in game). Open html/index.html in a browser.
-// Keys: 1 = on foot, 2 = car, 3 = heli / plane, W = toggle weapon, F = fire, R = reload, E = set waypoint
+// Keys: 1 = on foot, 2 = car, 3 = heli / plane, W = toggle weapon, F = fire, R = reload, X = set waypoint
 (() => {
     if (HUD.inGame) return;
 
     document.body.style.background = 'radial-gradient(120% 80% at 50% 100%, #1b2433, #07090d)';
 
     HUD.applyConfig({
-        ui: { scale: 1 },
+        ui: { scale: 0.85 },
         layout: {
-            compass: { top: '3.5%' }, player: { left: '3%', bottom: '6%', leftWithMinimap: '17.5%' },
+            compass: { top: '2.5%', scale: 0.85 }, player: { left: '3%', bottom: '6%', leftWithMinimap: '17.5%' },
             right: { right: '3%', bottom: '6%' }, aircraft: { bottom: '5%' },
         },
         colors: {
@@ -28,7 +28,7 @@
         weapon: { maxSegments: 30, lowAmmo: 0.25 },
         vehicle: { unit: 'kmh', redline: 0.85, lowFuel: 20, beltWarningSpeed: 20 },
         aircraft: { invertRoll: false, pitchScale: 1.5, lowFuel: 20 },
-        compass: { key: 'E' },
+        compass: { key: 'X' },
     });
     HUD.onMessage({ action: 'visible', state: true });
 
@@ -61,9 +61,11 @@
     };
 
     const POINTS = [
-        { id: 'garage', label: 'Garage', icon: 'garage', bearing: 214 },
-        { id: 'gas', label: 'Gas Station', icon: 'gas', bearing: 152, dist: 420 },
-        { id: 'home', label: 'Home', icon: 'home', bearing: 172, dist: 860 },
+        { id: 'garage', label: 'Garage', sprite: 357, color: '#5db6e5', bearing: 214 },
+        { id: 'gas', label: 'Gas Station', sprite: 361, color: '#e03232', bearing: 152, dist: 420 },
+        { id: 'home', label: 'Home', sprite: 40, bearing: 172, dist: 860 },
+        { id: 'bank', label: 'Bank', sprite: 108, bearing: 245, dist: 1200 },
+        { id: 'hospital', label: 'Hospital', sprite: 61, color: '#e03232', bearing: 160, dist: 90 },
     ];
     let aimed = null;
 
@@ -76,7 +78,7 @@
         if (k === 'f') fire();
         if (k === 'r') reload();
         if (k === 'b') st.belt = !st.belt;
-        if (k === 'e' && aimed) st.wp = st.wp === aimed.id ? null : aimed.id;
+        if (k === 'x' && aimed) st.wp = st.wp === aimed.id ? null : aimed.id;
     });
 
     const norm = d => ((d % 360) + 540) % 360 - 180;
@@ -85,13 +87,14 @@
         const t = ++st.t;
         const heading = ((200 + Math.sin(t / 140) * 55) % 360 + 360) % 360;
         const pts = POINTS.map(p => ({ ...p, dist: p.dist || Math.round(12 + Math.abs(Math.sin(t / 70)) * 150), active: p.id === st.wp }));
-        aimed = pts.filter(p => Math.abs(norm(p.bearing - heading)) < 7).sort((a, b) => Math.abs(norm(a.bearing - heading)) - Math.abs(norm(b.bearing - heading)))[0] || null;
+        aimed = pts.filter(p => p.dist <= 150 && Math.abs(norm(p.bearing - heading)) <= 5).sort((a, b) => Math.abs(norm(a.bearing - heading)) - Math.abs(norm(b.bearing - heading)))[0] || null;
+        pts.forEach(p => { p.aimed = aimed && aimed.id === p.id; });
         const wp = pts.find(p => p.active);
 
         HUD.onMessage({
             action: 'compass', heading, street: heading < 200 ? 'Los Santos Freeway' : 'Power St',
             points: pts, waypoint: wp ? { label: wp.label, dist: wp.dist } : null,
-            prompt: aimed ? { label: aimed.label, dist: aimed.dist, icon: aimed.icon, active: aimed.active } : null,
+            prompt: aimed ? { label: aimed.label, dist: aimed.dist, sprite: aimed.sprite, color: aimed.color, active: aimed.active } : null,
         });
 
         const cyc = (t % 220) / 220;

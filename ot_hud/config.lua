@@ -34,16 +34,17 @@ Config.Commands = {
 -- ═══════════════════════════════════════════════════════════════
 
 Config.UI = {
-    scale = 1.0,        -- global multiplier (1.0 = designed size at 1080p)
+    scale = 0.85,       -- global multiplier (1.0 = designed size at 1080p)
     font = 'Satoshi',
 }
 
 -- Screen anchors of every panel (CSS values)
+-- scale = extra size multiplier for that panel only
 Config.Layout = {
-    compass  = { top = '3.5%' },
-    player   = { left = '3%', bottom = '6%', leftWithMinimap = '17.5%' },
-    right    = { right = '3%', bottom = '6%' },   -- weapon + vehicle column
-    aircraft = { bottom = '5%' },
+    compass  = { top = '2.5%', scale = 0.85 },
+    player   = { left = '3%', bottom = '6%', leftWithMinimap = '17.5%', scale = 1.0 },
+    right    = { right = '3%', bottom = '6%', scale = 1.0 },   -- weapon + vehicle column
+    aircraft = { bottom = '5%', scale = 1.0 },
 }
 
 -- Colors (#rrggbb only)
@@ -108,34 +109,44 @@ Config.Compass = {
     maxDistance = 2000.0,       -- points further than this are hidden from the tape
     maxPoints = 12,
 
-    -- "Set waypoint" prompt when you look at a point
+    -- "Set waypoint" prompt: only shows when you are CLOSE to a blip and the compass is pointed at it
     prompt = {
         enabled = true,
-        key = 'E',              -- default key (players can rebind it in GTA settings)
-        angle = 7.0,            -- degrees between camera and the point
-        maxDistance = 1500.0,
+        key = 'X',              -- default key (players can rebind it in GTA settings)
+        angle = 5.0,            -- max degrees between the compass center and the blip
+        maxDistance = 150.0,    -- only blips closer than this (meters) can be selected
+        aimTime = 350,          -- ms the compass must stay on the blip before the prompt appears
         onFootOnly = false,
     },
 
     -- Static points shown on the compass
-    -- icons: garage, gas, home, pin, hospital, police, store, bank
+    -- sprite = GTA blip id (https://docs.fivem.net/docs/game-references/blips/)
+    -- color  = optional '#rrggbb' tint (leave nil to keep the original blip colors)
     points = {
-        -- { label = 'Legion Garage', icon = 'garage', coords = vec3(215.8, -810.0, 30.7) },
-        -- { label = 'Pillbox Hospital', icon = 'hospital', coords = vec3(298.6, -584.5, 43.2) },
+        -- { label = 'Legion Garage', sprite = 357, color = '#5ab8f2', coords = vec3(215.8, -810.0, 30.7) },
+        -- { label = 'Pillbox Hospital', sprite = 61, coords = vec3(298.6, -584.5, 43.2) },
     },
 
-    -- Automatically add map blips (by sprite) to the compass
+    -- Automatically add map blips (by sprite) to the compass, with their real in-game color
     mapBlips = {
         enabled = true,
         scanInterval = 5000,
+        useBlipColor = true,
         sprites = {
-            [357] = { label = 'Garage', icon = 'garage' },
-            [361] = { label = 'Gas Station', icon = 'gas' },
-            [40]  = { label = 'Home', icon = 'home' },
-            [61]  = { label = 'Hospital', icon = 'hospital' },
-            [60]  = { label = 'Police', icon = 'police' },
-            [52]  = { label = 'Store', icon = 'store' },
-            [108] = { label = 'Bank', icon = 'bank' },
+            [357] = 'Garage',
+            [361] = 'Gas Station',
+            [40]  = 'Home',
+            [61]  = 'Hospital',
+            [60]  = 'Police',
+            [52]  = 'Store',
+            [108] = 'Bank',
+            [110] = 'Ammu-Nation',
+            [73]  = 'Clothing',
+            [71]  = 'Barber',
+            [75]  = 'Tattoo',
+            [72]  = 'Mod Shop',
+            [446] = 'Mechanic',
+            [100] = 'Car Wash',
         },
     },
 }

@@ -26,9 +26,9 @@ HUD كامل جديد لـ FiveM مبني على تصميم **HUD Final**، مق
 
 ## المميزات
 
-- **البوصلة**: شريط درجات ناعم (يتحرك بسلاسة)، اسم الشارع، أيقونات الأماكن (كراج، بنزينة، بيت، مستشفى…)
-  تُسحب تلقائياً من بلبس الخريطة أو من الكونفق، ولما تطالع مكان يطلع لك **"E Set waypoint"** وتحط/تشيل الـ GPS عليه.
-  يعرض الـ Waypoint الحالي والمسافة.
+- **البوصلة**: شريط درجات ناعم (يتحرك بسلاسة)، اسم الشارع، و **بلبس GTA الحقيقية** (بنفس لونها في الخريطة)
+  تُسحب تلقائياً من الخريطة أو من الكونفق. إذا كنت **قريب** من بليب (150م افتراضياً) ووجهت البوصلة عليه
+  يطلع لك **"X Set waypoint"** وتحط/تشيل الـ GPS عليه. يعرض الـ Waypoint الحالي والمسافة.
 - **بار اللاعب**: الدم، الدرع (8 خانات)، الصوت (يضيء وقت الكلام / الراديو)، الأكل، الشرب، الستريس،
   و Stamina / Oxygen تطلع بس وقت الحاجة.
 - **السلاح**: النوع، الاسم، المخزن / الاحتياط، خانات الطلقات، الـ Durability، تنبيه **RELOADING**.
@@ -45,7 +45,7 @@ HUD كامل جديد لـ FiveM مبني على تصميم **HUD Final**، مق
 |---|---|
 | `/hud` | إخفاء / إظهار الهود |
 | `/compass` | إخفاء / إظهار البوصلة |
-| `E` | Set / Remove waypoint على المكان اللي تطالعه |
+| `X` | Set / Remove waypoint على البليب القريب اللي تطالعه |
 | `B` | حزام الأمان |
 | `Caps Lock` | الكروز |
 
@@ -62,7 +62,7 @@ exports.ot_hud:setVoice({ talking = true })
 exports.ot_hud:setSeatbelt(true)
 exports.ot_hud:getSeatbelt()
 exports.ot_hud:setCruise(false)
-exports.ot_hud:addCompassPoint('my_shop', { label = 'Shop', icon = 'store', coords = vec3(25.7, -1347.3, 29.5) })
+exports.ot_hud:addCompassPoint('my_shop', { label = 'Shop', sprite = 52, color = '#ffffff', coords = vec3(25.7, -1347.3, 29.5) })
 exports.ot_hud:removeCompassPoint('my_shop')
 
 -- server
@@ -70,9 +70,9 @@ exports.ot_hud:AddStress(source, 5)
 exports.ot_hud:RemoveStress(source, 5)
 ```
 
-أيقونات البوصلة المتاحة: `garage`, `gas`, `home`, `pin`, `hospital`, `police`, `store`, `bank`.
+`sprite` = رقم البليب من https://docs.fivem.net/docs/game-references/blips/ (كل الصور موجودة في `html/blips`).
 
 ## المعاينة في المتصفح
 
 افتح `html/index.html` في المتصفح لمعاينة الهود بدون اللعبة:
-`1` مشي، `2` سيارة، `3` طيارة، `W` سلاح، `F` إطلاق، `R` ريلود، `B` حزام، `E` waypoint.
+`1` مشي، `2` سيارة، `3` طيارة، `W` سلاح، `F` إطلاق، `R` ريلود، `B` حزام، `X` waypoint.

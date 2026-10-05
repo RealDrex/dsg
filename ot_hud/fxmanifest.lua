@@ -32,4 +32,6 @@ files {
     'html/css/*.css',
     'html/js/*.js',
     'html/fonts/*.woff2',
+    'html/blips/*.png',
+    'html/blips/*.gif',
 }

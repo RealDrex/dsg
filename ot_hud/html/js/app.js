@@ -49,7 +49,10 @@ const HUD = {
         const L = cfg.layout || {};
         const set = (id, o, keys) => {
             const e = document.getElementById(id);
-            if (e && o) keys.forEach(k => { if (o[k]) e.style[k] = o[k]; });
+            if (e && o) {
+                keys.forEach(k => { if (o[k]) e.style[k] = o[k]; });
+                if (o.scale) e.style.setProperty('--ps', o.scale);
+            }
         };
         set('compass', L.compass, ['top']);
         set('player', L.player, ['left', 'bottom']);
