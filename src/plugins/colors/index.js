@@ -60,17 +60,27 @@ async function refreshPanel(guild) {
 }
 
 async function createColors(guild, wanted) {
-  const cfg = store.get(guild.id, 'colors');
-  const me = guild.members.me;
-  const count = Math.min(wanted, MAX - liveRoles(guild, cfg).length, PALETTE.length);
+  // Start clean: remove any colour roles the bot made before.
+  const old = store.get(guild.id, 'colors').created;
+  for (const id of old) {
+    const role = guild.roles.cache.get(id);
+    if (role) await role.delete('Sword Colors reset').catch(() => null);
+  }
+  store.update(guild.id, 'colors', (c) => {
+    c.roles = c.roles.filter((id) => !c.created.includes(id));
+    c.created = [];
+  });
+
+  const count = Math.min(wanted, MAX, PALETTE.length);
   if (count <= 0) return 0;
   const created = [];
-  for (const [name, color] of PALETTE.slice(0, count)) {
+  // Named 1..count and left at the bottom of the role list (Discord's default
+  // for a new role) so they sit below the staff/admin roles automatically.
+  for (let i = 0; i < count; i++) {
+    const [, color] = PALETTE[i];
     const role = await guild.roles.create({
-      name, colors: { primaryColor: color }, permissions: [], mentionable: false, reason: 'Sword Colors',
+      name: String(i + 1), colors: { primaryColor: color }, permissions: [], mentionable: false, reason: 'Sword Colors',
     });
-    // Directly under the bot's role so the colour wins over other roles.
-    await role.setPosition(me.roles.highest.position - 1).catch(() => null);
     created.push(role.id);
   }
   store.update(guild.id, 'colors', (c) => {
@@ -85,7 +95,7 @@ const data = new SlashCommandBuilder()
   .setName('colors')
   .setDescription('علبة الألوان — رتب ألوان للأعضاء')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
-  .addSubcommand((s) => s.setName('setup').setDescription('إنشاء رتب ألوان جاهزة بثيم مرتب')
+  .addSubcommand((s) => s.setName('setup').setDescription('يحذف ألوان البوت القديمة وينشئ ألوان مرقمة 1-20 تحت تلقائياً')
     .addIntegerOption((o) => o.setName('count').setDescription(`عدد الألوان (1-${PALETTE.length})`).setMinValue(1).setMaxValue(PALETTE.length)))
   .addSubcommand((s) => s.setName('panel').setDescription('إرسال بانل الألوان')
     .addChannelOption((o) => o.setName('channel').setDescription('الروم').addChannelTypes(ChannelType.GuildText)))
@@ -168,8 +178,8 @@ module.exports = {
   },
   actions: {
     setup: {
-      label: 'إنشاء ألوان جاهزة',
-      description: `ينشئ لين ${PALETTE.length} رتبة لون بأسماء عربية تحت رتبة البوت`,
+      label: 'إنشاء ألوان مرقمة',
+      description: `يحذف ألوان البوت القديمة وينشئ لين ${PALETTE.length} رتبة مرقمة 1-${PALETTE.length} تحت تلقائياً`,
       params: [{ key: 'count', type: 'number', label: 'العدد', min: 1, max: PALETTE.length }],
       async run(guild, { count }) {
         const created = await createColors(guild, count || PALETTE.length);

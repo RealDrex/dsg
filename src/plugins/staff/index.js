@@ -475,8 +475,8 @@ const COMMANDS = [
       if (ctx.member.id !== ctx.guild.ownerId && role.position >= ctx.member.roles.highest.position) return err('الرتبة أعلى منك أو مساوية لك.');
       const protectedRoles = ctx.cfg.roleGuard?.protected?.length ? ctx.cfg.roleGuard.protected : ctx.cfg.roles.admin;
       if (protectedRoles.includes(role.id) && ctx.member.id !== ctx.guild.ownerId) {
-        const guardian = ctx.member.permissions.has(P.Administrator) || (ctx.cfg.roleGuard?.guardians || []).some((id) => ctx.member.roles.cache.has(id));
-        if (!guardian) return err('هذي رتبة محمية، ما تقدر تعطيها.');
+        const guardian = (ctx.cfg.roleGuard?.guardians || []).some((id) => ctx.member.roles.cache.has(id));
+        if (!guardian) return err('هذي رتبة محمية — بس المخوّلين (أو المالك) يقدرون يعطونها.');
       }
       if (t.roles.cache.has(role.id)) {
         await t.roles.remove(role, `رول by ${ctx.author.tag}`);
