@@ -233,10 +233,9 @@ async function sendPicker(ctx, type, target) {
     .setPlaceholder('اختر السبب والمدة')
     .addOptions(options);
   await ctx.message.reply({
-    content: `${target}`,
     embeds: [simple(`${LOGS[type].icon} **${PUNISH[type].label}** لـ ${target}\nاختر السبب والمدة 👇`, 'accent')],
     components: [new ActionRowBuilder().addComponents(menu)],
-    allowedMentions: { users: [target.id], repliedUser: false },
+    allowedMentions: { parse: [], repliedUser: false },
   }).catch(() => null);
 }
 
@@ -700,18 +699,21 @@ async function react(message, good, cfg) {
   await message.react(good ? cfg.okEmoji : cfg.noEmoji).catch(() => null);
 }
 
-// Keep failures "between the bot and the executor": show the ❌ reaction, then
-// auto-delete both the warning and the command message so nothing lingers for
-// the whole channel. noticeDelay = 0 keeps them.
+// Keep failures "between the bot and the executor": DM them the reason (so the
+// whole channel doesn't see it), keep the ❌ reaction, and clean up the command.
+// If DMs are closed, fall back to a short-lived in-channel notice.
 async function notice(message, text, cfg) {
+  const embed = simple(text, 'error');
   const delay = cfg?.noticeDelay ?? 6000;
-  const m = await message.reply({ embeds: [simple(text, 'error')], allowedMentions: { repliedUser: false } }).catch(() => null);
-  if (delay > 0) {
-    setTimeout(() => {
-      m?.delete().catch(() => null);
-      message.delete().catch(() => null);
-    }, delay);
+  if (cfg?.noticeDm !== false) {
+    const sent = await message.author.send({ embeds: [embed] }).then(() => true).catch(() => false);
+    if (sent) {
+      if (delay > 0) setTimeout(() => message.delete().catch(() => null), delay);
+      return;
+    }
   }
+  const m = await message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } }).catch(() => null);
+  if (delay > 0) setTimeout(() => { m?.delete().catch(() => null); message.delete().catch(() => null); }, delay);
 }
 
 async function onMessage(message) {
@@ -772,8 +774,11 @@ async function onPick(interaction, [type, targetId, invokerId]) {
   }
   if (interaction.values[0] === 'custom') {
     const modal = new ModalBuilder().setCustomId(`staff:pmodal:${type}:${targetId}:${invokerId}`).setTitle(PUNISH[type]?.label || 'عقوبة');
-    const dur = new TextInputBuilder().setCustomId('dur').setLabel('المدة مثل 30m أو 2h أو 1d').setStyle(TextInputStyle.Short).setRequired(type === 'timeout').setMaxLength(10);
-    const rsn = new TextInputBuilder().setCustomId('reason').setLabel('السبب').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(400);
+    const dur = new TextInputBuilder().setCustomId('dur')
+      .setLabel(type === 'timeout' ? 'المدة' : 'المدة (فاضي = دائم)')
+      .setPlaceholder('30m / 2h / 1d').setStyle(TextInputStyle.Short).setRequired(type === 'timeout').setMaxLength(10);
+    const rsn = new TextInputBuilder().setCustomId('reason').setLabel('السبب')
+      .setPlaceholder('اكتب السبب').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(400);
     modal.addComponents(new ActionRowBuilder().addComponents(dur), new ActionRowBuilder().addComponents(rsn));
     return interaction.showModal(modal);
   }
@@ -788,7 +793,7 @@ async function onModal(interaction, [type, targetId]) {
   let minutes = 0;
   if (raw) {
     const ms = parseDuration(/^\d+$/.test(raw) ? `${raw}m` : raw);
-    if (!ms) return interaction.reply({ embeds: [simple('مدة غير صحيحة. مثال: 30m أو 2h أو 1d', 'error')], flags: MessageFlags.Ephemeral });
+    if (!ms) return interaction.reply({ embeds: [simple('مدة غير صحيحة. أمثلة: `30m` `2h` `1d`', 'error')], flags: MessageFlags.Ephemeral });
     minutes = Math.round(ms / 60_000);
   }
   return finishPunish(interaction, type, targetId, minutes, reason);
@@ -797,20 +802,20 @@ async function onModal(interaction, [type, targetId]) {
 async function finishPunish(interaction, type, targetId, minutes, reason) {
   const { guild } = interaction;
   const cfg = store.get(guild.id, ID);
-  const fromMsg = !interaction.isModalSubmit() || interaction.isFromMessage?.();
-  const fail = (text) => (fromMsg
-    ? interaction.update({ embeds: [simple(text, 'error')], components: [] })
-    : interaction.reply({ embeds: [simple(text, 'error')], flags: MessageFlags.Ephemeral }));
-  if (levelOf(interaction.member) < PUNISH[type].level) return fail('ما عندك صلاحية لهذا الأمر.');
+  // Confirmation is private to the executor; the public record is the log channel.
+  const done = async (embed) => {
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
+    await interaction.message?.delete?.().catch(() => null);
+  };
+  if (levelOf(interaction.member) < PUNISH[type].level) return done(simple('ما عندك صلاحية لهذا الأمر.', 'error'));
   const target = await guild.members.fetch(targetId).catch(() => null);
   const problem = guard({ guild, member: interaction.member, me: guild.members.me }, target, PUNISH[type].label);
-  if (problem) return fail(problem);
+  if (problem) return done(simple(problem, 'error'));
   try {
     const text = await applyPunish(guild, cfg, type, target, interaction.user, minutes, reason);
-    const payload = { content: '', embeds: [simple(`${I.success} ${text}\n${I.report} **السبب:** ${reason}`, 'success')], components: [] };
-    return fromMsg ? interaction.update(payload) : interaction.reply(payload);
+    return done(simple(`${I.success} ${text}\n${I.report} **السبب:** ${reason}`, 'success'));
   } catch (e) {
-    return fail(e.message);
+    return done(simple(e.message, 'error'));
   }
 }
 
@@ -910,7 +915,7 @@ module.exports = {
     jailRole: '1548942461148336208',
     blacklistRole: '1548942356948979772',
     liveRole: '', imageRole: '', hereRole: '', soundRole: '',
-    okEmoji: '✅', noEmoji: '❌', wipeDelay: 3000, noticeDelay: 6000,
+    okEmoji: '✅', noEmoji: '❌', wipeDelay: 3000, noticeDelay: 6000, noticeDm: true,
     logs: {
       vmute: '1553538498815074346',
       tmute: '1553539863159251075',
@@ -1019,7 +1024,8 @@ module.exports = {
         { key: 'okEmoji', type: 'text', label: 'إيموجي النجاح', hint: 'يدعم الإيموجي العادي أو المخصص <:name:id>' },
         { key: 'noEmoji', type: 'text', label: 'إيموجي الخطأ' },
         { key: 'wipeDelay', type: 'number', label: 'حذف رسالة الأمر بعد (ثانية) — للباند والبلاك', min: 0, max: 60, scale: 1000 },
-        { key: 'noticeDelay', type: 'number', label: 'حذف رسائل التنبيه/الخطأ بعد (ثانية) — 0 تبقى ظاهرة', min: 0, max: 60, scale: 1000 },
+        { key: 'noticeDm', type: 'bool', label: 'رسائل التنبيه/الخطأ تجي خاص للمنفّذ (بدل الشات)' },
+        { key: 'noticeDelay', type: 'number', label: 'إذا الخاص مقفل: تنحذف من الشات بعد (ثانية)', min: 0, max: 60, scale: 1000 },
       ],
     },
     {

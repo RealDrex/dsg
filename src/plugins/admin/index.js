@@ -130,7 +130,7 @@ const commands = [
       .setDescription('تايم أوت (ميوت) لعضو لمدة محددة')
       .setDefaultMemberPermissions(P.ModerateMembers)
       .addUserOption((o) => o.setName('user').setDescription('العضو').setRequired(true))
-      .addStringOption((o) => o.setName('duration').setDescription('المدة مثل 10m أو 2h أو 1d (حد أقصى 28d)').setRequired(true))
+      .addStringOption((o) => o.setName('duration').setDescription('المدة. أمثلة: 10m 2h 1d — الأقصى 28 يوم').setRequired(true))
       .addStringOption(reasonOpt),
     async execute(interaction) {
       const member = interaction.options.getMember('user');
@@ -199,7 +199,7 @@ const commands = [
         .addIntegerOption((o) => o.setName('count').setDescription('عدد التحذيرات (0 = إيقاف)').setRequired(true).setMinValue(0).setMaxValue(20))
         .addStringOption((o) => o.setName('action').setDescription('العقوبة').setRequired(true)
           .addChoices({ name: 'تايم أوت', value: 'timeout' }, { name: 'طرد', value: 'kick' }, { name: 'باند', value: 'ban' }))
-        .addStringOption((o) => o.setName('duration').setDescription('مدة التايم أوت مثل 1h'))),
+        .addStringOption((o) => o.setName('duration').setDescription('مدة التايم أوت. مثال: 1h'))),
     async execute(interaction) {
       const sub = interaction.options.getSubcommand();
       const { guildId } = interaction;
@@ -313,7 +313,7 @@ const commands = [
       .setName('slowmode')
       .setDescription('وضع البطء في الروم')
       .setDefaultMemberPermissions(P.ManageChannels)
-      .addStringOption((o) => o.setName('duration').setDescription('مثل 5s أو 1m أو 0 للإيقاف').setRequired(true))
+      .addStringOption((o) => o.setName('duration').setDescription('أمثلة: 5s 1m — أو 0 للإيقاف').setRequired(true))
       .addChannelOption((o) => o.setName('channel').setDescription('الروم').addChannelTypes(ChannelType.GuildText)),
     async execute(interaction) {
       const raw = interaction.options.getString('duration');
