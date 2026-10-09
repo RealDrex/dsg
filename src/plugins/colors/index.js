@@ -158,6 +158,22 @@ async function execute(interaction) {
   }
 }
 
+// Quick command: `clo` — wipe old colour roles and create the numbered set.
+const clo = {
+  data: new SlashCommandBuilder()
+    .setName('clo')
+    .setDescription('يحذف ألوان البوت القديمة وينشئ ألوان مرقمة 1-20 تحت تلقائياً')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles)
+    .addIntegerOption((o) => o.setName('count').setDescription(`عدد الألوان (1-${PALETTE.length})`).setMinValue(1).setMaxValue(PALETTE.length)),
+  aliases: ['clo&', 'كلو', 'ألوان_مرقمة'],
+  async execute(interaction) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const created = await createColors(interaction.guild, interaction.options.getInteger('count') || PALETTE.length);
+    if (!created) return reply.error(interaction, 'ما قدرت أنشئ الألوان — تأكد إن رتبة البوت فوق.');
+    return reply.success(interaction, `تم إنشاء \`${created}\` لون مرقمة (1-${created}) تحت تلقائياً ${I.colors}\nأرسل البانل بـ \`/ألوان لوحة\``);
+  },
+};
+
 module.exports = {
   id: 'colors',
   name: 'Colors',
@@ -165,7 +181,7 @@ module.exports = {
   emoji: I.colors,
   description: 'رتب ألوان جاهزة وبانل اختيار لون الاسم بشعار Sword.',
   defaults: { roles: [], created: [], panel: { channelId: null, messageId: null } },
-  commands: [{ data, execute }],
+  commands: [{ data, execute }, clo],
   dashboard: [
     {
       title: 'رتب الألوان', icon: 'colors',

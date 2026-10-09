@@ -11,7 +11,7 @@ const COMMANDS = {
   protection: 'حماية', welcome: 'ترحيب', logs: 'لوقات',
   autorole: 'رتب_تلقائية', reactionrole: 'رتب_رياكشن', rolepanel: 'بانل_رتب',
   ticket: 'تذكرة', autoreply: 'رد_تلقائي', autoreact: 'رياكشن_تلقائي', autoline: 'خط_تلقائي',
-  counter: 'عداد', colors: 'ألوان',
+  counter: 'عداد', colors: 'ألوان', clo: 'كلو',
 };
 
 // Subcommands, groups and options (one Arabic word per English key).
