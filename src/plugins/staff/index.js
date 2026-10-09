@@ -22,6 +22,7 @@ const { simple, colors } = require('../../core/theme');
 const { I } = require('../../core/icons');
 const { normalize } = require('../../core/i18n');
 const { ts, parseDuration } = require('../../utils/time');
+const { userError } = require('../../core/errors');
 const logger = require('../../core/logger');
 const data = require('./data');
 
@@ -201,6 +202,23 @@ function roleUsableRaw(guild, roleId, label) {
   return null;
 }
 
+// Deny writing everywhere for the mute role. Tickets still work because each
+// ticket grants its owner a member-level SendMessages allow (overrides this).
+const MUTE_DENY = {
+  SendMessages: false, SendMessagesInThreads: false,
+  CreatePublicThreads: false, CreatePrivateThreads: false, AddReactions: false,
+};
+async function applyMuteOverwrites(guild, roleId) {
+  if (!roleId) return { error: 'ما فيه رتبة اسكات محددة — عيّنها من لوحة التحكم.' };
+  if (!guild.roles.cache.get(roleId)) return { error: 'رتبة الاسكات محذوفة — عدّلها من لوحة التحكم.' };
+  let count = 0;
+  for (const channel of guild.channels.cache.values()) {
+    if (!channel.permissionOverwrites || !channel.manageable) continue;
+    try { await channel.permissionOverwrites.edit(roleId, MUTE_DENY, { reason: 'Sword: تجهيز الاسكات' }); count += 1; } catch { /* skip */ }
+  }
+  return { count };
+}
+
 // Reason/duration picker shown when a punishment is typed without a duration.
 async function sendPicker(ctx, type, target) {
   const presets = (ctx.cfg.presets || []).slice(0, 23);
@@ -277,6 +295,14 @@ const COMMANDS = [
     },
   },
   punishCmd(['تايم', 'تايماوت', 'timeout', 'to'], 'timeout'),
+  {
+    names: ['تجهيز-الاسكات', 'تجهيز', 'setup-mute'], level: 3, desc: 'يمنع رتبة الاسكات من الكتابة في كل الرومات (التذاكر تظل مسموحة)',
+    async run(ctx) {
+      const res = await applyMuteOverwrites(ctx.guild, ctx.cfg.muteRole);
+      if (res.error) return err(res.error);
+      return ok(`تم تجهيز الاسكات على \`${res.count}\` روم — المسكّت ما يكتب إلا في تذكرته.`);
+    },
+  },
 
   // ── level 2: jail ──────────────────────────────────────────────────
   punishCmd(['سجن', 'jail'], 'jail'),
@@ -847,6 +873,14 @@ function startSweeper(client) {
   timer.unref?.();
 }
 
+// New channels inherit the mute-role deny automatically.
+async function onChannelCreate(channel) {
+  if (!channel.guild || !channel.permissionOverwrites || !channel.manageable) return;
+  const cfg = store.get(channel.guild.id, ID);
+  if (!cfg.muteRole || !channel.guild.roles.cache.get(cfg.muteRole)) return;
+  await channel.permissionOverwrites.edit(cfg.muteRole, MUTE_DENY, { reason: 'Sword: اسكات تلقائي' }).catch(() => null);
+}
+
 // ── dashboard ────────────────────────────────────────────────────────
 const roleField = (key, label, hint) => ({ key, type: 'role', label, hint });
 const logField = (key, label) => ({ key: `logs.${key}`, type: 'channel', label });
@@ -893,10 +927,22 @@ module.exports = {
     messageCreate: onMessage,
     guildMemberAdd: onMemberAdd,
     guildMemberUpdate: onMemberUpdate,
+    channelCreate: onChannelCreate,
     inviteCreate: (invite) => { if (invite.guild) cacheGuild(invite.guild); },
     inviteDelete: (invite) => { if (invite.guild) cacheGuild(invite.guild); },
   },
   components: { pick: onPick, pmodal: onModal },
+  actions: {
+    setupMute: {
+      label: 'تجهيز رتبة الاسكات',
+      description: 'يمنع رتبة الاسكات من الكتابة في كل الرومات (التذاكر تظل مسموحة)',
+      async run(guild) {
+        const res = await applyMuteOverwrites(guild, store.get(guild.id, ID).muteRole);
+        if (res.error) throw userError(res.error);
+        return `تم تجهيز الاسكات على ${res.count} روم`;
+      },
+    },
+  },
   async ready(client) {
     client.staffWords = OWNED;
     startSweeper(client);
