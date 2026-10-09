@@ -68,15 +68,17 @@ function roleUsable(ctx, roleId, label) {
 const mentionId = (token) => (token || '').replace(/\D/g, '') || null;
 
 // Resolve a role from a mention <@&id>, a raw id, or its name (exact then partial).
+// Name search prefers assignable roles so it never lands on @everyone or a
+// bot/booster (managed) role by accident; an explicit id/mention is returned as-is.
 function resolveRole(guild, query) {
   const q = (query || '').trim();
   if (!q) return null;
   const id = (q.match(/^<@&(\d+)>$/) || q.match(/^(\d{15,25})$/) || [])[1];
   if (id) return guild.roles.cache.get(id) || null;
   const norm = q.toLowerCase();
-  return guild.roles.cache.find((r) => r.name.toLowerCase() === norm)
-    || guild.roles.cache.find((r) => r.name.toLowerCase().includes(norm))
-    || null;
+  const pick = (coll) => coll.find((r) => r.name.toLowerCase() === norm) || coll.find((r) => r.name.toLowerCase().includes(norm)) || null;
+  const assignable = guild.roles.cache.filter((r) => r.id !== guild.id && !r.managed);
+  return pick(assignable) || pick(guild.roles.cache) || null;
 }
 
 // ── command context ──────────────────────────────────────────────────
@@ -468,7 +470,7 @@ const COMMANDS = [
       if (!t) return err('منشن العضو أو حط آيديه. مثال: `رول @عضو الرتبة`');
       const role = resolveRole(ctx.guild, ctx.reasonFrom(1));
       if (!role) return err('ما لقيت الرتبة — منشن أو آيدي أو اسمها الصحيح.');
-      if (role.managed || role.id === ctx.guild.id) return err('هالرتبة ما تنعطى (رتبة بوت أو @everyone).');
+      if (role.managed || role.id === ctx.guild.id) return err(`الرتبة \`${role.name}\` ما تنعطى يدوياً — رتبة بوت أو بوست أو مرتبطة بخدمة أو @everyone.`);
       if (role.position >= ctx.me.roles.highest.position) return err('ارفع رتبة البوت فوق هالرتبة.');
       if (ctx.member.id !== ctx.guild.ownerId && role.position >= ctx.member.roles.highest.position) return err('الرتبة أعلى منك أو مساوية لك.');
       const protectedRoles = ctx.cfg.roleGuard?.protected?.length ? ctx.cfg.roleGuard.protected : ctx.cfg.roles.admin;
