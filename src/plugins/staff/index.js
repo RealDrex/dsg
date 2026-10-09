@@ -470,7 +470,7 @@ const COMMANDS = [
       if (!t) return err('منشن العضو أو حط آيديه. مثال: `رول @عضو الرتبة`');
       const role = resolveRole(ctx.guild, ctx.reasonFrom(1));
       if (!role) return err('ما لقيت الرتبة — منشن أو آيدي أو اسمها الصحيح.');
-      if (role.managed || role.id === ctx.guild.id) return err(`الرتبة \`${role.name}\` ما تنعطى يدوياً — رتبة بوت أو بوست أو مرتبطة بخدمة أو @everyone.`);
+      if (role.managed || role.id === ctx.guild.id) return err(`الرتبة \`${role.name}\` (\`${role.id}\`) ما تنعطى يدوياً — مُدارة ببوت/خدمة/بوست أو @everyone. استخدم منشن الرتبة الصحيحة \`@الرتبة\`.`);
       if (role.position >= ctx.me.roles.highest.position) return err('ارفع رتبة البوت فوق هالرتبة.');
       if (ctx.member.id !== ctx.guild.ownerId && role.position >= ctx.member.roles.highest.position) return err('الرتبة أعلى منك أو مساوية لك.');
       const protectedRoles = ctx.cfg.roleGuard?.protected?.length ? ctx.cfg.roleGuard.protected : ctx.cfg.roles.admin;
@@ -736,20 +736,11 @@ async function react(message, good, cfg) {
   await message.react(good ? cfg.okEmoji : cfg.noEmoji).catch(() => null);
 }
 
-// Keep failures "between the bot and the executor": DM them the reason (so the
-// whole channel doesn't see it), keep the ❌ reaction, and clean up the command.
-// If DMs are closed, fall back to a short-lived in-channel notice.
+// Show the warning in the channel with the ❌ reaction, then auto-delete it and
+// the command after a delay so nothing lingers. noticeDelay = 0 keeps them.
 async function notice(message, text, cfg) {
-  const embed = simple(text, 'error');
   const delay = cfg?.noticeDelay ?? 6000;
-  if (cfg?.noticeDm !== false) {
-    const sent = await message.author.send({ embeds: [embed] }).then(() => true).catch(() => false);
-    if (sent) {
-      if (delay > 0) setTimeout(() => message.delete().catch(() => null), delay);
-      return;
-    }
-  }
-  const m = await message.reply({ embeds: [embed], allowedMentions: { repliedUser: false } }).catch(() => null);
+  const m = await message.reply({ embeds: [simple(text, 'error')], allowedMentions: { repliedUser: false } }).catch(() => null);
   if (delay > 0) setTimeout(() => { m?.delete().catch(() => null); message.delete().catch(() => null); }, delay);
 }
 
@@ -952,7 +943,7 @@ module.exports = {
     jailRole: '1548942461148336208',
     blacklistRole: '1548942356948979772',
     liveRole: '', imageRole: '', hereRole: '', soundRole: '',
-    okEmoji: '✅', noEmoji: '❌', wipeDelay: 3000, noticeDelay: 6000, noticeDm: true,
+    okEmoji: '✅', noEmoji: '❌', wipeDelay: 3000, noticeDelay: 6000,
     logs: {
       vmute: '1553538498815074346',
       tmute: '1553539863159251075',
@@ -1061,8 +1052,7 @@ module.exports = {
         { key: 'okEmoji', type: 'text', label: 'إيموجي النجاح', hint: 'يدعم الإيموجي العادي أو المخصص <:name:id>' },
         { key: 'noEmoji', type: 'text', label: 'إيموجي الخطأ' },
         { key: 'wipeDelay', type: 'number', label: 'حذف رسالة الأمر بعد (ثانية) — للباند والبلاك', min: 0, max: 60, scale: 1000 },
-        { key: 'noticeDm', type: 'bool', label: 'رسائل التنبيه/الخطأ تجي خاص للمنفّذ (بدل الشات)' },
-        { key: 'noticeDelay', type: 'number', label: 'إذا الخاص مقفل: تنحذف من الشات بعد (ثانية)', min: 0, max: 60, scale: 1000 },
+        { key: 'noticeDelay', type: 'number', label: 'حذف رسائل التنبيه/الخطأ بعد (ثانية) — 0 تبقى ظاهرة', min: 0, max: 60, scale: 1000 },
       ],
     },
     {
