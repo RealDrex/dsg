@@ -89,6 +89,9 @@ async function handlePrefix(message) {
 
   const match = body.match(/^\s*(\S+)\s*([\s\S]*)$/);
   if (!match) return;
+  // The interactive-staff plugin owns these words (it handles them itself, with
+  // role-based permissions), so don't double-run them through the slash path.
+  if (client.staffWords?.has(normalize(match[1])) && store.isEnabled(message.guildId, 'staff')) return;
   let command = client.aliases.get(normalize(match[1]));
   let rest = match[2];
   // Allow two-word Arabic names typed with a space: "!فك باند 123"

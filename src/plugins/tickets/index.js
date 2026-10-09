@@ -61,6 +61,11 @@ async function openTicket(interaction, typeId, reason) {
   const type = cfg.types.find((t) => t.id === typeId);
   if (!type) return reply.error(interaction, 'نوع التذكرة هذا ما عاد موجود.');
 
+  // Members put under `tblock` by the staff plugin can't open tickets.
+  if (store.isEnabled(guild.id, 'staff') && require('../staff/data').tblocked(guild.id, member.id)) {
+    return reply.error(interaction, 'أنت ممنوع من فتح التذاكر.');
+  }
+
   const open = q.openFor.all(guild.id, member.id).filter((t) => guild.channels.cache.has(t.channel_id));
   if (open.length >= cfg.maxOpen) {
     return reply.error(interaction, `عندك تذكرة مفتوحة: ${open.map((t) => `<#${t.channel_id}>`).join(' ')}`);
