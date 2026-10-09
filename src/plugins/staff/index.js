@@ -67,6 +67,18 @@ function roleUsable(ctx, roleId, label) {
 
 const mentionId = (token) => (token || '').replace(/\D/g, '') || null;
 
+// Resolve a role from a mention <@&id>, a raw id, or its name (exact then partial).
+function resolveRole(guild, query) {
+  const q = (query || '').trim();
+  if (!q) return null;
+  const id = (q.match(/^<@&(\d+)>$/) || q.match(/^(\d{15,25})$/) || [])[1];
+  if (id) return guild.roles.cache.get(id) || null;
+  const norm = q.toLowerCase();
+  return guild.roles.cache.find((r) => r.name.toLowerCase() === norm)
+    || guild.roles.cache.find((r) => r.name.toLowerCase().includes(norm))
+    || null;
+}
+
 // ── command context ──────────────────────────────────────────────────
 function makeCtx(message, cfg) {
   const words = message._staffArgs.trim().length ? message._staffArgs.trim().split(/\s+/) : [];
@@ -449,6 +461,29 @@ const COMMANDS = [
   grantCmd(['صور', 'images'], 'imageRole', 'الصور', 'صلاحية إرسال الصور'),
   grantCmd(['هير', 'here'], 'hereRole', 'الهير', 'صلاحية منشن @here'),
   grantCmd(['ساوند', 'soundboard'], 'soundRole', 'الساوند', 'صلاحية الساوندبورد'),
+  {
+    names: ['رول', 'role'], level: 3, desc: 'إعطاء/سحب رتبة — رول <عضو> <منشن أو آيدي أو اسم الرتبة>',
+    async run(ctx) {
+      const t = await ctx.target();
+      if (!t) return err('منشن العضو أو حط آيديه. مثال: `رول @عضو الرتبة`');
+      const role = resolveRole(ctx.guild, ctx.reasonFrom(1));
+      if (!role) return err('ما لقيت الرتبة — منشن أو آيدي أو اسمها الصحيح.');
+      if (role.managed || role.id === ctx.guild.id) return err('هالرتبة ما تنعطى (رتبة بوت أو @everyone).');
+      if (role.position >= ctx.me.roles.highest.position) return err('ارفع رتبة البوت فوق هالرتبة.');
+      if (ctx.member.id !== ctx.guild.ownerId && role.position >= ctx.member.roles.highest.position) return err('الرتبة أعلى منك أو مساوية لك.');
+      const protectedRoles = ctx.cfg.roleGuard?.protected?.length ? ctx.cfg.roleGuard.protected : ctx.cfg.roles.admin;
+      if (protectedRoles.includes(role.id) && ctx.member.id !== ctx.guild.ownerId) {
+        const guardian = ctx.member.permissions.has(P.Administrator) || (ctx.cfg.roleGuard?.guardians || []).some((id) => ctx.member.roles.cache.has(id));
+        if (!guardian) return err('هذي رتبة محمية، ما تقدر تعطيها.');
+      }
+      if (t.roles.cache.has(role.id)) {
+        await t.roles.remove(role, `رول by ${ctx.author.tag}`);
+        return ok(`تم سحب ${role} من ${t}`);
+      }
+      await t.roles.add(role, `رول by ${ctx.author.tag}`);
+      return ok(`تم إعطاء ${role} لـ ${t}`);
+    },
+  },
   {
     names: ['نك', 'nick', 'لقب'], level: 3, desc: 'تغيير لقب العضو',
     async run(ctx) {
