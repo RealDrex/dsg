@@ -12,13 +12,16 @@
 //   1 تفاعلية  → اسكات/تكلم/ميوت/فك
 //   2 خاصة     → + سجن/عفو
 //   3 ستريشن   → كل شي
-const { PermissionFlagsBits, ChannelType, EmbedBuilder } = require('discord.js');
+const {
+  PermissionFlagsBits, EmbedBuilder, AuditLogEvent, MessageFlags,
+  ActionRowBuilder, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
+} = require('discord.js');
 const store = require('../../core/store');
 const cases = require('../../core/cases');
 const { simple, colors } = require('../../core/theme');
 const { I } = require('../../core/icons');
 const { normalize } = require('../../core/i18n');
-const { ts } = require('../../utils/time');
+const { ts, parseDuration } = require('../../utils/time');
 const logger = require('../../core/logger');
 const data = require('./data');
 
@@ -108,23 +111,147 @@ async function dm(user, guild, text) {
   await user.send({ embeds: [simple(text, 'accent')] }).catch(() => null);
 }
 
+// ── per-action logging ───────────────────────────────────────────────
+const LOGS = {
+  vmute: { key: 'vmute', label: 'ميوت صوتي', icon: I.muted, color: 'accent' },
+  tmute: { key: 'tmute', label: 'اسكات كتابي', icon: I.silence, color: 'accent' },
+  block: { key: 'block', label: 'بلاك لست', icon: I.forbid, color: 'accent' },
+  ban: { key: 'ban', label: 'باند', icon: I.ban, color: 'error' },
+  jail: { key: 'jail', label: 'سجن', icon: I.lock, color: 'accent' },
+  warn: { key: 'warn', label: 'تحذير', icon: I.warn, color: 'warn' },
+  timeout: { key: 'timeout', label: 'تايم أوت', icon: I.timeout, color: 'accent' },
+};
+
+function logAction(guild, cfg, kind, { target, mod, minutes, reason }) {
+  const meta = LOGS[kind];
+  const channel = guild.channels.cache.get(cfg.logs?.[kind]);
+  if (!meta || !channel) return;
+  const who = typeof mod === 'string' ? mod : `<@${mod.id}>`;
+  const lines = [
+    `${I.user} **العضو :** <@${target.id}> \`${target.id}\``,
+    `${I.admin} **المشرف :** ${who}`,
+  ];
+  if (minutes) lines.push(`${I.timeout} **المدة :** ${minutes} دقيقة`);
+  lines.push(`${I.report} **السبب :** ${reason || NO_REASON}`);
+  channel.send({ embeds: [simple(lines.join('\n'), meta.color, `${meta.icon} ${meta.label}`)], allowedMentions: { parse: [] } }).catch(() => null);
+}
+
+// ── timed punishments (vmute / tmute / jail / timeout) ────────────────
+const MAX_TIMEOUT_MIN = 28 * 24 * 60; // Discord cap for native timeout
+const PUNISH = {
+  vmute: { label: 'ميوت صوتي', level: 1 },
+  tmute: { label: 'اسكات كتابي', level: 1 },
+  jail: { label: 'سجن', level: 2 },
+  timeout: { label: 'تايم أوت', level: 2 },
+};
+
+function jailStrip(guild, member, modId, reason) {
+  const kept = member.roles.cache
+    .filter((r) => r.id !== guild.id && !r.managed && r.position < guild.members.me.roles.highest.position)
+    .map((r) => r.id);
+  data.jailSave(guild.id, member.id, kept, modId, reason);
+  const keepManaged = member.roles.cache.filter((r) => r.managed || r.position >= guild.members.me.roles.highest.position).map((r) => r.id);
+  return member.roles.set([...keepManaged, store.get(guild.id, ID).jailRole], `سجن by ${modId}`);
+}
+
+async function unjailMember(guild, cfg, member) {
+  const snap = data.jailGet(guild.id, member.id);
+  const restore = (snap?.roles || []).filter((id) => {
+    const r = guild.roles.cache.get(id);
+    return r && !r.managed && r.position < guild.members.me.roles.highest.position;
+  });
+  const keepManaged = member.roles.cache.filter((r) => r.managed).map((r) => r.id);
+  await member.roles.set([...new Set([...restore, ...keepManaged])], 'عفو');
+  data.jailClear(guild.id, member.id);
+  data.punishClear(guild.id, member.id, 'jail');
+}
+
+// Apply a timed punishment. Returns a summary string, or throws a user message.
+async function applyPunish(guild, cfg, type, target, mod, minutes, reason) {
+  const me = guild.members.me;
+  const until = minutes > 0 ? Date.now() + minutes * 60_000 : 0;
+  reason = reason || NO_REASON;
+  if (type === 'vmute') {
+    if (!target.voice.channel) throw new Error('العضو لازم يكون داخل روم صوتي.');
+    await target.voice.setMute(true, `${mod.tag}: ${reason}`);
+    data.punishSet(guild.id, target.id, 'vmute', until, mod.id, reason);
+  } else if (type === 'tmute') {
+    const p = roleUsableRaw(guild, cfg.muteRole, 'الاسكات'); if (p) throw new Error(p);
+    await target.roles.add(cfg.muteRole, `${mod.tag}: ${reason}`);
+    data.punishSet(guild.id, target.id, 'tmute', until, mod.id, reason);
+  } else if (type === 'jail') {
+    const p = roleUsableRaw(guild, cfg.jailRole, 'السجن'); if (p) throw new Error(p);
+    await jailStrip(guild, target, mod.id, reason);
+    data.punishSet(guild.id, target.id, 'jail', until, mod.id, reason);
+  } else if (type === 'timeout') {
+    if (!minutes || minutes > MAX_TIMEOUT_MIN) throw new Error('حدد مدة صحيحة (أقصى 28 يوم).');
+    await target.timeout(minutes * 60_000, `${mod.tag}: ${reason}`);
+    cases.create(guild, { action: 'timeout', userId: target.id, modId: mod.id, reason, duration: minutes * 60_000 });
+  }
+  logAction(guild, cfg, type, { target, mod, minutes, reason });
+  await dm(target.user, guild, `${LOGS[type].icon} ${PUNISH[type].label} في **${guild.name}**${minutes ? ` لمدة ${minutes} دقيقة` : ''}\nالسبب: ${reason}`);
+  return `تم ${PUNISH[type].label} على ${target}${minutes ? ` — ${minutes} دقيقة` : ''}`;
+}
+
+function roleUsableRaw(guild, roleId, label) {
+  if (!roleId) return `ما فيه رتبة ${label} محددة — عيّنها من لوحة التحكم.`;
+  const role = guild.roles.cache.get(roleId);
+  if (!role) return `رتبة ${label} محذوفة — عدّلها من لوحة التحكم.`;
+  if (role.position >= guild.members.me.roles.highest.position) return `ارفع رتبة البوت فوق رتبة ${label}.`;
+  return null;
+}
+
+// Reason/duration picker shown when a punishment is typed without a duration.
+async function sendPicker(ctx, type, target) {
+  const presets = (ctx.cfg.presets || []).slice(0, 23);
+  const options = presets.map((p, i) => ({
+    label: p.label.slice(0, 100),
+    description: p.minutes ? `${p.minutes} دقيقة` : (type === 'jail' ? 'حتى العفو' : 'دائم'),
+    value: String(i),
+  }));
+  options.push({ label: 'سبب ومدة يدوية', description: 'اكتبها بنفسك', value: 'custom' });
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId(`staff:pick:${type}:${target.id}:${ctx.author.id}`)
+    .setPlaceholder('اختر السبب والمدة')
+    .addOptions(options);
+  await ctx.message.reply({
+    content: `${target}`,
+    embeds: [simple(`${LOGS[type].icon} **${PUNISH[type].label}** لـ ${target}\nاختر السبب والمدة 👇`, 'accent')],
+    components: [new ActionRowBuilder().addComponents(menu)],
+    allowedMentions: { users: [target.id], repliedUser: false },
+  }).catch(() => null);
+}
+
+// Shared entry for mute/skat/jail/timeout: inline args → apply, else → picker.
+function punishCmd(names, type) {
+  return {
+    names, level: PUNISH[type].level, desc: `${PUNISH[type].label} (يطلع لك اختيار السبب والمدة)`,
+    async run(ctx) {
+      const t = await ctx.target();
+      const problem = guard(ctx, t, PUNISH[type].label);
+      if (problem) return err(problem);
+      // Inline duration like "ميوت @عضو 1h سبام" → apply directly.
+      const tok = ctx.words[1];
+      const ms = tok ? parseDuration(/^\d+$/.test(tok) ? `${tok}m` : tok) : null;
+      if (ms) {
+        try {
+          const text = await applyPunish(ctx.guild, ctx.cfg, type, t, ctx.author, Math.round(ms / 60_000), ctx.reasonFrom(2));
+          return ok(text);
+        } catch (e) { return err(e.message); }
+      }
+      await sendPicker(ctx, type, t);
+      return { noReact: true };
+    },
+  };
+}
+
 // ── commands ─────────────────────────────────────────────────────────
 // Each: { names:[...], symbol?, word?, level, wipe?, desc, run(ctx) }
 // run returns: undefined (✅) · err('..') (❌ + notice) · ok('..') (✅ + note)
 //            · { reply, noReact } (sends its own message, no reaction)
 const COMMANDS = [
-  // ── level 1: text/voice mute ───────────────────────────────────────
-  {
-    names: ['اسكات', 'سكات', 'skat', 'mute-text'], level: 1, desc: 'كتم كتابي للعضو (رتبة الاسكات)',
-    async run(ctx) {
-      const t = await ctx.target();
-      const problem = guard(ctx, t, 'اسكات') || roleUsable(ctx, ctx.cfg.muteRole, 'الاسكات');
-      if (problem) return err(problem);
-      if (t.roles.cache.has(ctx.cfg.muteRole)) return err('العضو مسكّت أصلاً.');
-      await t.roles.add(ctx.cfg.muteRole, `اسكات by ${ctx.author.tag}`);
-      return ok(`تم اسكات ${t}`);
-    },
-  },
+  // ── level 1: text/voice mute (timed, with reason picker) ────────────
+  punishCmd(['اسكات', 'سكات', 'skat', 'mute-text'], 'tmute'),
   {
     names: ['تكلم', 'فك-اسكات', 'unskat'], level: 1, desc: 'فك الاسكات الكتابي',
     async run(ctx) {
@@ -132,21 +259,11 @@ const COMMANDS = [
       if (!t) return err('منشن العضو أو حط آيديه.');
       if (!ctx.cfg.muteRole || !t.roles.cache.has(ctx.cfg.muteRole)) return err('العضو مو مسكّت.');
       await t.roles.remove(ctx.cfg.muteRole, `تكلم by ${ctx.author.tag}`);
+      data.punishClear(ctx.guild.id, t.id, 'tmute');
       return ok(`تم فك الاسكات عن ${t}`);
     },
   },
-  {
-    names: ['ميوت', 'mute'], level: 1, desc: 'ميوت صوتي (سيرفر ميوت)',
-    async run(ctx) {
-      const t = await ctx.target();
-      const problem = guard(ctx, t, 'ميوت');
-      if (problem) return err(problem);
-      if (!t.voice.channel) return err('لازم العضو يكون داخل روم صوتي.');
-      if (t.voice.serverMute) return err('العضو مميوت أصلاً.');
-      await t.voice.setMute(true, `ميوت by ${ctx.author.tag}`);
-      return ok(`تم ميوت ${t}`);
-    },
-  },
+  punishCmd(['ميوت', 'mute'], 'vmute'),
   {
     names: ['فك', 'unmute'], level: 1, desc: 'فك الميوت الصوتي',
     async run(ctx) {
@@ -155,26 +272,14 @@ const COMMANDS = [
       if (!t.voice.channel) return err('العضو مو داخل روم صوتي.');
       if (!t.voice.serverMute) return err('العضو مو مميوت.');
       await t.voice.setMute(false, `فك by ${ctx.author.tag}`);
+      data.punishClear(ctx.guild.id, t.id, 'vmute');
       return ok(`تم فك الميوت عن ${t}`);
     },
   },
+  punishCmd(['تايم', 'تايماوت', 'timeout', 'to'], 'timeout'),
 
   // ── level 2: jail ──────────────────────────────────────────────────
-  {
-    names: ['سجن', 'jail'], level: 2, desc: 'سجن العضو (يشيل رتبه ويحط رتبة السجن)',
-    async run(ctx) {
-      const t = await ctx.target();
-      const problem = guard(ctx, t, 'سجن') || roleUsable(ctx, ctx.cfg.jailRole, 'السجن');
-      if (problem) return err(problem);
-      if (t.roles.cache.has(ctx.cfg.jailRole)) return err('العضو مسجون أصلاً.');
-      const kept = t.roles.cache
-        .filter((r) => r.id !== ctx.guild.id && !r.managed && r.position < ctx.me.roles.highest.position)
-        .map((r) => r.id);
-      data.jailSave(ctx.guild.id, t.id, kept, ctx.author.id, ctx.reasonFrom(1));
-      await t.roles.set([...t.roles.cache.filter((r) => r.managed || r.position >= ctx.me.roles.highest.position).map((r) => r.id), ctx.cfg.jailRole], `سجن by ${ctx.author.tag}`);
-      return ok(`تم سجن ${t}`);
-    },
-  },
+  punishCmd(['سجن', 'jail'], 'jail'),
   {
     names: ['عفو', 'unjail'], level: 2, desc: 'فك السجن وإرجاع الرتب',
     async run(ctx) {
@@ -182,13 +287,7 @@ const COMMANDS = [
       if (!t) return err('منشن العضو أو حط آيديه.');
       const snap = data.jailGet(ctx.guild.id, t.id);
       if (!snap && !t.roles.cache.has(ctx.cfg.jailRole)) return err('العضو مو مسجون.');
-      const restore = (snap?.roles || []).filter((id) => {
-        const r = ctx.guild.roles.cache.get(id);
-        return r && !r.managed && r.position < ctx.me.roles.highest.position;
-      });
-      const keepManaged = t.roles.cache.filter((r) => r.managed).map((r) => r.id);
-      await t.roles.set([...new Set([...restore, ...keepManaged])], `عفو by ${ctx.author.tag}`);
-      data.jailClear(ctx.guild.id, t.id);
+      await unjailMember(ctx.guild, ctx.cfg, t);
       return ok(`تم فك السجن عن ${t}`);
     },
   },
@@ -206,6 +305,7 @@ const COMMANDS = [
       if (member) await dm(user, ctx.guild, `${I.ban} تم باندك من **${ctx.guild.name}**\nالسبب: ${reason || NO_REASON}`);
       await ctx.guild.members.ban(user.id, { reason: `${ctx.author.tag}: ${reason || NO_REASON}` });
       cases.create(ctx.guild, { action: 'ban', userId: user.id, modId: ctx.author.id, reason });
+      logAction(ctx.guild, ctx.cfg, 'ban', { target: user, mod: ctx.author, reason });
       return ok(`تم باند ${user.tag}`);
     },
   },
@@ -262,6 +362,7 @@ const COMMANDS = [
       if (p) return err(p);
       await t.roles.add(ctx.cfg.blacklistRole, `بلاك by ${ctx.author.tag}`);
       data.blAdd(ctx.guild.id, t.id, ctx.author.id, ctx.reasonFrom(1));
+      logAction(ctx.guild, ctx.cfg, 'block', { target: t, mod: ctx.author, reason: ctx.reasonFrom(1) });
       return ok(`تم حط ${t} في البلاك`);
     },
   },
@@ -347,6 +448,7 @@ const COMMANDS = [
       if (!reason) return err('اكتب سبب التحذير. مثال: `تحذير @عضو سبام`');
       await dm(t.user, ctx.guild, `${I.warn} عندك تحذير في **${ctx.guild.name}**\nالسبب: ${reason}`);
       cases.create(ctx.guild, { action: 'warn', userId: t.id, modId: ctx.author.id, reason });
+      logAction(ctx.guild, ctx.cfg, 'warn', { target: t, mod: ctx.author, reason });
       const total = cases.forUser(ctx.guild.id, t.id, 'warn').length;
       return ok(`تم تحذير ${t} — مجموع تحذيراته \`${total}\``);
     },
@@ -628,8 +730,126 @@ async function onMemberAdd(member) {
   }
 }
 
+// ── picker interactions ──────────────────────────────────────────────
+async function onPick(interaction, [type, targetId, invokerId]) {
+  if (interaction.user.id !== invokerId) {
+    return interaction.reply({ embeds: [simple('هذا الاختيار مو لك.', 'error')], flags: MessageFlags.Ephemeral });
+  }
+  if (interaction.values[0] === 'custom') {
+    const modal = new ModalBuilder().setCustomId(`staff:pmodal:${type}:${targetId}:${invokerId}`).setTitle(PUNISH[type]?.label || 'عقوبة');
+    const dur = new TextInputBuilder().setCustomId('dur').setLabel('المدة مثل 30m أو 2h أو 1d').setStyle(TextInputStyle.Short).setRequired(type === 'timeout').setMaxLength(10);
+    const rsn = new TextInputBuilder().setCustomId('reason').setLabel('السبب').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(400);
+    modal.addComponents(new ActionRowBuilder().addComponents(dur), new ActionRowBuilder().addComponents(rsn));
+    return interaction.showModal(modal);
+  }
+  const preset = (store.get(interaction.guildId, ID).presets || [])[Number(interaction.values[0])];
+  if (!preset) return interaction.reply({ embeds: [simple('الخيار مو موجود.', 'error')], flags: MessageFlags.Ephemeral });
+  return finishPunish(interaction, type, targetId, preset.minutes || 0, preset.label);
+}
+
+async function onModal(interaction, [type, targetId]) {
+  const raw = interaction.fields.getTextInputValue('dur').trim();
+  const reason = interaction.fields.getTextInputValue('reason').trim();
+  let minutes = 0;
+  if (raw) {
+    const ms = parseDuration(/^\d+$/.test(raw) ? `${raw}m` : raw);
+    if (!ms) return interaction.reply({ embeds: [simple('مدة غير صحيحة. مثال: 30m أو 2h أو 1d', 'error')], flags: MessageFlags.Ephemeral });
+    minutes = Math.round(ms / 60_000);
+  }
+  return finishPunish(interaction, type, targetId, minutes, reason);
+}
+
+async function finishPunish(interaction, type, targetId, minutes, reason) {
+  const { guild } = interaction;
+  const cfg = store.get(guild.id, ID);
+  const fromMsg = !interaction.isModalSubmit() || interaction.isFromMessage?.();
+  const fail = (text) => (fromMsg
+    ? interaction.update({ embeds: [simple(text, 'error')], components: [] })
+    : interaction.reply({ embeds: [simple(text, 'error')], flags: MessageFlags.Ephemeral }));
+  if (levelOf(interaction.member) < PUNISH[type].level) return fail('ما عندك صلاحية لهذا الأمر.');
+  const target = await guild.members.fetch(targetId).catch(() => null);
+  const problem = guard({ guild, member: interaction.member, me: guild.members.me }, target, PUNISH[type].label);
+  if (problem) return fail(problem);
+  try {
+    const text = await applyPunish(guild, cfg, type, target, interaction.user, minutes, reason);
+    const payload = { content: '', embeds: [simple(`${I.success} ${text}\n${I.report} **السبب:** ${reason}`, 'success')], components: [] };
+    return fromMsg ? interaction.update(payload) : interaction.reply(payload);
+  } catch (e) {
+    return fail(e.message);
+  }
+}
+
+// ── role-abuse guard ─────────────────────────────────────────────────
+async function onMemberUpdate(oldM, newM) {
+  const cfg = store.get(newM.guild.id, ID);
+  if (!cfg.roleGuard?.enabled) return;
+  const protectedRoles = cfg.roleGuard.protected?.length ? cfg.roleGuard.protected : cfg.roles.admin;
+  const added = newM.roles.cache.filter((r) => !oldM.roles.cache.has(r.id) && protectedRoles.includes(r.id));
+  if (!added.size) return;
+  const guild = newM.guild;
+  const audit = await guild.fetchAuditLogs({ type: AuditLogEvent.MemberRoleUpdate, limit: 6 }).catch(() => null);
+  const entry = audit?.entries.find((e) => e.target?.id === newM.id && Date.now() - e.createdTimestamp < 15_000
+    && e.changes?.some((c) => c.key === '$add' && c.new?.some((r) => added.has(r.id))));
+  const executor = entry?.executor;
+  if (!executor || executor.id === guild.client.user.id || executor.id === guild.ownerId) return;
+  const ex = await guild.members.fetch(executor.id).catch(() => null);
+  if (!ex) return;
+  const trusted = ex.permissions.has(PermissionFlagsBits.Administrator)
+    || (cfg.roleGuard.guardians || []).some((id) => ex.roles.cache.has(id))
+    || cfg.roles.admin.some((id) => ex.roles.cache.has(id));
+  if (trusted) return;
+
+  for (const r of added.values()) await newM.roles.remove(r, 'Sword: منع رفع رتبة محمية').catch(() => null);
+  const names = [...added.values()].map((r) => r.name).join('، ');
+  const limit = cfg.roleGuard.strikes || 3;
+  const strikes = data.strikeAdd(guild.id, executor.id);
+  let note = `حاول يعطي ${newM} رتبة محمية (${names}) — تم سحبها. \`${strikes}/${limit}\``;
+  let stripped = false;
+  if (strikes >= limit) {
+    data.strikeReset(guild.id, executor.id);
+    const power = new Set([...cfg.roles.admin, ...cfg.roles.special, ...cfg.roles.interactive, ...protectedRoles]);
+    const strip = ex.roles.cache.filter((r) => power.has(r.id) && r.position < guild.members.me.roles.highest.position);
+    if (strip.size) await ex.roles.remove(strip, 'Sword: تكرار رفع رتب محمية').catch(() => null);
+    note += `\n**تكرر ${strikes} مرات — تم سحب رتبه.**`;
+    stripped = true;
+  }
+  const ch = guild.channels.cache.get(cfg.logs?.protect) || guild.channels.cache.get(cfg.logs?.ban);
+  if (ch) {
+    ch.send({
+      embeds: [simple([
+        `${I.admin} **المسؤول :** <@${executor.id}> \`${executor.id}\``,
+        `${I.user} **العضو :** <@${newM.id}>`,
+        `${I.report} **السبب :** ${note}`,
+      ].join('\n'), stripped ? 'error' : 'warn', `${I.shieldAlert} حماية الرتب`)],
+      allowedMentions: { parse: [] },
+    }).catch(() => null);
+  }
+}
+
+// ── auto-expiry sweeper ──────────────────────────────────────────────
+function startSweeper(client) {
+  const timer = setInterval(async () => {
+    let due;
+    try { due = data.punishDue(); } catch { return; }
+    for (const row of due) {
+      try {
+        const guild = client.guilds.cache.get(row.guild_id);
+        if (!guild || !store.isEnabled(guild.id, ID)) { if (!guild) data.punishClear(row.guild_id, row.user_id, row.type); continue; }
+        const cfg = store.get(guild.id, ID);
+        const member = await guild.members.fetch(row.user_id).catch(() => null);
+        if (row.type === 'vmute') { if (member?.voice?.channel) await member.voice.setMute(false, 'انتهت مدة الميوت').catch(() => null); }
+        else if (row.type === 'tmute') { if (member && cfg.muteRole) await member.roles.remove(cfg.muteRole, 'انتهت مدة الاسكات').catch(() => null); }
+        else if (row.type === 'jail') { if (member) await unjailMember(guild, cfg, member).catch(() => null); }
+        data.punishClear(row.guild_id, row.user_id, row.type);
+      } catch (e) { logger.error('[staff] sweep:', e); }
+    }
+  }, 30_000);
+  timer.unref?.();
+}
+
 // ── dashboard ────────────────────────────────────────────────────────
 const roleField = (key, label, hint) => ({ key, type: 'role', label, hint });
+const logField = (key, label) => ({ key: `logs.${key}`, type: 'channel', label });
 
 module.exports = {
   id: ID,
@@ -648,15 +868,38 @@ module.exports = {
     blacklistRole: '1548942356948979772',
     liveRole: '', imageRole: '', hereRole: '', soundRole: '',
     okEmoji: '✅', noEmoji: '❌', wipeDelay: 3000,
+    logs: {
+      vmute: '1553538498815074346',
+      tmute: '1553539863159251075',
+      block: '1553538873445982359',
+      ban: '1553538137869778994',
+      jail: '1553544386099548210',
+      warn: '1553544436619808799',
+      timeout: '1553543310877139004',
+      protect: '',
+    },
+    // Preset reasons shown in the picker. minutes: 0 = permanent / until release.
+    presets: [
+      { id: 'p1', label: 'قذف', minutes: 480 },
+      { id: 'p2', label: 'سب وشتم', minutes: 720 },
+      { id: 'p3', label: 'إزعاج', minutes: 120 },
+      { id: 'p4', label: 'سبام', minutes: 60 },
+      { id: 'p5', label: 'مخالفة القوانين', minutes: 240 },
+      { id: 'p6', label: 'تعدي على الإدارة', minutes: 1440 },
+    ],
+    roleGuard: { enabled: true, protected: [], guardians: [], strikes: 3 },
   },
   events: {
     messageCreate: onMessage,
     guildMemberAdd: onMemberAdd,
+    guildMemberUpdate: onMemberUpdate,
     inviteCreate: (invite) => { if (invite.guild) cacheGuild(invite.guild); },
     inviteDelete: (invite) => { if (invite.guild) cacheGuild(invite.guild); },
   },
+  components: { pick: onPick, pmodal: onModal },
   async ready(client) {
     client.staffWords = OWNED;
+    startSweeper(client);
     for (const guild of client.guilds.cache.values()) await cacheGuild(guild);
   },
   dashboard: [
@@ -689,11 +932,48 @@ module.exports = {
       ],
     },
     {
+      title: 'رومات اللوق', icon: 'logs',
+      description: 'كل عقوبة تتسجّل في رومها بإمبد فيه العضو والمشرف والمدة والسبب.',
+      fields: [
+        logField('vmute', 'لوق الميوت الصوتي'),
+        logField('tmute', 'لوق الاسكات الكتابي'),
+        logField('jail', 'لوق السجن'),
+        logField('timeout', 'لوق التايم أوت'),
+        logField('warn', 'لوق التحذير'),
+        logField('block', 'لوق البلاك'),
+        logField('ban', 'لوق الباند'),
+        logField('protect', 'لوق حماية الرتب'),
+      ],
+    },
+    {
+      title: 'أسباب ومدد جاهزة', icon: 'report',
+      description: 'تطلع كقائمة اختيار عند الميوت/الاسكات/السجن/التايم أوت. المدة بالدقائق (0 = دائم).',
+      fields: [
+        {
+          key: 'presets', type: 'list', label: 'الأسباب', idKey: 'id', max: 23,
+          fields: [
+            { key: 'label', type: 'text', label: 'السبب', max: 100 },
+            { key: 'minutes', type: 'number', label: 'المدة (دقيقة)', min: 0, max: 40320 },
+          ],
+        },
+      ],
+    },
+    {
       title: 'الريأكشن والحذف', icon: 'settings',
       fields: [
         { key: 'okEmoji', type: 'text', label: 'إيموجي النجاح', hint: 'يدعم الإيموجي العادي أو المخصص <:name:id>' },
         { key: 'noEmoji', type: 'text', label: 'إيموجي الخطأ' },
         { key: 'wipeDelay', type: 'number', label: 'حذف رسالة الأمر بعد (ثانية) — للباند والبلاك', min: 0, max: 60, scale: 1000 },
+      ],
+    },
+    {
+      title: 'حماية الرتب', icon: 'shieldAlert',
+      description: 'لو أحد غير مخوّل أعطى رتبة محمية، البوت يسحبها، وبعد تكرارها يسحب رتبه هو. يحتاج صلاحية View Audit Log للبوت.',
+      fields: [
+        { key: 'roleGuard.enabled', type: 'bool', label: 'تفعيل حماية الرتب' },
+        { key: 'roleGuard.protected', type: 'roles', label: 'الرتب المحمية (الافتراضي: رتب الستريشن)', max: 20 },
+        { key: 'roleGuard.guardians', type: 'roles', label: 'المخوّلون بإعطائها (غير المالك والستريشن)', max: 20 },
+        { key: 'roleGuard.strikes', type: 'number', label: 'عدد المحاولات قبل سحب رتبته', min: 1, max: 10 },
       ],
     },
   ],
