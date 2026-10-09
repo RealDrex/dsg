@@ -700,9 +700,18 @@ async function react(message, good, cfg) {
   await message.react(good ? cfg.okEmoji : cfg.noEmoji).catch(() => null);
 }
 
-async function notice(message, text) {
+// Keep failures "between the bot and the executor": show the ❌ reaction, then
+// auto-delete both the warning and the command message so nothing lingers for
+// the whole channel. noticeDelay = 0 keeps them.
+async function notice(message, text, cfg) {
+  const delay = cfg?.noticeDelay ?? 6000;
   const m = await message.reply({ embeds: [simple(text, 'error')], allowedMentions: { repliedUser: false } }).catch(() => null);
-  if (m) setTimeout(() => m.delete().catch(() => null), 7000);
+  if (delay > 0) {
+    setTimeout(() => {
+      m?.delete().catch(() => null);
+      message.delete().catch(() => null);
+    }, delay);
+  }
 }
 
 async function onMessage(message) {
@@ -716,7 +725,7 @@ async function onMessage(message) {
     if (!intentful && level === 0) return; // random chatter typing a word — ignore
     const cfg = store.get(message.guildId, ID);
     await react(message, false, cfg);
-    await notice(message, 'ما عندك صلاحية لهذا الأمر.');
+    await notice(message, 'ما عندك صلاحية لهذا الأمر.', cfg);
     return;
   }
 
@@ -725,7 +734,7 @@ async function onMessage(message) {
   message._staffLevel = level;
   try {
     const res = await cmd.run(makeCtx(message, cfg));
-    if (res?.error) { await react(message, false, cfg); await notice(message, res.error); return; }
+    if (res?.error) { await react(message, false, cfg); await notice(message, res.error, cfg); return; }
     if (res?.reply) await message.reply({ ...res.reply, allowedMentions: res.reply.allowedMentions || { repliedUser: false } }).catch(() => null);
     if (res?.noReact) return;
     await react(message, true, cfg);
@@ -733,7 +742,7 @@ async function onMessage(message) {
   } catch (e) {
     logger.error('[staff] command:', e);
     await react(message, false, cfg);
-    await notice(message, 'صار خطأ غير متوقع، حاول مرة ثانية.');
+    await notice(message, 'صار خطأ غير متوقع، حاول مرة ثانية.', cfg);
   }
 }
 
@@ -901,7 +910,7 @@ module.exports = {
     jailRole: '1548942461148336208',
     blacklistRole: '1548942356948979772',
     liveRole: '', imageRole: '', hereRole: '', soundRole: '',
-    okEmoji: '✅', noEmoji: '❌', wipeDelay: 3000,
+    okEmoji: '✅', noEmoji: '❌', wipeDelay: 3000, noticeDelay: 6000,
     logs: {
       vmute: '1553538498815074346',
       tmute: '1553539863159251075',
@@ -1010,6 +1019,7 @@ module.exports = {
         { key: 'okEmoji', type: 'text', label: 'إيموجي النجاح', hint: 'يدعم الإيموجي العادي أو المخصص <:name:id>' },
         { key: 'noEmoji', type: 'text', label: 'إيموجي الخطأ' },
         { key: 'wipeDelay', type: 'number', label: 'حذف رسالة الأمر بعد (ثانية) — للباند والبلاك', min: 0, max: 60, scale: 1000 },
+        { key: 'noticeDelay', type: 'number', label: 'حذف رسائل التنبيه/الخطأ بعد (ثانية) — 0 تبقى ظاهرة', min: 0, max: 60, scale: 1000 },
       ],
     },
     {
