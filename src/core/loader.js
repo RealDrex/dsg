@@ -8,7 +8,7 @@ const PLUGINS_DIR = path.join(__dirname, '..', 'plugins');
 // Display order (matches the plugin list in the Sword dashboard design).
 const ORDER = [
   'settings', 'protection', 'admin', 'staff', 'welcome', 'logs',
-  'activity', 'autorole', 'rolesassigner', 'tickets',
+  'autorole', 'rolesassigner', 'tickets',
   'autoactions', 'counters', 'colors', 'games', 'voicebots',
 ];
 

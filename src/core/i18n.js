@@ -9,7 +9,6 @@ const COMMANDS = {
   warn: 'تحذير', warnings: 'تحذيرات', history: 'سجل', clear: 'مسح', lock: 'قفل', unlock: 'فتح',
   hide: 'إخفاء', show: 'إظهار', slowmode: 'وضع_بطيء', nick: 'لقب', role: 'رتبة', say: 'قول',
   protection: 'حماية', welcome: 'ترحيب', logs: 'لوقات',
-  rank: 'رانك', top: 'توب_التفاعل', levels: 'لفلات',
   autorole: 'رتب_تلقائية', reactionrole: 'رتب_رياكشن', rolepanel: 'بانل_رتب',
   ticket: 'تذكرة', autoreply: 'رد_تلقائي', autoreact: 'رياكشن_تلقائي', autoline: 'خط_تلقائي',
   counter: 'عداد', colors: 'ألوان',

@@ -67,11 +67,15 @@ test('subcommand by English name and choice by Arabic label', async () => {
 });
 
 test('booleans and channels', async () => {
-  const { options } = await parse('levels', `إعلان نعم <#${CHAN_ID}> مبروك {user}`);
-  assert.equal(options.getSubcommand(), 'announce');
-  assert.equal(options.getBoolean('enabled'), true);
-  assert.equal(options.getChannel('channel').id, CHAN_ID);
-  assert.equal(options.getString('message'), 'مبروك {user}');
+  const dm = await parse('welcome', 'الخاص نعم مرحبا فيك');
+  assert.equal(dm.options.getSubcommand(), 'dm');
+  assert.equal(dm.options.getBoolean('enabled'), true);
+  assert.equal(dm.options.getString('text'), 'مرحبا فيك');
+
+  const leave = await parse('welcome', `المغادرة <#${CHAN_ID}> وداعا`);
+  assert.equal(leave.options.getSubcommand(), 'leave');
+  assert.equal(leave.options.getChannel('channel').id, CHAN_ID);
+  assert.equal(leave.options.getString('text'), 'وداعا');
 });
 
 test('integer range is enforced', async () => {
@@ -104,7 +108,6 @@ test('game commands resolve by Arabic name, including ة/ه spelling', () => {
   assert.equal(aliases.get(normalize('حجرة')).key, 'rps');
   assert.equal(aliases.get(normalize('روليتز')).key, 'roulettez');
   assert.equal(aliases.get(normalize('توب')).key, 'gtop');
-  assert.equal(aliases.get(normalize('توب_التفاعل')).key, 'top');
   assert.equal(aliases.get(normalize('ايقاف')).key, 'gstop');
 });
 
