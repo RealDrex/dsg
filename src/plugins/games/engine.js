@@ -222,7 +222,7 @@ async function lobby(session, interaction, { game, min = 2, max = 20, rules, ima
     if (!imageOnly) {
       b.push(button(session.cid('start'), 'ابدأ الحين', ButtonStyle.Primary, I.fast));
     } else {
-      b.push(button(session.cid('bag'), 'الحقيبة', ButtonStyle.Secondary, I.package));
+      b.push(button(session.cid('bag'), 'الحقيبة', ButtonStyle.Secondary, I.backpack));
       b.push(button(session.cid('shop'), 'المتجر', ButtonStyle.Secondary, I.cart));
     }
     return rows(b);

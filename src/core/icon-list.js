@@ -70,6 +70,7 @@ module.exports = {
   keyboard: lucide('keyboard'),
   server: lucide('server'),
   package: lucide('package'),
+  backpack: lucide('backpack'),
   clock: lucide('clock'),
   crown: lucide('crown', '#e0b84a'),
   calendar: lucide('calendar'),

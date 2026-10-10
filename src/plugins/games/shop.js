@@ -90,11 +90,11 @@ function bagPayload(guild, user) {
     `${I.kick} **مرات الطرد (سويتها):** \`${st.kills}\``,
     `${I.skull} **مرات طردك:** \`${st.deaths}\``,
     '',
-    `${I.package} **الخصائص:**`,
+    `${I.backpack} **الخصائص:**`,
     list,
   ].join('\n');
   return {
-    embeds: [simple(body, 'primary', `${I.package} حقيبة ${user.username}`).setThumbnail(user.displayAvatarURL())],
+    embeds: [simple(body, 'primary', `${I.backpack} حقيبة ${user.username}`).setThumbnail(user.displayAvatarURL())],
     flags: MessageFlags.Ephemeral,
   };
 }
