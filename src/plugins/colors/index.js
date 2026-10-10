@@ -5,11 +5,13 @@ const { userError } = require('../../core/errors');
 const { I, asEmoji } = require('../../core/icons');
 const art = require('../games/art');
 
+// 20 visually DISTINCT colours (not shades) — fixed order, same every time.
+// Black uses 0x010101 because Discord treats 0x000000 as "no colour".
 const PALETTE = [
-  ['قرمزي', 0xdc143c], ['أحمر', 0xff4d4d], ['برتقالي', 0xff8c42], ['ذهبي', 0xffd166], ['أصفر', 0xfff275],
-  ['ليموني', 0xb5e550], ['أخضر', 0x3ddc84], ['زمردي', 0x10b981], ['فيروزي', 0x2dd4bf], ['سماوي', 0x38bdf8],
-  ['أزرق', 0x3b82f6], ['نيلي', 0x6366f1], ['بنفسجي', 0x8b5cf6], ['أرجواني', 0xc084fc], ['وردي', 0xf472b6],
-  ['زهري', 0xfb7185], ['بني', 0xb7793e], ['فضي', 0xd4d4d4], ['رمادي', 0x8a8a8a], ['أبيض', 0xfafafa],
+  ['أحمر', 0xe6194b], ['برتقالي', 0xf58231], ['أصفر', 0xffe119], ['ليموني', 0xbfef45], ['أخضر', 0x3cb44b],
+  ['تركوازي', 0x42d4f4], ['أزرق', 0x4363d8], ['كحلي', 0x1f3a93], ['بنفسجي', 0x911eb4], ['ماجنتا', 0xf032e6],
+  ['وردي', 0xff80c0], ['بني', 0x9a6324], ['خمري', 0x800000], ['زيتوني', 0x808000], ['نعناعي', 0x5ff0b0],
+  ['لافندر', 0xc9a0ff], ['رمادي', 0xa9a9a9], ['فضي', 0xe8e8e8], ['أبيض', 0xffffff], ['أسود', 0x010101],
 ];
 
 // Closest coloured-circle emoji for a role colour (used in the select menu).
@@ -60,19 +62,14 @@ async function refreshPanel(guild) {
 }
 
 async function createColors(guild, wanted) {
-  // Start clean: remove any colour roles the bot made before.
+  // Start clean: delete every colour role the bot made before (clears the box).
   const old = store.get(guild.id, 'colors').created;
   for (const id of old) {
     const role = guild.roles.cache.get(id);
     if (role) await role.delete('Sword Colors reset').catch(() => null);
   }
-  store.update(guild.id, 'colors', (c) => {
-    c.roles = c.roles.filter((id) => !c.created.includes(id));
-    c.created = [];
-  });
 
   const count = Math.min(wanted, MAX, PALETTE.length);
-  if (count <= 0) return 0;
   const created = [];
   // Named 1..count and left at the bottom of the role list (Discord's default
   // for a new role) so they sit below the staff/admin roles automatically.
@@ -83,9 +80,10 @@ async function createColors(guild, wanted) {
     });
     created.push(role.id);
   }
+  // Replace the whole colour list with just the new numbered set.
   store.update(guild.id, 'colors', (c) => {
-    c.roles.push(...created);
-    c.created.push(...created);
+    c.roles = [...created];
+    c.created = [...created];
   });
   await refreshPanel(guild);
   return created.length;
