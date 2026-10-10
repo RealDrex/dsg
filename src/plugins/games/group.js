@@ -4,6 +4,7 @@ const { I } = require('../../core/icons');
 const { simple, DIVIDER } = require('../../core/theme');
 const { lobby, finish, button, rows, pick, rand, mention, matches, clean, cfgOf, post, points, ButtonStyle, art, AttachmentBuilder } = require('./engine');
 const { WORDS } = require('./data');
+const shop = require('./shop');
 
 const S = ButtonStyle;
 const ends = (seconds) => `<t:${Math.floor(Date.now() / 1000) + seconds}:R>`;
@@ -59,6 +60,7 @@ async function roulette(session, interaction, game, { random = false } = {}) {
     if (!session.active) return;
     if (random) {
       await settle(spun, `${I.rouletteZ} وقفت العجلة على ${mention(chosen)} — **طلع من اللعبة**`);
+      shop.recordDeath(session.guildId, chosen.id);
       alive = without(alive, [chosen]);
       await out(session, game, [chosen], 'وقفت عليه العجلة');
       await session.sleep(1500);
@@ -87,6 +89,8 @@ async function roulette(session, interaction, game, { random = false } = {}) {
     }
     if (i) await i.update({ components: [] }).catch(() => null);
     else await spun.msg?.edit({ components: [] }).catch(() => null);
+    shop.recordDeath(session.guildId, gone.id);
+    if (gone.id !== chosen.id) shop.recordKill(session.guildId, chosen.id);
     alive = without(alive, [gone]);
     await out(session, game, [gone], why);
     await session.sleep(1500);

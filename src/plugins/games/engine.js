@@ -5,6 +5,7 @@ const {
 } = require('discord.js');
 const images = require('../../core/images');
 const art = require('./art');
+const shop = require('./shop');
 const db = require('../../core/db');
 const store = require('../../core/store');
 const { card, simple, DIVIDER } = require('../../core/theme');
@@ -216,8 +217,14 @@ async function lobby(session, interaction, { game, min = 2, max = 20, rules, ima
       button(session.cid('join'), 'دخول', ButtonStyle.Success, I.plus),
       button(session.cid('leave'), 'خروج', ButtonStyle.Secondary, I.minus),
     ];
-    // imageOnly lobbies (روليت) start only after the wait time — no instant start.
-    if (!imageOnly) b.push(button(session.cid('start'), 'ابدأ الحين', ButtonStyle.Primary, I.fast));
+    // imageOnly lobbies (روليت) start only after the wait time — no instant start —
+    // and show the bag/shop buttons.
+    if (!imageOnly) {
+      b.push(button(session.cid('start'), 'ابدأ الحين', ButtonStyle.Primary, I.fast));
+    } else {
+      b.push(button(session.cid('bag'), 'الحقيبة', ButtonStyle.Secondary, I.package));
+      b.push(button(session.cid('shop'), 'المتجر', ButtonStyle.Secondary, I.cart));
+    }
     return rows(b);
   };
 
@@ -262,6 +269,10 @@ async function lobby(session, interaction, { game, min = 2, max = 20, rules, ima
         if (players.size < min) return i.reply({ content: `يحتاج ${min} لاعبين على الأقل`, flags: MessageFlags.Ephemeral }).catch(() => null);
         await i.deferUpdate().catch(() => null);
         return c.stop('start');
+      } else if (action === 'bag') {
+        return i.reply(shop.bagPayload(i.guild, i.user)).catch(() => null);
+      } else if (action === 'shop') {
+        return i.reply(shop.shopPayload(i.guild, i.user)).catch(() => null);
       }
       await i.update(render()).catch(() => null);
     });
