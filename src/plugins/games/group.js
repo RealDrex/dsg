@@ -45,6 +45,7 @@ const settle = ({ msg, embed }, text, components = []) => msg?.edit({ embeds: [e
 async function roulette(session, interaction, game, { random = false } = {}) {
   let alive = await lobby(session, interaction, {
     game,
+    imageOnly: true,
     rules: random
       ? 'كل جولة تدور العجلة وتوقف على لاعب **يطلع على طول**. حظ خالص — آخر واحد يبقى يفوز.'
       : 'كل جولة تدور العجلة وتوقف على لاعب، وهو **يختار مين يطرد**. إذا ما اختار خلال 20 ثانية يطلع هو. آخر واحد يبقى يفوز.',

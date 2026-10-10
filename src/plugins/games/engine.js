@@ -203,14 +203,28 @@ const rows = (buttons, perRow = 5) => {
 /**
  * Join lobby. Resolves to an array of players ({ id, name }) or null if cancelled.
  */
-async function lobby(session, interaction, { game, min = 2, max = 20, rules }) {
+async function lobby(session, interaction, { game, min = 2, max = 20, rules, imageOnly = false }) {
   const cfg = cfgOf(session.guildId);
   const seconds = cfg.lobbyTime;
   const endsAt = Math.floor(Date.now() / 1000) + seconds;
   const players = new Map([[interaction.user.id, playerOf(interaction.user, interaction.member)]]);
   const image = await lobbyImage(session.guildId, game);
 
+  const buttons = (closed) => (closed ? [] : rows([
+    button(session.cid('join'), 'دخول', ButtonStyle.Success, I.plus),
+    button(session.cid('leave'), 'خروج', ButtonStyle.Secondary, I.minus),
+    button(session.cid('start'), 'ابدأ الحين', ButtonStyle.Primary, I.fast),
+  ]));
+
   const render = (closed = false, note, first = false) => {
+    // imageOnly: just the banner image and the buttons, no embed box.
+    if (imageOnly) {
+      return {
+        ...(first ? { files: [image] } : {}),
+        ...(note ? { content: note } : {}),
+        components: buttons(closed),
+      };
+    }
     const list = [...players.values()].map((p, i) => `\`${String(i + 1).padStart(2, '0')}\` ${mention(p)}`).join('\n');
     const { embed } = card({
       brand: false,
@@ -221,11 +235,7 @@ async function lobby(session, interaction, { game, min = 2, max = 20, rules }) {
     return {
       embeds: [embed],
       ...(first ? { files: [image] } : {}),
-      components: closed ? [] : rows([
-        button(session.cid('join'), 'دخول', ButtonStyle.Success, I.plus),
-        button(session.cid('leave'), 'خروج', ButtonStyle.Secondary, I.minus),
-        button(session.cid('start'), 'ابدأ الحين', ButtonStyle.Primary, I.fast),
-      ]),
+      components: buttons(closed),
     };
   };
 
@@ -238,8 +248,10 @@ async function lobby(session, interaction, { game, min = 2, max = 20, rules }) {
         if (players.has(i.user.id)) return i.reply({ content: 'أنت داخل أصلاً', flags: MessageFlags.Ephemeral }).catch(() => null);
         if (players.size >= max) return i.reply({ content: 'اللعبة ممتلئة', flags: MessageFlags.Ephemeral }).catch(() => null);
         players.set(i.user.id, playerOf(i.user, i.member));
+        if (imageOnly) return i.reply({ content: 'تم دخولك ✓', flags: MessageFlags.Ephemeral }).catch(() => null);
       } else if (action === 'leave') {
         if (!players.delete(i.user.id)) return i.reply({ content: 'أنت مو داخل', flags: MessageFlags.Ephemeral }).catch(() => null);
+        if (imageOnly) return i.reply({ content: 'تم خروجك', flags: MessageFlags.Ephemeral }).catch(() => null);
       } else if (action === 'start') {
         if (i.user.id !== session.hostId) return i.reply({ content: 'صاحب اللعبة بس يقدر يبدأ', flags: MessageFlags.Ephemeral }).catch(() => null);
         if (players.size < min) return i.reply({ content: `يحتاج ${min} لاعبين على الأقل`, flags: MessageFlags.Ephemeral }).catch(() => null);
