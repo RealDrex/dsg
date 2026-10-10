@@ -21,6 +21,35 @@ const FEATURES = {
 const INVITE_RE = /(discord\.gg|discord(?:app)?\.com\/invite|dsc\.gg)\/[\w-]+/i;
 const LINK_RE = /https?:\/\/\S+|www\.\S+\.\S+/i;
 
+// Ready-made Arabic profanity list (admins can add/remove from the dashboard).
+const DEFAULT_BAD_WORDS = [
+  'كس', 'كسم', 'كسمك', 'كسختك', 'قحبه', 'قحاب', 'شرموط', 'شرموطه', 'عاهره', 'زب', 'زبي',
+  'طيز', 'منيك', 'منيوك', 'متناك', 'متناكه', 'نيك', 'نياك', 'انيك', 'خول', 'خوله', 'لوطي',
+  'زاني', 'زانيه', 'عرص', 'معرص', 'وسخه', 'حقير', 'كلب', 'حيوان', 'يلعن', 'لعنه',
+];
+
+// Normalise Arabic for matching: drop diacritics/tatweel, unify letter forms,
+// and collapse 3+ repeats (so "كسسس" == "كس").
+function normalizeAr(s) {
+  return String(s || '').toLowerCase()
+    .replace(/[ً-ْٰـ]/g, '')
+    .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+    .replace(/(.)\1{2,}/g, '$1');
+}
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// A banned word hits only as a whole token (bounded by non-letters/digits), so
+// clean words like "اعلايك" or "مكسب" aren't flagged by a short banned word.
+function hasBadWord(content, words) {
+  const text = normalizeAr(content);
+  if (!text) return false;
+  return words.some((w) => {
+    const nw = normalizeAr(w);
+    if (!nw) return false;
+    return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(nw)}($|[^\\p{L}\\p{N}])`, 'u').test(text);
+  });
+}
+
 const spamTracker = new Map(); // guild:user -> [timestamps]
 const joinTracker = new Map(); // guild -> [timestamps]
 const raidUntil = new Map(); // guild -> timestamp
@@ -56,6 +85,12 @@ async function warnInChannel(message, text) {
   if (notice) setTimeout(() => notice.delete().catch(() => null), 6000);
 }
 
+// Delete the message, then tell the author privately (in DM) why.
+async function warnDM(message, text) {
+  await message.delete().catch(() => null);
+  await message.author.send({ embeds: [simple(`${emoji.error} ${text}\nالسيرفر: **${message.guild.name}**`, 'error')] }).catch(() => null);
+}
+
 async function punish(member, minutes, reason) {
   if (!member.moderatable) return;
   await member.timeout(minutes * 60_000, `Sword Protection: ${reason}`).catch(() => null);
@@ -69,9 +104,8 @@ async function onMessage(message) {
   const f = cfg.features;
   const content = message.content || '';
 
-  if (f.badWords && cfg.words.length) {
-    const lower = content.toLowerCase();
-    if (cfg.words.some((w) => lower.includes(w))) return warnInChannel(message, 'رسالتك فيها كلمة ممنوعة.');
+  if (f.badWords && cfg.words.length && hasBadWord(content, cfg.words)) {
+    return warnDM(message, 'رسالتك فيها كلمة ممنوعة، انحذفت.');
   }
 
   if (f.antiLink && (cfg.links.invitesOnly ? INVITE_RE.test(content) : LINK_RE.test(content))) {
@@ -332,7 +366,7 @@ module.exports = {
     spam: { messages: 6, seconds: 5, action: 'timeout', minutes: 10 },
     links: { invitesOnly: true },
     mentions: { max: 6 },
-    words: [],
+    words: [...DEFAULT_BAD_WORDS],
     raid: { joins: 8, seconds: 10, minutes: 5 },
     nuke: { limit: 3, seconds: 30 },
     whitelist: { users: [], roles: [] },
@@ -380,6 +414,21 @@ module.exports = {
     },
   ],
   commands: [{ data, execute }],
+  actions: {
+    loadWords: {
+      label: 'تحميل قائمة كلمات ممنوعة جاهزة',
+      description: 'يضيف قائمة شتائم عربية جاهزة لفلتر الكلمات (بدون تكرار) ويشغّل الفلتر',
+      run(guild) {
+        let added = 0;
+        store.update(guild.id, 'protection', (cfg) => {
+          const have = new Set(cfg.words);
+          for (const w of DEFAULT_BAD_WORDS) if (!have.has(w)) { cfg.words.push(w); added += 1; }
+          cfg.features.badWords = true;
+        });
+        return `تمت إضافة \`${added}\` كلمة وتفعيل الفلتر`;
+      },
+    },
+  },
   components: {
     async toggle(interaction) {
       if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) return reply.error(interaction, 'للأدمن فقط.');
