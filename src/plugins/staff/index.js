@@ -254,9 +254,10 @@ async function sendPicker(ctx, type, target) {
 }
 
 // Shared entry for mute/skat/jail/timeout: inline args → apply, else → picker.
-function punishCmd(names, type) {
+function punishCmd(names, type, opts = {}) {
   return {
-    names, level: PUNISH[type].level, desc: `${PUNISH[type].label} (يطلع لك اختيار السبب والمدة)`,
+    names, symbol: opts.symbol, word: opts.word,
+    level: PUNISH[type].level, desc: `${PUNISH[type].label} (يطلع لك اختيار السبب والمدة)`,
     async run(ctx) {
       const t = await ctx.target();
       const problem = guard(ctx, t, PUNISH[type].label);
@@ -318,7 +319,7 @@ const COMMANDS = [
   },
 
   // ── level 2: jail ──────────────────────────────────────────────────
-  punishCmd(['سجن', 'jail'], 'jail'),
+  punishCmd([], 'jail', { symbol: '-', word: 'سجن' }),
   {
     names: ['عفو', 'unjail'], level: 2, desc: 'فك السجن وإرجاع الرتب',
     async run(ctx) {
@@ -333,7 +334,7 @@ const COMMANDS = [
 
   // ── level 3: server punishments ────────────────────────────────────
   {
-    names: ['باند'], level: 3, wipe: true, desc: 'باند العضو ومنعه من دخول السيرفر',
+    symbol: '-', word: 'باند', level: 3, wipe: true, desc: 'باند العضو ومنعه من دخول السيرفر (-باند)',
     async run(ctx) {
       const member = await ctx.target();
       const user = member?.user || (await ctx.userTarget());
@@ -386,7 +387,7 @@ const COMMANDS = [
 
   // ── blacklist ──────────────────────────────────────────────────────
   {
-    symbol: '#', word: 'بلاك', level: 3, wipe: true, desc: 'بلاك لست (إضافة/إزالة)',
+    symbol: '-', word: 'بلاك', level: 3, wipe: true, desc: 'بلاك لست إضافة/إزالة (-بلاك)',
     async run(ctx) {
       const t = await ctx.target();
       if (!t) return err('منشن العضو أو حط آيديه.');
@@ -703,7 +704,7 @@ for (const cmd of COMMANDS) {
   for (const n of cmd.names || []) normalMap.set(normalize(n), cmd);
 }
 // Words the core prefix handler must hand over to this plugin.
-const OWNED = new Set([...normalMap.keys(), normalize('طرد'), normalize('بلاك'), normalize('تذكير')]);
+const OWNED = new Set([...normalMap.keys(), normalize('طرد'), normalize('بلاك'), normalize('تذكير'), normalize('باند'), normalize('سجن')]);
 
 // ── message engine ───────────────────────────────────────────────────
 function recognise(message) {
