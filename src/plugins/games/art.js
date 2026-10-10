@@ -254,7 +254,8 @@ async function wheel(players, chosenIndex, { title } = {}) {
   const size = 640;
   const canvas = createCanvas(size, size);
   const ctx = canvas.getContext('2d');
-  await backdrop(ctx, size, size, { samurai: true, glow: 'mono' });
+  ctx.fillStyle = '#2b2d31'; // flat Discord-embed background (no samurai)
+  ctx.fillRect(0, 0, size, size);
   const cx = size / 2;
   const cy = size / 2 + 8;
   const R = 268;
@@ -289,9 +290,11 @@ async function spinGif(players, chosenIndex, { title } = {}) {
 
   const canvas = createCanvas(size, size);
   const ctx = canvas.getContext('2d');
-  const bg = await (async () => {
+  const bg = (() => {
     const c = createCanvas(size, size);
-    await backdrop(c.getContext('2d'), size, size, { samurai: true, glow: 'mono' });
+    const bc = c.getContext('2d');
+    bc.fillStyle = '#2b2d31'; // flat Discord-embed background (no samurai)
+    bc.fillRect(0, 0, size, size);
     return c;
   })();
 
