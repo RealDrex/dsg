@@ -317,6 +317,18 @@ const COMMANDS = [
       return ok(`تم تجهيز الاسكات على \`${res.count}\` روم — المسكّت ما يكتب إلا في تذكرته.`);
     },
   },
+  {
+    symbol: '-', word: 'وقت', level: 3, desc: 'تحديد وقت انتظار لوبي الألعاب — -وقت 5m',
+    async run(ctx) {
+      const tok = ctx.words[0];
+      if (!tok) return err('حدد المدة. مثال: `-وقت 5m` أو `-وقت 30s`');
+      const ms = parseDuration(/^\d+$/.test(tok) ? `${tok}m` : tok);
+      if (!ms) return err('مدة غير صحيحة. مثال: `-وقت 5m` أو `-وقت 30s`');
+      const secs = Math.max(10, Math.min(3600, Math.round(ms / 1000)));
+      store.update(ctx.guild.id, 'games', (c) => { c.lobbyTime = secs; });
+      return ok(`صار وقت انتظار الألعاب \`${secs}\` ثانية`);
+    },
+  },
 
   // ── level 2: jail ──────────────────────────────────────────────────
   punishCmd([], 'jail', { symbol: '-', word: 'سجن' }),
@@ -704,7 +716,7 @@ for (const cmd of COMMANDS) {
   for (const n of cmd.names || []) normalMap.set(normalize(n), cmd);
 }
 // Words the core prefix handler must hand over to this plugin.
-const OWNED = new Set([...normalMap.keys(), normalize('طرد'), normalize('بلاك'), normalize('تذكير'), normalize('باند'), normalize('سجن')]);
+const OWNED = new Set([...normalMap.keys(), normalize('طرد'), normalize('بلاك'), normalize('تذكير'), normalize('باند'), normalize('سجن'), normalize('وقت')]);
 
 // ── message engine ───────────────────────────────────────────────────
 function recognise(message) {

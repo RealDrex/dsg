@@ -192,7 +192,7 @@ module.exports = {
   nameAr: 'الألعاب',
   emoji: I.games,
   description: 'ألعاب جماعية (روليت، مافيا، كراسي...)، تحديات، أسئلة سريعة، نقاط وتوب وتحويل وتصويت.',
-  defaults: { channels: [], groupWin: 5, duelWin: 3, quizPoint: 1, quizTime: 20, lobbyTime: 30 },
+  defaults: { channels: [], groupWin: 5, duelWin: 3, quizPoint: 1, quizTime: 20, lobbyTime: 300 },
   commands: [...GAMES.map(gameCommand), topCommand, pointsCommand, transferCommand, voteCommand, stopCommand],
   // Lobby images: each game shows the generated Sword banner unless the server uploads its own.
   images: GAMES.filter((g) => g.kind === 'group' || g.kind === 'duel').map((g) => ({ key: g.key, label: g.name, icon: g.icon })),
@@ -211,7 +211,7 @@ module.exports = {
         { key: 'duelWin', type: 'number', label: 'نقاط الفوز بتحدي / مافيا / خمن', min: 0, max: 1000 },
         { key: 'quizPoint', type: 'number', label: 'نقاط الجواب الصح (الألعاب الفردية)', min: 0, max: 1000 },
         { key: 'quizTime', type: 'number', label: 'وقت السؤال (ثواني)', min: 5, max: 120 },
-        { key: 'lobbyTime', type: 'number', label: 'وقت الانتظار قبل بداية اللعبة (ثواني)', min: 10, max: 180 },
+        { key: 'lobbyTime', type: 'number', label: 'وقت الانتظار قبل بداية اللعبة (ثواني)', min: 10, max: 600 },
       ],
     },
   ],

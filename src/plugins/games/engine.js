@@ -210,11 +210,16 @@ async function lobby(session, interaction, { game, min = 2, max = 20, rules, ima
   const players = new Map([[interaction.user.id, playerOf(interaction.user, interaction.member)]]);
   const image = await lobbyImage(session.guildId, game);
 
-  const buttons = (closed) => (closed ? [] : rows([
-    button(session.cid('join'), 'دخول', ButtonStyle.Success, I.plus),
-    button(session.cid('leave'), 'خروج', ButtonStyle.Secondary, I.minus),
-    button(session.cid('start'), 'ابدأ الحين', ButtonStyle.Primary, I.fast),
-  ]));
+  const buttons = (closed) => {
+    if (closed) return [];
+    const b = [
+      button(session.cid('join'), 'دخول', ButtonStyle.Success, I.plus),
+      button(session.cid('leave'), 'خروج', ButtonStyle.Secondary, I.minus),
+    ];
+    // imageOnly lobbies (روليت) start only after the wait time — no instant start.
+    if (!imageOnly) b.push(button(session.cid('start'), 'ابدأ الحين', ButtonStyle.Primary, I.fast));
+    return rows(b);
+  };
 
   const render = (closed = false, note, first = false) => {
     // imageOnly: just the banner image and the buttons, no embed box.
