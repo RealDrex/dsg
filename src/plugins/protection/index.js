@@ -23,9 +23,10 @@ const LINK_RE = /https?:\/\/\S+|www\.\S+\.\S+/i;
 
 // Ready-made Arabic profanity list (admins can add/remove from the dashboard).
 const DEFAULT_BAD_WORDS = [
-  'كس', 'كسم', 'كسمك', 'كسختك', 'قحبه', 'قحاب', 'شرموط', 'شرموطه', 'عاهره', 'زب', 'زبي',
-  'طيز', 'منيك', 'منيوك', 'متناك', 'متناكه', 'نيك', 'نياك', 'انيك', 'خول', 'خوله', 'لوطي',
-  'زاني', 'زانيه', 'عرص', 'معرص', 'وسخه', 'حقير', 'كلب', 'حيوان', 'يلعن', 'لعنه',
+  'كس', 'كسم', 'كسمك', 'كسامك', 'كسمه', 'كسمين', 'كسختك', 'كسخته', 'قحبه', 'قحاب',
+  'شرموط', 'شرموطه', 'شراميط', 'عاهره', 'زب', 'زبي', 'زبر', 'طيز',
+  'منيك', 'منيوك', 'منيوكه', 'متناك', 'متناكه', 'نيك', 'نياك', 'انيك', 'انيكك',
+  'خول', 'خوله', 'لوطي', 'زاني', 'زانيه', 'عرص', 'معرص',
 ];
 
 // Normalise Arabic for matching: drop diacritics/tatweel, unify letter forms,
@@ -38,16 +39,32 @@ function normalizeAr(s) {
 }
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// Undo evasion tricks: strip zero-width + filler symbols inserted between
+// letters (ك.س ، ك_س ، ك*س), and glue runs of single spaced-out letters
+// ("ك س م ك" -> "كسمك"). Real spaced words stay separate.
+function deobfuscate(text) {
+  return text
+    .replace(/[​-‏⁦-⁩‪-‮]/g, '')
+    .replace(/[.\-_*|~^'"`+/\\،؛:!?@#%&()[\]{}<>]+/g, '')
+    .replace(/(?:^|\s)\p{L}(?:\s\p{L})+(?=\s|$)/gu, (m) => m.replace(/\s+/g, ''));
+}
+
 // A banned word hits only as a whole token (bounded by non-letters/digits), so
-// clean words like "اعلايك" or "مكسب" aren't flagged by a short banned word.
-function hasBadWord(content, words) {
-  const text = normalizeAr(content);
-  if (!text) return false;
+// clean words like "اعلايك", "مكسب" or "كسر" aren't flagged. The check runs on
+// the text AND on a de-obfuscated copy, to catch split/spaced-out tricks.
+function matchBounded(text, words) {
   return words.some((w) => {
     const nw = normalizeAr(w);
     if (!nw) return false;
     return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(nw)}($|[^\\p{L}\\p{N}])`, 'u').test(text);
   });
+}
+function hasBadWord(content, words) {
+  const norm = normalizeAr(content);
+  if (!norm) return false;
+  if (matchBounded(norm, words)) return true;
+  const deob = deobfuscate(norm);
+  return deob !== norm && matchBounded(deob, words);
 }
 
 const spamTracker = new Map(); // guild:user -> [timestamps]
