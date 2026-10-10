@@ -41,10 +41,15 @@ const mention = (p) => `<@${p.id}>`;
 const avatarOf = (user) => user?.displayAvatarURL?.({ extension: 'png', size: 128 }) || null;
 const playerOf = (user, member) => ({ id: user.id, name: member?.displayName || user.globalName || user.username, avatar: avatarOf(user) });
 
-// Lobby image: the server's uploaded image for this game, or the generated Sword banner.
+// Lobby image: server-uploaded image for this game → bundled per-game banner
+// (assets/lobby-<key>.png) → the generated Sword banner.
+const ASSETS = require('node:path').join(__dirname, '..', '..', '..', 'assets');
+const fs = require('node:fs');
 async function lobbyImage(guildId, game) {
   const custom = images.find(guildId, 'games', game.key);
   if (custom) return new AttachmentBuilder(custom.file, { name: `lobby.${custom.ext}` });
+  const bundled = require('node:path').join(ASSETS, `lobby-${game.key}.png`);
+  if (fs.existsSync(bundled)) return new AttachmentBuilder(bundled, { name: 'lobby.png' });
   return new AttachmentBuilder(await art.banner(game), { name: 'lobby.png' });
 }
 
