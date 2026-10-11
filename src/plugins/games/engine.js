@@ -29,6 +29,19 @@ const cfgOf = (guildId) => store.get(guildId, 'games');
 const SCALE = Number(process.env.GAMES_TIME_SCALE) || 1;
 const scaled = (ms) => Math.max(1, Math.round(ms * SCALE));
 const rand = (n) => crypto.randomInt(n);
+
+// "1د 30ث" / "90ث" / "2د" / "1س" → seconds (ث sec · د min · س hour · ي day; s/m/h/d too).
+const TIME_UNIT = { 'ث': 1, 'د': 60, 'س': 3600, 'ي': 86400, s: 1, m: 60, h: 3600, d: 86400 };
+function parseArabicTime(str) {
+  if (!str) return null;
+  let total = 0;
+  let found = false;
+  const re = /(\d+)\s*(ث|د|س|ي|s|m|h|d)/gi;
+  let m;
+  while ((m = re.exec(str))) { total += Number(m[1]) * (TIME_UNIT[m[2].toLowerCase()] || 0); found = true; }
+  if (!found) { const n = str.trim().match(/^(\d+)$/); if (n) { total = Number(n[1]); found = true; } }
+  return found ? total : null;
+}
 const pick = (list) => list[rand(list.length)];
 const shuffle = (list) => {
   const a = [...list];
@@ -133,10 +146,9 @@ class Session {
 
   send(payload) { return this.channel.send({ allowedMentions: { parse: ['users'] }, ...payload }).catch(() => null); }
 
-  say(textBody, { title, icon, color = 'primary', image } = {}) {
-    const embed = simple(textBody, color, title ? `${icon ? `${iconText(icon)} ` : ''}${title}` : undefined);
-    if (image) embed.setImage(image);
-    return this.send({ embeds: [embed] });
+  say(textBody, { title, icon } = {}) {
+    const head = title ? `${icon ? `${iconText(icon)} ` : ''}**${title}**\n` : '';
+    return this.send({ content: `${head}${textBody}` });
   }
 
   // Components on any message in this channel (including ephemeral replies) for this session.
@@ -206,7 +218,9 @@ const rows = (buttons, perRow = 5) => {
  */
 async function lobby(session, interaction, { game, min = 2, max = 20, rules, imageOnly = false }) {
   const cfg = cfgOf(session.guildId);
-  const seconds = cfg.lobbyTime;
+  // Per-game override: "روليت 1د 30ث" sets the wait time for this lobby only.
+  const custom = parseArabicTime(interaction.options?.getString?.('time'));
+  const seconds = custom ? Math.max(5, Math.min(3600, custom)) : cfg.lobbyTime;
   const endsAt = Math.floor(Date.now() / 1000) + seconds;
   const players = new Map([[interaction.user.id, playerOf(interaction.user, interaction.member)]]);
   const image = await lobbyImage(session.guildId, game);
@@ -291,20 +305,19 @@ async function lobby(session, interaction, { game, min = 2, max = 20, rules, ima
 // Announces the winner(s) and awards points.
 async function finish(session, game, winners, amount) {
   const list = (Array.isArray(winners) ? winners : [winners]).filter(Boolean);
-  if (!list.length) return session.say('ما فيه فائز هالمرة', { title: `${game.name} — انتهت`, icon: I.flag, color: 'warn' });
+  if (!list.length) return session.say('ما فيه فائز هالمرة', { title: `${game.name} — انتهت`, icon: I.flag });
   for (const w of list) points.award(session.guildId, w.id, game.key, amount);
   const names = list.map(mention).join(' ، ');
-  const embed = simple(`${I.crown} ${names}\n${I.coins} **+${amount}** نقطة`, 'success', `${iconText(I.trophy)} ${game.name} — الفائز`);
+  const head = `${iconText(I.trophy)} **${game.name} — الفائز**\n${I.crown} ${names}\n${I.coins} **+${amount}** نقطة`;
   if (list.length === 1) {
     try {
       const file = new AttachmentBuilder(await art.winnerCard(list[0], game, amount), { name: 'winner.png' });
-      embed.setImage('attachment://winner.png');
-      return session.send({ embeds: [embed], files: [file] });
+      return session.send({ content: head, files: [file] });
     } catch (err) {
       logger.warn('winner card:', err.message);
     }
   }
-  return session.send({ embeds: [embed] });
+  return session.send({ content: head });
 }
 
 /** Runs a game: one per channel, stoppable with "ايقاف", errors logged. */

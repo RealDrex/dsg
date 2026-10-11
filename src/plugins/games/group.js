@@ -25,23 +25,21 @@ async function done(session, game, alive) {
 // Spins the wheel: sends the animated GIF, lets it land, then returns the message
 // (which freezes on the chosen slice). `extra` is edited in afterwards (text + buttons).
 async function spin(session, order, index, round) {
-  const title = `${I.roulette} الجولة ${round} — ${order.length} لاعبين`;
-  const image = `attachment://wheel.${'gif'}`;
-  const embed = simple('العجلة تدور...', 'primary', title);
+  const head = `${I.roulette} **الجولة ${round}** — ${order.length} لاعبين`;
   try {
     const gif = new AttachmentBuilder(await art.spinGif(order, index, { title: `الجولة ${round}` }), { name: 'wheel.gif' });
-    const msg = await session.send({ embeds: [embed.setImage(image)], files: [gif] });
+    const msg = await session.send({ content: `${head}\nالعجلة تدور...`, files: [gif] });
     await session.sleep(2800); // let the GIF settle on the winner
-    return { msg, embed };
+    return { msg };
   } catch {
     const png = new AttachmentBuilder(await art.wheel(order, index, { title: `الجولة ${round}` }), { name: 'wheel.png' });
-    const msg = await session.send({ embeds: [embed.setImage('attachment://wheel.png')], files: [png] });
-    return { msg, embed };
+    const msg = await session.send({ content: head, files: [png] });
+    return { msg };
   }
 }
 
-// Updates the spin message in place: new text + optional buttons (keeps the wheel image).
-const settle = ({ msg, embed }, text, components = []) => msg?.edit({ embeds: [embed.setDescription(text)], components }).catch(() => null);
+// Updates the spin message in place: new text + optional buttons (keeps the wheel image, no embed).
+const settle = ({ msg }, text, components = []) => msg?.edit({ content: text, components }).catch(() => null);
 
 async function roulette(session, interaction, game, { random = false } = {}) {
   let alive = await lobby(session, interaction, {

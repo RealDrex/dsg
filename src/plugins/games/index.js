@@ -51,7 +51,7 @@ register({
     ...Object.fromEntries(GAMES.map((g) => [g.key, g.name])),
     gtop: 'توب', points: 'نقاطي', transfer: 'تحويل', vote: 'تصويت', gstop: 'ايقاف',
   },
-  words: { game: 'اللعبة', question: 'السؤال' },
+  words: { game: 'اللعبة', question: 'السؤال', time: 'الوقت' },
 });
 
 const findGame = (value) => {
@@ -65,6 +65,7 @@ function gameCommand(game) {
   const label = { group: 'لعبة جماعية', duel: 'تحدي', quiz: 'لعبة فردية', kt: 'سؤال' }[game.kind];
   const data = new SlashCommandBuilder().setName(game.key).setDescription(`${label}: ${game.desc}`.slice(0, 100));
   if (game.kind === 'duel') data.addUserOption((o) => o.setName('user').setDescription('خصمك (فاضي = ضد البوت)'));
+  if (game.kind === 'group') data.addStringOption((o) => o.setName('time').setDescription('وقت الانتظار — مثال: 1د 30ث أو 45ث'));
   return {
     data,
     async execute(interaction) {
@@ -192,7 +193,7 @@ module.exports = {
   nameAr: 'الألعاب',
   emoji: I.games,
   description: 'ألعاب جماعية (روليت، مافيا، كراسي...)، تحديات، أسئلة سريعة، نقاط وتوب وتحويل وتصويت.',
-  defaults: { channels: [], groupWin: 5, duelWin: 3, quizPoint: 1, quizTime: 20, lobbyTime: 300 },
+  defaults: { channels: [], groupWin: 5, duelWin: 3, quizPoint: 1, quizTime: 20, lobbyTime: 30 },
   commands: [...GAMES.map(gameCommand), topCommand, pointsCommand, transferCommand, voteCommand, stopCommand],
   components: { buy: require('./shop').onBuy },
   // Lobby images: each game shows the generated Sword banner unless the server uploads its own.

@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
 const store = require('../../core/store');
-const { card, simple, emoji, DIVIDER, reply } = require('../../core/theme');
+const { card, simple, emoji, DIVIDER, reply, file } = require('../../core/theme');
 const { fill, memberVars } = require('../../utils/text');
 const { userError } = require('../../core/errors');
 const { I } = require('../../core/icons');
@@ -8,14 +8,10 @@ const { I } = require('../../core/icons');
 const VARS_HELP = '`{user}` منشن • `{username}` الاسم • `{server}` السيرفر • `{count}` عدد الأعضاء';
 
 function welcomePayload(member, cfg) {
-  const { embed, files } = card({
-    title: `${emoji.gate} أهلاً بك في ${member.guild.name}`,
-    description: `${fill(cfg.message, memberVars(member))}\n${DIVIDER}`,
-    thumbnail: member.user.displayAvatarURL({ size: 256 }),
-    image: cfg.image ? 'welcome' : undefined,
-    footer: `Sword • العضو رقم ${member.guild.memberCount}`,
-  });
-  return { content: cfg.mention ? `${member}` : undefined, embeds: [embed], files };
+  const text = `${emoji.gate} **أهلاً ${member} في ${member.guild.name}** — العضو رقم ${member.guild.memberCount}\n${fill(cfg.message, memberVars(member))}`;
+  const payload = { content: text, allowedMentions: { parse: cfg.mention ? ['users'] : [] } };
+  if (cfg.image) payload.files = [file('welcome')];
+  return payload;
 }
 
 async function onJoin(member) {
@@ -25,7 +21,7 @@ async function onJoin(member) {
     await channel?.send(welcomePayload(member, cfg)).catch(() => null);
   }
   if (cfg.dm.enabled && !member.user.bot) {
-    await member.send({ embeds: [simple(fill(cfg.dm.message, memberVars(member)), 'primary', `${emoji.sword} ${member.guild.name}`)] }).catch(() => null);
+    await member.send({ content: `${emoji.sword} **${member.guild.name}**\n${fill(cfg.dm.message, memberVars(member))}` }).catch(() => null);
   }
 }
 
@@ -33,9 +29,7 @@ async function onLeave(member) {
   const cfg = store.get(member.guild.id, 'welcome');
   if (!cfg.leave.channelId) return;
   const channel = member.guild.channels.cache.get(cfg.leave.channelId);
-  await channel?.send({
-    embeds: [simple(fill(cfg.leave.message, memberVars(member)), 'warn').setThumbnail(member.user.displayAvatarURL())],
-  }).catch(() => null);
+  await channel?.send({ content: fill(cfg.leave.message, memberVars(member)), allowedMentions: { parse: [] } }).catch(() => null);
 }
 
 const textChannel = (o, required = true) =>
