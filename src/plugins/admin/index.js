@@ -13,8 +13,8 @@ const MAX_TIMEOUT = 28 * 86_400_000;
 const reasonOpt = (o) => o.setName('reason').setDescription('السبب').setMaxLength(400);
 const NO_REASON = 'بدون سبب';
 
-// Public confirmation embed for a moderation action.
-function actionEmbed(entry, user, moderator) {
+// Public confirmation text (no embed) for a moderation action.
+function actionEmbed(entry, user, moderator, extra) {
   const meta = cases.ACTIONS[entry.action];
   const lines = [
     `${emoji.dot} **العضو:** ${user} \`${user.id}\``,
@@ -22,15 +22,15 @@ function actionEmbed(entry, user, moderator) {
     `${emoji.dot} **السبب:** ${entry.reason || NO_REASON}`,
   ];
   if (entry.duration) lines.push(`${emoji.dot} **المدة:** ${formatDuration(entry.duration)}`);
-  return simple(lines.join('\n'), entry.action.startsWith('un') ? 'success' : 'accent', `${meta.emoji} ${meta.label} • قضية #${entry.number}`)
-    .setThumbnail(user.displayAvatarURL());
+  if (extra) lines.push(extra);
+  return simple(lines.join('\n'), 'accent', `${meta.emoji} ${meta.label} • قضية #${entry.number}`);
 }
 
 async function notify(user, guild, entry) {
   const meta = cases.ACTIONS[entry.action];
   const text = [`${meta.emoji} **${meta.label}** في سيرفر **${guild.name}**`, `السبب: ${entry.reason || NO_REASON}`];
   if (entry.duration) text.push(`المدة: ${formatDuration(entry.duration)}`);
-  await user.send({ embeds: [simple(text.join('\n'), 'accent')] }).catch(() => null);
+  await user.send({ content: simple(text.join('\n'), 'accent') }).catch(() => null);
 }
 
 async function applyWarnPunishment(interaction, member) {
@@ -54,7 +54,7 @@ async function setChannelPerm(interaction, perms, done) {
   await channel.permissionOverwrites.edit(interaction.guild.roles.everyone, perms, {
     reason: `${interaction.user.tag}: ${interaction.options.getString('reason') || NO_REASON}`,
   });
-  await interaction.reply({ embeds: [simple(`${done} ${channel}`, 'primary')] });
+  await interaction.reply({ content: simple(`${done} ${channel}`, 'primary') });
 }
 
 const channelOpt = (o) =>
@@ -85,7 +85,7 @@ const commands = [
         reason: `${interaction.user.tag}: ${reason || NO_REASON}`,
         deleteMessageSeconds: interaction.options.getInteger('delete') || 0,
       });
-      await interaction.reply({ embeds: [actionEmbed(cases.create(interaction.guild, entry), user, interaction.user)] });
+      await interaction.reply({ content: actionEmbed(cases.create(interaction.guild, entry), user, interaction.user) });
     },
   },
   {
@@ -102,7 +102,7 @@ const commands = [
       if (!ban) return reply.error(interaction, 'هذا العضو مو مبند.');
       await interaction.guild.members.unban(id, `${interaction.user.tag}: ${reason || NO_REASON}`);
       const entry = cases.create(interaction.guild, { action: 'unban', userId: id, modId: interaction.user.id, reason });
-      await interaction.reply({ embeds: [actionEmbed(entry, ban.user, interaction.user)] });
+      await interaction.reply({ content: actionEmbed(entry, ban.user, interaction.user) });
     },
   },
   {
@@ -121,7 +121,7 @@ const commands = [
       const entry = { action: 'kick', userId: member.id, modId: interaction.user.id, reason };
       await notify(member.user, interaction.guild, entry);
       await member.kick(`${interaction.user.tag}: ${reason || NO_REASON}`);
-      await interaction.reply({ embeds: [actionEmbed(cases.create(interaction.guild, entry), member.user, interaction.user)] });
+      await interaction.reply({ content: actionEmbed(cases.create(interaction.guild, entry), member.user, interaction.user) });
     },
   },
   {
@@ -143,7 +143,7 @@ const commands = [
       await member.timeout(duration, `${interaction.user.tag}: ${reason || NO_REASON}`);
       const entry = cases.create(interaction.guild, { action: 'timeout', userId: member.id, modId: interaction.user.id, reason, duration });
       await notify(member.user, interaction.guild, entry);
-      await interaction.reply({ embeds: [actionEmbed(entry, member.user, interaction.user)] });
+      await interaction.reply({ content: actionEmbed(entry, member.user, interaction.user) });
     },
   },
   {
@@ -159,7 +159,7 @@ const commands = [
       const reason = interaction.options.getString('reason');
       await member.timeout(null, `${interaction.user.tag}: ${reason || NO_REASON}`);
       const entry = cases.create(interaction.guild, { action: 'untimeout', userId: member.id, modId: interaction.user.id, reason });
-      await interaction.reply({ embeds: [actionEmbed(entry, member.user, interaction.user)] });
+      await interaction.reply({ content: actionEmbed(entry, member.user, interaction.user) });
     },
   },
   {
@@ -178,10 +178,10 @@ const commands = [
       const entry = cases.create(interaction.guild, { action: 'warn', userId: member.id, modId: interaction.user.id, reason });
       await notify(member.user, interaction.guild, entry);
       const total = cases.forUser(interaction.guildId, member.id, 'warn').length;
-      const embed = actionEmbed(entry, member.user, interaction.user).addFields({ name: 'مجموع تحذيراته', value: `\`${total}\``, inline: true });
-      await interaction.reply({ embeds: [embed] });
+      const body = actionEmbed(entry, member.user, interaction.user, `${emoji.dot} **مجموع تحذيراته:** \`${total}\``);
+      await interaction.reply({ content: body });
       const auto = await applyWarnPunishment(interaction, member).catch(() => null);
-      if (auto) await interaction.followUp({ embeds: [actionEmbed(auto, member.user, interaction.client.user)] });
+      if (auto) await interaction.followUp({ content: actionEmbed(auto, member.user, interaction.client.user) });
     },
   },
   {
@@ -210,7 +210,7 @@ const commands = [
           ? list.slice(0, 15).map((w) => `**#${w.number}** • ${ts(w.created_at)} • <@${w.mod_id}>\n${emoji.dot} ${truncate(w.reason || NO_REASON, 150)}`).join('\n\n')
           : `ما عنده أي تحذير ${I.sparkles}`;
         return interaction.reply({
-          embeds: [simple(body, 'primary', `${I.warn} تحذيرات ${user.username} (${list.length})`).setThumbnail(user.displayAvatarURL())],
+          content: simple(body, 'primary', `${I.warn} تحذيرات ${user.username} (${list.length})`),
         });
       }
       if (sub === 'remove') {
@@ -249,7 +249,7 @@ const commands = [
       const body = list.length
         ? list.slice(0, 20).map((c) => `${cases.ACTIONS[c.action]?.emoji || '•'} **#${c.number}** ${cases.ACTIONS[c.action]?.label || c.action} • ${ts(c.created_at)}\n${emoji.dot} ${truncate(c.reason || NO_REASON, 120)}`).join('\n')
         : `سجله نظيف ${I.sparkles}`;
-      await interaction.reply({ embeds: [simple(body, 'primary', `${I.info} سجل ${user.username} (${list.length})`).setThumbnail(user.displayAvatarURL())] });
+      await interaction.reply({ content: simple(body, 'primary', `${I.info} سجل ${user.username} (${list.length})`) });
     },
   },
   {
@@ -269,7 +269,7 @@ const commands = [
       if (user) messages = messages.filter((m) => m.author.id === user.id);
       if (botsOnly) messages = messages.filter((m) => m.author.bot);
       const deleted = await interaction.channel.bulkDelete([...messages.values()].slice(0, amount), true);
-      await interaction.editReply({ embeds: [simple(`${I.clear} تم مسح \`${deleted.size}\` رسالة.${deleted.size < amount ? '\n(الرسائل الأقدم من 14 يوم ما تنمسح)' : ''}`, 'success')] });
+      await interaction.editReply({ content: simple(`${I.clear} تم مسح \`${deleted.size}\` رسالة.${deleted.size < amount ? '\n(الرسائل الأقدم من 14 يوم ما تنمسح)' : ''}`, 'success') });
     },
   },
   {
@@ -321,7 +321,7 @@ const commands = [
       if (ms == null || ms > 21_600_000) return reply.error(interaction, 'مدة غير صحيحة (أقصى شي 6h).');
       const channel = interaction.options.getChannel('channel') || interaction.channel;
       await channel.setRateLimitPerUser(Math.floor(ms / 1000));
-      await interaction.reply({ embeds: [simple(ms ? `${I.slowmode} وضع البطء في ${channel}: **${formatDuration(ms)}**` : `${I.fast} تم إيقاف وضع البطء في ${channel}`)] });
+      await interaction.reply({ content: simple(ms ? `${I.slowmode} وضع البطء في ${channel}: **${formatDuration(ms)}**` : `${I.fast} تم إيقاف وضع البطء في ${channel}`) });
     },
   },
   {
@@ -361,11 +361,11 @@ const commands = [
       const role = interaction.options.getRole('role');
       if (sub === 'info') {
         return interaction.reply({
-          embeds: [simple([
+          content: simple([
             `${emoji.dot} **الاسم:** ${role}`, `${emoji.dot} **الآيدي:** \`${role.id}\``,
             `${emoji.dot} **اللون:** \`${role.hexColor}\``, `${emoji.dot} **الأعضاء:** \`${role.members.size}\``,
             `${emoji.dot} **الترتيب:** \`${role.position}\``, `${emoji.dot} **أُنشئت:** ${ts(role.createdAt, 'D')}`,
-          ].join('\n'), role.color || colors.primary, `${I.roles} معلومات الرتبة`)],
+          ].join('\n'), 'primary', `${I.roles} معلومات الرتبة`),
         });
       }
       const member = interaction.options.getMember('user');
@@ -386,15 +386,11 @@ const commands = [
       .setDescription('إرسال رسالة باسم البوت')
       .setDefaultMemberPermissions(P.ManageMessages)
       .addStringOption((o) => o.setName('message').setDescription('الرسالة (استخدم \\n لسطر جديد)').setRequired(true).setMaxLength(2000))
-      .addChannelOption((o) => o.setName('channel').setDescription('الروم').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
-      .addBooleanOption((o) => o.setName('embed').setDescription('داخل إمبد بثيم Sword')),
+      .addChannelOption((o) => o.setName('channel').setDescription('الروم').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)),
     async execute(interaction) {
       const channel = interaction.options.getChannel('channel') || interaction.channel;
       const text = interaction.options.getString('message').replace(/\\n/g, '\n');
-      const payload = interaction.options.getBoolean('embed')
-        ? { embeds: [simple(text)] }
-        : { content: text };
-      await channel.send({ ...payload, allowedMentions: { parse: [] } });
+      await channel.send({ content: text, allowedMentions: { parse: [] } });
       return reply.success(interaction, `تم الإرسال في ${channel}`);
     },
   },

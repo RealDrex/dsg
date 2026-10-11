@@ -27,7 +27,7 @@ const isStaff = (member, cfg) => member.permissions.has(P.ManageChannels) || mem
 // ── Panel ────────────────────────────────────────────────────────
 function panelPayload(cfg) {
   const types = cfg.types.map((t) => `${text(t.emoji)} **${t.label}**\n> ${t.description || ''}`).join('\n');
-  const { embed, files } = card({
+  const { content, files } = card({
     title: `${I.ticket} ${cfg.panel.title}`,
     description: `${cfg.panel.description}\n${DIVIDER}\n${types}\n${DIVIDER}\n${emoji.dot} اختر نوع التذكرة من القائمة تحت ${I.down}\n${emoji.dot} لا تفتح أكثر من تذكرة لنفس الموضوع.`,
     image: 'ticket',
@@ -37,7 +37,7 @@ function panelPayload(cfg) {
     .setCustomId('tickets:open')
     .setPlaceholder('اختر نوع التذكرة')
     .addOptions(cfg.types.map((t) => ({ label: t.label, value: t.id, emoji: asEmoji(t.emoji), description: (t.description || '').slice(0, 100) || undefined })));
-  return { embeds: [embed], files, components: [new ActionRowBuilder().addComponents(menu)], attachments: [] };
+  return { content, files, components: [new ActionRowBuilder().addComponents(menu)], attachments: [] };
 }
 
 async function refreshPanel(guild, cfg) {
@@ -92,7 +92,7 @@ async function openTicket(interaction, typeId, reason) {
   });
   q.insert.run(guild.id, channel.id, member.id, number, type.id, Date.now());
 
-  const { embed, files } = card({
+  const { content, files } = card({
     title: `${I.ticket} تذكرة #${pad(number)} — ${type.label}`,
     description: [
       `حيّاك ${member} ${emoji.gate}`,
@@ -107,8 +107,7 @@ async function openTicket(interaction, typeId, reason) {
   });
   const staffPing = cfg.pingStaff ? cfg.staffRoles.map((id) => `<@&${id}>`).join(' ') : '';
   await channel.send({
-    content: `${member} ${staffPing}`.trim(),
-    embeds: [embed],
+    content: `${`${member} ${staffPing}`.trim()}\n${content}`,
     files,
     components: [controls()],
     allowedMentions: { users: [member.id], roles: cfg.pingStaff ? cfg.staffRoles : [] },
@@ -125,7 +124,7 @@ async function closeTicket(interaction, reason) {
   const type = cfg.types.find((t) => t.id === ticket.type);
   const owner = await interaction.client.users.fetch(ticket.owner_id).catch(() => null);
 
-  await channel.send({ embeds: [simple(`${I.lock} التذكرة بتنقفل خلال ثواني...\nبواسطة ${user}`, 'accent')] });
+  await channel.send({ content: simple(`${I.lock} التذكرة بتنقفل خلال ثواني...\nبواسطة ${user}`, 'accent') });
   q.close.run(Date.now(), channel.id);
 
   const { html, count } = await transcript.build(channel, {
@@ -142,9 +141,9 @@ async function closeTicket(interaction, reason) {
   ].join('\n'), 'primary', `${I.archive} تذكرة مغلقة`);
 
   const log = cfg.logChannelId && guild.channels.cache.get(cfg.logChannelId);
-  if (log) await log.send({ embeds: [summary], files: [new AttachmentBuilder(Buffer.from(html), { name: fileName })], allowedMentions: { parse: [] } }).catch(() => null);
+  if (log) await log.send({ content: summary, files: [new AttachmentBuilder(Buffer.from(html), { name: fileName })], allowedMentions: { parse: [] } }).catch(() => null);
   if (owner && cfg.dmTranscript) {
-    await owner.send({ embeds: [summary], files: [new AttachmentBuilder(Buffer.from(html), { name: fileName })] }).catch(() => null);
+    await owner.send({ content: summary, files: [new AttachmentBuilder(Buffer.from(html), { name: fileName })] }).catch(() => null);
   }
   setTimeout(() => channel.delete(`Ticket closed by ${user.tag}`).catch(() => null), 5000);
 }
@@ -192,7 +191,7 @@ async function claim(interaction) {
   q.claim.run(interaction.user.id, interaction.channelId);
   const name = interaction.member.displayName;
   if (interaction.isButton()) await interaction.message.edit({ components: [controls(name)] }).catch(() => null);
-  return interaction.reply({ embeds: [simple(`${I.claim} ${interaction.user} استلم التذكرة وبيساعدك الحين.`, 'success')] });
+  return interaction.reply({ content: simple(`${I.claim} ${interaction.user} استلم التذكرة وبيساعدك الحين.`, 'success') });
 }
 
 async function execute(interaction) {
@@ -256,7 +255,7 @@ async function execute(interaction) {
   switch (sub) {
     case 'close':
       if (!staff && ticket.owner_id !== member.id) return reply.error(interaction, 'ما تقدر تقفل هذي التذكرة.');
-      await interaction.reply({ embeds: [simple(`${I.lock} جاري الإغلاق...`)], flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: simple(`${I.lock} جاري الإغلاق...`), flags: MessageFlags.Ephemeral });
       return closeTicket(interaction, o.getString('reason'));
     case 'add':
     case 'remove': {
@@ -268,7 +267,7 @@ async function execute(interaction) {
         if (user.id === ticket.owner_id) return reply.error(interaction, 'ما تقدر تشيل صاحب التذكرة.');
         await interaction.channel.permissionOverwrites.delete(user.id);
       }
-      return interaction.reply({ embeds: [simple(sub === 'add' ? `${I.plus} تمت إضافة ${user} للتذكرة.` : `${I.minus} تمت إزالة ${user} من التذكرة.`)] });
+      return interaction.reply({ content: simple(sub === 'add' ? `${I.plus} تمت إضافة ${user} للتذكرة.` : `${I.minus} تمت إزالة ${user} من التذكرة.`) });
     }
     case 'rename':
       if (!staff) return reply.error(interaction, 'لفريق الدعم فقط.');
@@ -406,7 +405,7 @@ module.exports = {
         return reply.error(interaction, 'ما تقدر تقفل هذي التذكرة.');
       }
       return interaction.reply({
-        embeds: [simple(`${I.lock} متأكد تبي تقفل التذكرة؟`)],
+        content: simple(`${I.lock} متأكد تبي تقفل التذكرة؟`),
         components: [new ActionRowBuilder().addComponents(
           setIcon(new ButtonBuilder().setCustomId('tickets:confirm').setLabel('إغلاق').setStyle(ButtonStyle.Danger), I.lock),
           new ButtonBuilder().setCustomId('tickets:cancel').setLabel('إلغاء').setStyle(ButtonStyle.Secondary),
@@ -415,11 +414,11 @@ module.exports = {
       });
     },
     async confirm(interaction) {
-      await interaction.update({ embeds: [simple(`${I.lock} جاري الإغلاق...`)], components: [] });
+      await interaction.update({ content: simple(`${I.lock} جاري الإغلاق...`), components: [] });
       return closeTicket(interaction);
     },
     async cancel(interaction) {
-      return interaction.update({ embeds: [simple('تم الإلغاء.')], components: [] });
+      return interaction.update({ content: simple('تم الإلغاء.'), components: [] });
     },
     claim,
   },

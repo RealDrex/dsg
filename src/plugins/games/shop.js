@@ -94,7 +94,7 @@ function bagPayload(guild, user) {
     list,
   ].join('\n');
   return {
-    embeds: [simple(body, 'primary', `${I.backpack} حقيبة ${user.username}`).setThumbnail(user.displayAvatarURL())],
+    content: simple(body, 'primary', `${I.backpack} حقيبة ${user.username}`),
     flags: MessageFlags.Ephemeral,
   };
 }
@@ -108,7 +108,7 @@ function shopPayload(guild, user) {
     .setPlaceholder('اختر خاصية تشتريها')
     .addOptions(POWERS.map((p) => ({ label: `${p.name} — ${p.price} نقطة`, value: p.id, description: p.desc.slice(0, 95) })));
   return {
-    embeds: [simple(body, 'primary', `${I.cart} المتجر — نقاطك: ${bal}`)],
+    content: simple(body, 'primary', `${I.cart} المتجر — نقاطك: ${bal}`),
     components: [new ActionRowBuilder().addComponents(menu)],
     flags: MessageFlags.Ephemeral,
   };
@@ -116,9 +116,9 @@ function shopPayload(guild, user) {
 
 async function onBuy(interaction) {
   const res = buy(interaction.guildId, interaction.user.id, interaction.values[0]);
-  if (res.error) return interaction.reply({ embeds: [simple(`${I.error} ${res.error}`, 'error')], flags: MessageFlags.Ephemeral }).catch(() => null);
+  if (res.error) return interaction.reply({ content: simple(`${I.error} ${res.error}`, 'error'), flags: MessageFlags.Ephemeral }).catch(() => null);
   const refreshed = shopPayload(interaction.guild, interaction.user);
-  refreshed.embeds.unshift(simple(`${I.success} شريت **${res.ok.name}** — باقي \`${res.balance}\` نقطة.`, 'success'));
+  refreshed.content = `${simple(`${I.success} شريت **${res.ok.name}** — باقي \`${res.balance}\` نقطة.`, 'success')}\n${refreshed.content}`;
   delete refreshed.flags; // editing the existing ephemeral message
   return interaction.update(refreshed).catch(() => null);
 }

@@ -26,7 +26,7 @@ const P = PermissionFlagsBits;
 const cfgOf = (guildId) => store.get(guildId, 'voicebots');
 const findBot = (guildId, id) => cfgOf(guildId).bots.find((b) => b.id === id);
 const isAdmin = (i) => i.memberPermissions?.has(P.Administrator) || config.ownerIds.includes(i.user.id);
-const eph = (embed, components = []) => ({ embeds: [embed], components, flags: MessageFlags.Ephemeral });
+const eph = (content, components = []) => ({ content, components, flags: MessageFlags.Ephemeral });
 
 const STATUS = {
   running: { label: 'Online', icon: 'on' },
@@ -52,7 +52,7 @@ const inviteUrl = (botId, guildId) =>
 function panelPayload(guildId) {
   const bots = cfgOf(guildId).bots;
   const list = bots.map((b, n) => `\`${n + 1}\` **${b.name}** — <#${b.channelId}>\n${statusLine(b)}`).join('\n');
-  const { embed, files } = card({
+  const { content, files } = card({
     title: 'Voice Bots',
     icon: I.voice,
     description: `${list || '*No bots yet — press Add Token*'}`,
@@ -60,7 +60,7 @@ function panelPayload(guildId) {
     footer: `Sword • ${bots.length}/${MAX_BOTS}`,
   });
   return {
-    embeds: [embed],
+    content,
     files,
     components: [new ActionRowBuilder().addComponents(
       setIcon(new ButtonBuilder().setCustomId('voicebots:add').setLabel('Add Token').setStyle(ButtonStyle.Success), I.plus),

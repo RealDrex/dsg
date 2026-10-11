@@ -253,9 +253,7 @@ const finalRotation = (index, n) => -(index + 0.5) * ((Math.PI * 2) / n);
 async function wheel(players, chosenIndex, { title } = {}) {
   const size = 640;
   const canvas = createCanvas(size, size);
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#2b2d31'; // flat Discord-embed background (no samurai)
-  ctx.fillRect(0, 0, size, size);
+  const ctx = canvas.getContext('2d'); // transparent background — only the wheel shows
   const cx = size / 2;
   const cy = size / 2 + 8;
   const R = 268;
@@ -289,14 +287,7 @@ async function spinGif(players, chosenIndex, { title } = {}) {
   const frames = 26;
 
   const canvas = createCanvas(size, size);
-  const ctx = canvas.getContext('2d');
-  const bg = (() => {
-    const c = createCanvas(size, size);
-    const bc = c.getContext('2d');
-    bc.fillStyle = '#2b2d31'; // flat Discord-embed background (no samurai)
-    bc.fillRect(0, 0, size, size);
-    return c;
-  })();
+  const ctx = canvas.getContext('2d'); // transparent background — only the wheel shows
 
   const gif = GIFEncoder();
   const easeOut = (t) => 1 - (1 - t) ** 3;
@@ -304,7 +295,6 @@ async function spinGif(players, chosenIndex, { title } = {}) {
     const t = easeOut(f / (frames - 1));
     const rotation = start + (target - start) * t;
     ctx.clearRect(0, 0, size, size);
-    ctx.drawImage(bg, 0, 0);
     drawWheelBody(ctx, players, rotation, { cx, cy, R });
     if (title) {
       ctx.direction = 'rtl';
@@ -314,11 +304,16 @@ async function spinGif(players, chosenIndex, { title } = {}) {
       ctx.fillText(title, cx, 30);
     }
     const { data } = ctx.getImageData(0, 0, size, size);
-    const palette = quantize(data, 128);
-    const index = applyPalette(data, palette);
+    // rgba4444 keeps alpha, so the area outside the wheel stays transparent in the GIF.
+    const palette = quantize(data, 128, { format: 'rgba4444' });
+    const index = applyPalette(data, palette, 'rgba4444');
+    const transparentIndex = palette.findIndex((c) => c[3] === 0);
     const last = f === frames - 1;
     gif.writeFrame(index, size, size, {
       palette,
+      transparent: transparentIndex >= 0,
+      transparentIndex: transparentIndex >= 0 ? transparentIndex : undefined,
+      dispose: 2, // clear each frame so the spin doesn't smear through transparency
       delay: last ? 2000 : 45 + Math.round(70 * t), // slows down as it lands, holds at the end
       repeat: -1, // play once, then freeze on the last frame
     });

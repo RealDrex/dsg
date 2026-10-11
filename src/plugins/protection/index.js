@@ -98,14 +98,14 @@ function alert(guild, title, description) {
 
 async function warnInChannel(message, text) {
   await message.delete().catch(() => null);
-  const notice = await message.channel.send({ content: `${message.author}`, embeds: [simple(`${emoji.error} ${text}`, 'error')] }).catch(() => null);
+  const notice = await message.channel.send({ content: `${message.author} ${emoji.error} ${text}` }).catch(() => null);
   if (notice) setTimeout(() => notice.delete().catch(() => null), 6000);
 }
 
 // Delete the message, then tell the author privately (in DM) why.
 async function warnDM(message, text) {
   await message.delete().catch(() => null);
-  await message.author.send({ embeds: [simple(`${emoji.error} ${text}\nالسيرفر: **${message.guild.name}**`, 'error')] }).catch(() => null);
+  await message.author.send({ content: simple(`${emoji.error} ${text}\nالسيرفر: **${message.guild.name}**`, 'error') }).catch(() => null);
 }
 
 async function punish(member, minutes, reason) {
@@ -151,7 +151,7 @@ async function onMessage(message) {
       } else {
         await punish(message.member, cfg.spam.minutes, 'سبام');
       }
-      await message.channel.send({ embeds: [simple(`${emoji.error} ${message.author} تم معاقبته بسبب السبام.`, 'error')] })
+      await message.channel.send({ content: simple(`${emoji.error} ${message.author} تم معاقبته بسبب السبام.`, 'error') })
         .then((m) => setTimeout(() => m.delete().catch(() => null), 6000)).catch(() => null);
       alert(message.guild, `${I.message} سبام`, `${message.author} أرسل \`${count}\` رسائل خلال ${cfg.spam.seconds} ثواني في ${message.channel}.`);
     }
@@ -176,7 +176,7 @@ async function onJoin(member) {
   if (!cfg.features.antiRaid || member.user.bot) return;
   const now = Date.now();
   if ((raidUntil.get(guild.id) || 0) > now) {
-    await member.send({ embeds: [simple(`${I.raid} سيرفر **${guild.name}** في وضع الحماية من الرايد حالياً، حاول تدخل بعد شوي.`, 'warn')] }).catch(() => null);
+    await member.send({ content: simple(`${I.raid} سيرفر **${guild.name}** في وضع الحماية من الرايد حالياً، حاول تدخل بعد شوي.`, 'warn') }).catch(() => null);
     if (member.kickable) await member.kick('Sword Protection: وضع الرايد');
     return;
   }
@@ -239,11 +239,11 @@ function panel(interaction) {
     .addOptions(Object.entries(FEATURES).map(([key, f]) => ({
       label: f.label, value: key, emoji: asEmoji(f.emoji), description: f.desc, default: !!cfg.features[key],
     })));
-  const { embed, files } = card({
+  const { content, files } = card({
     title: 'لوحة الحماية', icon: 'protection',
     description: `${list}\n${DIVIDER}\n${settings}`,
   });
-  return { embeds: [embed], files, components: [new ActionRowBuilder().addComponents(menu)], attachments: [] };
+  return { content, files, components: [new ActionRowBuilder().addComponents(menu)], attachments: [] };
 }
 
 const data = new SlashCommandBuilder()

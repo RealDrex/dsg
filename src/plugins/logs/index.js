@@ -1,7 +1,7 @@
-const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, EmbedBuilder, PermissionsBitField } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, PermissionsBitField } = require('discord.js');
 const store = require('../../core/store');
 const cases = require('../../core/cases');
-const { colors, emoji, DIVIDER, reply, BRAND } = require('../../core/theme');
+const { emoji, DIVIDER, reply, fieldsToText } = require('../../core/theme');
 const { formatDuration, ts } = require('../../utils/time');
 const { truncate } = require('../../utils/text');
 const { I } = require('../../core/icons');
@@ -15,21 +15,15 @@ const TYPES = {
   protection: { label: 'الحماية', emoji: I.protection, channel: 'سجل-الحماية' },
 };
 
-const COLOR = { add: colors.success, remove: colors.accent, edit: colors.warn, info: colors.primary };
-
-function log(guild, type, { title, description, color = 'info', user, fields }) {
+function log(guild, type, { title, description, user, fields }) {
   const channelId = store.get(guild.id, 'logs').channels[type];
   const channel = channelId && guild.channels.cache.get(channelId);
   if (!channel) return;
-  const embed = new EmbedBuilder()
-    .setColor(COLOR[color] ?? color)
-    .setTitle(`${TYPES[type].emoji} ${title}`)
-    .setDescription(truncate(description, 4000))
-    .setFooter({ text: BRAND })
-    .setTimestamp();
-  if (user) embed.setAuthor({ name: user.tag || user.username, iconURL: user.displayAvatarURL() });
-  if (fields?.length) embed.addFields(fields);
-  return channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
+  const parts = [`**${TYPES[type].emoji} ${title}**`];
+  if (user) parts.push(`-# ${user.tag || user.username}`);
+  if (description) parts.push(truncate(description, 3500));
+  if (fields?.length) parts.push(fieldsToText(fields));
+  return channel.send({ content: parts.filter(Boolean).join('\n'), allowedMentions: { parse: [] } }).catch(() => null);
 }
 
 const events = {
@@ -192,7 +186,7 @@ async function execute(interaction) {
   }
   await interaction.deferReply({ flags: 64 });
   const { category, count } = await setupLogs(guild);
-  await interaction.editReply({ embeds: [new EmbedBuilder().setColor(colors.success).setDescription(`${emoji.success} تم إنشاء ${category} مع ${count} رومات لوق (مخفية عن الأعضاء).`)] });
+  await interaction.editReply({ content: `${emoji.success} تم إنشاء ${category} مع ${count} رومات لوق (مخفية عن الأعضاء).` });
 }
 
 // Creates a hidden "Sword Logs" category with one channel per log type.

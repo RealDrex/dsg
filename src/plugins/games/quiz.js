@@ -1,7 +1,7 @@
 // Single-player quiz games: the bot asks, the first correct answer in the channel wins.
 const { I } = require('../../core/icons');
 const { DIVIDER, simple } = require('../../core/theme');
-const { pick, rand, matches, clean, points, cfgOf, mention } = require('./engine');
+const { pick, rand, matches, clean, points, cfgOf, mention, AttachmentBuilder } = require('./engine');
 const data = require('./data');
 
 const ZWJ = '‍'; // keeps Arabic letters joined but breaks copy-paste answers
@@ -88,9 +88,9 @@ async function play(session, interaction, game, post) {
   const endsAt = Math.floor(Date.now() / 1000) + time;
   const check = quiz.check || ((content) => matches(content, quiz.answers));
 
-  const embed = simple(`${quiz.question}\n${DIVIDER}\nينتهي <t:${endsAt}:R>`, 'primary', `${I[game.icon]} ${game.name}`);
-  if (quiz.image) embed.setImage(quiz.image);
-  await post(interaction, { embeds: [embed] });
+  const payload = { content: simple(`${quiz.question}\n${DIVIDER}\nينتهي <t:${endsAt}:R>`, 'primary', `${I[game.icon]} ${game.name}`) };
+  if (quiz.image) payload.files = [new AttachmentBuilder(quiz.image)];
+  await post(interaction, payload);
 
   const winner = await session.waitMessage({ time: time * 1000, filter: (m) => check(m.content) });
   if (!session.active) return;
@@ -101,13 +101,13 @@ async function play(session, interaction, game, post) {
   points.award(session.guildId, winner.author.id, game.key, cfg.quizPoint);
   const total = points.total(session.guildId, winner.author.id);
   await winner.reply({
-    embeds: [simple(`${I.success} صح يا ${mention(winner.author)}! **+${cfg.quizPoint}** نقطة\n${I.coins} مجموع نقاطك: \`${total}\``, 'success')],
+    content: simple(`${I.success} صح يا ${mention(winner.author)}! **+${cfg.quizPoint}** نقطة\n${I.coins} مجموع نقاطك: \`${total}\``, 'success'),
     allowedMentions: { repliedUser: false },
   }).catch(() => null);
 }
 
 async function kt(interaction, post) {
-  await post(interaction, { embeds: [simple(`### ${pick(data.KT)}`, 'primary', `${I.kt} كت`)] });
+  await post(interaction, { content: simple(`### ${pick(data.KT)}`, 'primary', `${I.kt} كت`) });
 }
 
 module.exports = { QUIZZES, play, kt };

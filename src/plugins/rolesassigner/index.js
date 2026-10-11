@@ -29,7 +29,7 @@ async function onReaction(reaction, user, added) {
 // ── Role panels (buttons / select menu) ──────────────────────────
 function renderPanel(panel) {
   const lines = panel.roles.map((r) => `${r.emoji || emoji.dot} <@&${r.roleId}>${r.label ? ` — ${r.label}` : ''}`);
-  const { embed, files } = card({
+  const { content, files } = card({
     title: `${I.roles} ${panel.title}`,
     description: `${panel.description || `اختر رتبتك من الأزرار تحت ${I.down}`}\n${DIVIDER}\n${lines.join('\n') || '*ما فيه رتب للحين*'}`,
     image: 'roles',
@@ -56,7 +56,7 @@ function renderPanel(panel) {
       })));
     }
   }
-  return { embeds: [embed], files, components, attachments: [] };
+  return { content, files, components, attachments: [] };
 }
 
 async function refreshPanel(guild, panel) {

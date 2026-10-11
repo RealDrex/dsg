@@ -93,8 +93,8 @@ const topCommand = {
     const body = list.length
       ? list.map((r, n) => `${medals[n] || `\`#${n + 1}\``} <@${r.user_id}> — **${r.points}** نقطة${r.wins != null ? ` • ${r.wins} فوز` : ''}`).join('\n')
       : 'ما فيه نقاط للحين — العبوا!';
-    const { embed, files } = card({ title: game ? `توب ${game.name}` : 'توب الألعاب', icon: game ? I[game.icon] : I.trophy, description: `${body}\n${DIVIDER}`, image: 'line', footer: 'Sword Games' });
-    return interaction.reply({ embeds: [embed], files, allowedMentions: { parse: [] } });
+    const { content, files } = card({ title: game ? `توب ${game.name}` : 'توب الألعاب', icon: game ? I[game.icon] : I.trophy, description: `${body}\n${DIVIDER}`, footer: 'Sword Games' });
+    return interaction.reply({ content, files, allowedMentions: { parse: [] } });
   },
   async autocomplete(interaction) {
     const focused = normalize(interaction.options.getFocused());
@@ -113,14 +113,14 @@ const pointsCommand = {
     const games = points.byGame(interaction.guildId, user.id).filter((g) => g.points > 0).slice(0, 8);
     const best = games[0]?.points || 1;
     const lines = games.map((g) => `${I[byKey.get(g.game)?.icon || 'games']} **${byKey.get(g.game)?.name || g.game}** — \`${g.points}\` • ${g.wins} فوز\n${bar(g.points, best, 12)}`);
-    const { embed, files } = card({
+    const { content, files } = card({
       title: `نقاط ${user.username}`,
       icon: I.coins,
       thumbnail: user.displayAvatarURL({ size: 256 }),
       description: `**المجموع:** \`${total}\` نقطة  •  **الترتيب:** \`#${rank}\`\n${DIVIDER}\n${lines.join('\n') || 'ما لعب للحين'}`,
       footer: 'Sword Games',
     });
-    return interaction.reply({ embeds: [embed], files });
+    return interaction.reply({ content, files });
   },
 };
 
@@ -137,7 +137,7 @@ const transferCommand = {
     points.award(interaction.guildId, interaction.user.id, '_transfer', -amount, false);
     points.award(interaction.guildId, user.id, '_transfer', amount, false);
     return interaction.reply({
-      embeds: [simple(`${I.send} ${mention(interaction.user)} حوّل **${amount}** نقطة لـ ${mention(user)}\n${I.coins} رصيدك الحين: \`${balance - amount}\``, 'success', 'تحويل نقاط')],
+      content: simple(`${I.send} ${mention(interaction.user)} حوّل **${amount}** نقطة لـ ${mention(user)}\n${I.coins} رصيدك الحين: \`${balance - amount}\``, 'success', 'تحويل نقاط'),
     });
   },
 };
@@ -159,7 +159,7 @@ const voteCommand = {
       const total = votes.size || 1;
       const lines = options.map((o, n) => `**${o}** — ${counts[n]} صوت (${Math.round((counts[n] / total) * 100)}%)\n${bar(counts[n], total, 14)}`);
       return {
-        embeds: [simple(`### ${question}\n${DIVIDER}\n${lines.join('\n')}\n${DIVIDER}\n${closed ? `انتهى التصويت • ${votes.size} صوت` : `ينتهي <t:${endsAt}:R> • ${votes.size} صوت`}`, closed ? 'success' : 'primary', `${I.vote} تصويت`)],
+        content: simple(`### ${question}\n${DIVIDER}\n${lines.join('\n')}\n${DIVIDER}\n${closed ? `انتهى التصويت • ${votes.size} صوت` : `ينتهي <t:${endsAt}:R> • ${votes.size} صوت`}`, closed ? 'success' : 'primary', `${I.vote} تصويت`),
         components: closed ? [] : rows(options.map((o, n) => button(`g:${id}:opt:${n}`, o))),
       };
     };
@@ -183,7 +183,7 @@ const stopCommand = {
     if (!session) return reply.error(interaction, 'ما فيه لعبة شغالة هنا');
     if (!canStop(interaction, session)) return reply.error(interaction, 'صاحب اللعبة أو الإدارة بس يقدرون يوقفونها');
     session.stop('stopped');
-    return interaction.reply({ embeds: [simple(`${I.stop} تم إيقاف **${session.game.name}**`, 'accent')] });
+    return interaction.reply({ content: simple(`${I.stop} تم إيقاف **${session.game.name}**`, 'accent') });
   },
 };
 

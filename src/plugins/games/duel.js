@@ -17,8 +17,7 @@ async function sides(session, interaction, game) {
   if (target.id === host.id) return { error: 'ما تقدر تتحدى نفسك' };
   const rival = playerOf(target, interaction.options.getMember('user'));
   const msg = await post(interaction, {
-    content: mention(rival),
-    embeds: [simple(`${mention(host)} يتحداك في **${game.name}**! تقبل؟ (ينتهي ${ends(30)})`, 'primary', `${I[game.icon]} تحدي`)],
+    content: `${mention(rival)}\n${simple(`${mention(host)} يتحداك في **${game.name}**! تقبل؟ (ينتهي ${ends(30)})`, 'primary', `${I[game.icon]} تحدي`)}`,
     components: rows([
       button(session.cid('accept'), 'أقبل', S.Success, I.success),
       button(session.cid('decline'), 'أرفض', S.Danger, I.close),
@@ -26,7 +25,7 @@ async function sides(session, interaction, game) {
   });
   const i = await session.waitComponent({ time: 30_000, accept: (x) => x.user.id === rival.id, deny: 'التحدي مو لك' });
   if (!i || session.part(i) === 'decline') {
-    await (i ? i.update({ components: [], embeds: [simple(`${mention(rival)} رفض التحدي`, 'warn')] }) : msg.edit({ components: [] })).catch(() => null);
+    await (i ? i.update({ components: [], content: simple(`${mention(rival)} رفض التحدي`, 'warn') }) : msg.edit({ components: [] })).catch(() => null);
     return { cancelled: true };
   }
   await i.update({ components: [] }).catch(() => null);
@@ -51,13 +50,13 @@ async function rps(session, interaction, game, { reply }) {
   const { host, rival } = s;
   const players = [host, rival];
   const wins = [0, 0];
-  if (rival.bot) await post(interaction, { embeds: [simple(`${mention(host)} ضد البوت — أفضل من 3`, 'primary', `${I.rps} ${game.name}`)] });
+  if (rival.bot) await post(interaction, { content: simple(`${mention(host)} ضد البوت — أفضل من 3`, 'primary', `${I.rps} ${game.name}`) });
 
   for (let round = 1; round <= 5 && Math.max(...wins) < 2 && session.active; round += 1) {
     const chosen = new Map();
     if (rival.bot) chosen.set(rival.id, pick(Object.keys(HANDS)));
     const msg = await session.send({
-      embeds: [simple(`الجولة **${round}** — ${players.map(mention).join(' ضد ')}\nاختاروا (محد يشوف اختيارك) • ينتهي ${ends(20)}`, 'primary', game.name)],
+      content: simple(`الجولة **${round}** — ${players.map(mention).join(' ضد ')}\nاختاروا (محد يشوف اختيارك) • ينتهي ${ends(20)}`, 'primary', game.name),
       components: rows(Object.entries(HANDS).map(([k, label]) => button(session.cid('hand', k), label))),
     });
     await new Promise((resolve) => {
@@ -132,7 +131,7 @@ async function xo(session, interaction, game, { reply }) {
   const board = Array(9).fill(null);
   let turn = 0;
   const render = (status, over = false) => ({
-    embeds: [simple(`${mention(players[0])} **X** ضد ${mention(players[1])} **O**\n${status}`, 'primary', `${I.xo} ${game.name}`)],
+    content: simple(`${mention(players[0])} **X** ضد ${mention(players[1])} **O**\n${status}`, 'primary', `${I.xo} ${game.name}`),
     components: rows(board.map((v, n) => button(session.cid('cell', n), v || null, v === 'X' ? S.Danger : v === 'O' ? S.Primary : S.Secondary, null, over || !!v)), 3),
   });
   const statusFor = () => `دور ${mention(players[turn])} (**${marks[turn]}**)${players[turn].bot ? '' : ` • ينتهي ${ends(30)}`}`;

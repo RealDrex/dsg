@@ -252,14 +252,12 @@ async function lobby(session, interaction, { game, min = 2, max = 20, rules, ima
       };
     }
     const list = [...players.values()].map((p, i) => `\`${String(i + 1).padStart(2, '0')}\` ${mention(p)}`).join('\n');
-    const { embed } = card({
-      brand: false,
+    const { content } = card({
       description: `${rules}\n${DIVIDER}\n**اللاعبين (${players.size}/${max})**\n${list}\n${DIVIDER}\n${note || (closed ? 'بدأت اللعبة' : `تبدأ <t:${endsAt}:R> • الحد الأدنى ${min} لاعبين`)}`,
-      image: `attachment://${image.name}`,
       footer: `Sword Games • ${game.name}`,
     });
     return {
-      embeds: [embed],
+      content,
       ...(first ? { files: [image] } : {}),
       components: buttons(closed),
     };

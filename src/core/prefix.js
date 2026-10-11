@@ -3,7 +3,7 @@ const { MessageFlags, ApplicationCommandOptionType: T } = require('discord.js');
 const store = require('./store');
 const { fromPrefix } = require('./options');
 const { normalize } = require('./i18n');
-const { simple, emoji } = require('./theme');
+const { emoji } = require('./theme');
 const logger = require('./logger');
 
 // Message-backed stand-in for a ChatInputCommandInteraction.
@@ -106,7 +106,7 @@ async function handlePrefix(message) {
 
   const { plugin, json } = command;
   const shown = prefix || '@Sword ';
-  const fail = (text) => message.reply({ embeds: [simple(`${emoji.error} ${text}`, 'error')], allowedMentions: { repliedUser: false } }).catch(() => null);
+  const fail = (text) => message.reply({ content: `${emoji.error} ${text}`, allowedMentions: { repliedUser: false } }).catch(() => null);
 
   if (plugin.toggleable && !store.isEnabled(message.guildId, plugin.id)) {
     return fail(`${plugin.emoji} **${plugin.nameAr}** مقفل حالياً.`);
@@ -121,7 +121,7 @@ async function handlePrefix(message) {
       const lines = parsed.choices.flatMap((o) => (o.type === T.SubcommandGroup
         ? (o.options || []).map((s) => `${usageLine(shown, [...parsed.path, o.name, s.name], s.options || [])} — ${s.description}`)
         : [`${usageLine(shown, [...parsed.path, o.name], o.options || [])} — ${o.description}`]));
-      return message.reply({ embeds: [simple(lines.join('\n'), 'primary', `${emoji.sword} أوامر ${json.name}`)], allowedMentions: { repliedUser: false } });
+      return message.reply({ content: `**${emoji.sword} أوامر ${json.name}**\n${lines.join('\n')}`, allowedMentions: { repliedUser: false } });
     }
     if (parsed.error) {
       const what = parsed.error === 'missing' ? 'ناقص' : `قيمة غير صحيحة \`${parsed.got}\` في`;

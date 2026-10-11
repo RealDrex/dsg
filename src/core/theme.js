@@ -1,6 +1,6 @@
 // Sword visual identity: black steel, silver edges and a drop of crimson.
 const path = require('node:path');
-const { EmbedBuilder, AttachmentBuilder, MessageFlags } = require('discord.js');
+const { AttachmentBuilder, MessageFlags } = require('discord.js');
 const { I, text: iconText } = require('./icons');
 
 const ASSETS = path.join(__dirname, '..', '..', 'assets');
@@ -46,39 +46,41 @@ const images = {
 const file = (key) => new AttachmentBuilder(path.join(ASSETS, images[key]), { name: images[key] });
 const url = (key) => `attachment://${images[key]}`;
 
-/**
- * Themed embed. `brand` adds the logo thumbnail and footer icon,
- * `image` takes one of the brand image keys (or a full URL).
- * Returns { embed, files } so callers can spread files into the payload.
- */
-function card({ title, icon, description, color = 'primary', fields, image, brand = true, footer, thumbnail } = {}) {
-  const embed = new EmbedBuilder().setColor(colors[color] ?? color);
-  const files = [];
-  const use = (key) => {
-    if (!files.some((f) => f.name === images[key])) files.push(file(key));
-    return url(key);
-  };
+// NOTE: the bot uses NO embeds anywhere. `card` and `simple` build plain
+// message content (markdown) so panels/replies render as normal messages.
+// They keep their old names/shapes so call sites stay simple.
 
-  if (title) embed.setTitle(icon ? `${iconText(icon)} ${title}`.trim() : title);
-  if (description) embed.setDescription(description);
-  if (fields?.length) embed.addFields(fields);
-  if (brand) {
-    embed.setFooter({ text: footer || BRAND, iconURL: use('logo') });
-    if (!thumbnail) embed.setThumbnail(use('logo'));
-  } else if (footer) {
-    embed.setFooter({ text: footer });
-  }
-  if (thumbnail) embed.setThumbnail(thumbnail);
-  if (image) embed.setImage(images[image] ? use(image) : image);
-  embed.setTimestamp();
-  return { embed, files };
+function fieldsToText(fields) {
+  return fields.map((f) => {
+    const name = String(f.name ?? '').trim();
+    const value = String(f.value ?? '').trim();
+    if (!name && !value) return '';
+    if (!name) return value;
+    // Inline-ish: short single-line value on the same line, else name as a header.
+    if (value && !value.includes('\n') && value.length <= 40) return `**${name}:** ${value}`;
+    return `**${name}**\n${value}`;
+  }).filter(Boolean).join('\n');
 }
 
-// Light-weight embed for quick replies (no attachments).
+/**
+ * Builds plain message content (no embed). `image` attaches one of the brand
+ * images as a file. Returns { content, files } so callers spread both.
+ */
+function card({ title, icon, description, fields, image, footer } = {}) {
+  const files = [];
+  const parts = [];
+  if (title) parts.push(`**${icon ? `${iconText(icon)} ${title}`.trim() : title}**`);
+  if (description) parts.push(description);
+  if (fields?.length) parts.push(fieldsToText(fields));
+  if (footer) parts.push(`-# ${footer}`);
+  if (image) files.push(images[image] ? file(image) : null);
+  return { content: parts.filter(Boolean).join('\n'), files: files.filter(Boolean) };
+}
+
+// Plain-content quick reply (returns a string). `color`/`title` kept for
+// call-site compatibility: title becomes a bold first line, color is ignored.
 function simple(text, color = 'primary', title) {
-  const embed = new EmbedBuilder().setColor(colors[color] ?? color).setDescription(text);
-  if (title) embed.setTitle(title);
-  return embed;
+  return title ? `**${title}**\n${text}` : text;
 }
 
 async function respond(interaction, payload) {
@@ -90,14 +92,14 @@ async function respond(interaction, payload) {
   return interaction.reply(payload);
 }
 
-const ephemeral = (embed) => ({ embeds: [embed], flags: MessageFlags.Ephemeral });
+const ephemeral = (content) => ({ content, flags: MessageFlags.Ephemeral });
 
 const reply = {
   success: (i, text, { hidden = true } = {}) =>
-    respond(i, hidden ? ephemeral(simple(`${emoji.success} ${text}`, 'success')) : { embeds: [simple(`${emoji.success} ${text}`, 'success')] }),
-  error: (i, text) => respond(i, ephemeral(simple(`${emoji.error} ${text}`, 'error'))),
+    respond(i, hidden ? ephemeral(`${emoji.success} ${text}`) : { content: `${emoji.success} ${text}` }),
+  error: (i, text) => respond(i, ephemeral(`${emoji.error} ${text}`)),
   info: (i, text, { hidden = true } = {}) =>
-    respond(i, hidden ? ephemeral(simple(text)) : { embeds: [simple(text)] }),
+    respond(i, hidden ? ephemeral(text) : { content: text }),
 };
 
 // ▰▰▰▰▱▱▱▱ style progress bar
@@ -106,4 +108,4 @@ function bar(value, max, size = 14) {
   return '▰'.repeat(filled) + '▱'.repeat(size - filled);
 }
 
-module.exports = { colors, emoji, DIVIDER, BRAND, images, file, url, card, simple, reply, respond, bar, ASSETS };
+module.exports = { colors, emoji, DIVIDER, BRAND, images, file, url, card, simple, fieldsToText, reply, respond, bar, ASSETS };

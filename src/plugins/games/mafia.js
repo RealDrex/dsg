@@ -62,7 +62,7 @@ async function mafia(session, interaction, game) {
     return eph(i, `${I[info.icon]} دورك: **${info.name}**\n${info.desc}${mates}${isAlive(i.user.id) ? '' : '\n(أنت ميت — شاهد بس)'}`);
   });
   await session.send({
-    embeds: [simple(`الأدوار انوزعت على ${players.length} لاعبين (${mafiaCount} مافيا).\nاضغط الزر تحت عشان تشوف دورك بسرية — الليل يبدأ ${ends(20)}`, 'primary', `${I.mafia} ${game.name}`)],
+    content: simple(`الأدوار انوزعت على ${players.length} لاعبين (${mafiaCount} مافيا).\nاضغط الزر تحت عشان تشوف دورك بسرية — الليل يبدأ ${ends(20)}`, 'primary', `${I.mafia} ${game.name}`),
     components: rows([button(session.cid('role'), 'شوف دورك', ButtonStyle.Primary, I.mafia)]),
   });
   await session.sleep(20_000);
@@ -85,7 +85,7 @@ async function mafia(session, interaction, game) {
     const actors = alive.filter((p) => role.get(p.id) !== 'citizen');
     const acted = new Set();
     await session.send({
-      embeds: [simple(`${I.moon} **الليلة ${round}** — المدينة نايمة...\nأصحاب الأدوار: اضغطوا **إجراء الليل** • ينتهي ${ends(NIGHT)}`, 'dark', game.name)],
+      content: simple(`${I.moon} **الليلة ${round}** — المدينة نايمة...\nأصحاب الأدوار: اضغطوا **إجراء الليل** • ينتهي ${ends(NIGHT)}`, 'dark', game.name),
       components: rows([button(session.cid('night', round), 'إجراء الليل', ButtonStyle.Secondary, I.moon), button(session.cid('role'), 'دوري', ButtonStyle.Secondary, I.mafia)]),
     });
     await new Promise((resolve) => {
@@ -135,7 +135,7 @@ async function mafia(session, interaction, game) {
     const votes = new Map();
     const SKIP = 'skip';
     const dayMsg = await session.send({
-      embeds: [simple(`${I.sun} تناقشوا وصوتوا مين تطردون • ينتهي ${ends(DAY)}\nالأحياء: ${alive.map(mention).join(' ')}`, 'primary', `${game.name} — التصويت`)],
+      content: simple(`${I.sun} تناقشوا وصوتوا مين تطردون • ينتهي ${ends(DAY)}\nالأحياء: ${alive.map(mention).join(' ')}`, 'primary', `${game.name} — التصويت`),
       components: [select(session.cid('vote', round), 'صوّت لطرد...', alive, [{ label: 'تخطي (محد يطلع)', value: SKIP }])],
     });
     await new Promise((resolve) => {

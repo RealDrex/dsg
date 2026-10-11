@@ -55,12 +55,12 @@ function helpHome(interaction) {
       return `${state} ${p.emoji} **${p.nameAr}** — \`${commandsOf(client, p.id).length}\` أمر`;
     })
     .join('\n');
-  const { embed, files } = card({
+  const { content, files } = card({
     title: `${emoji.sword} Sword — قائمة الأوامر`,
     description: `أهلاً بك في بوت **Sword** ${emoji.gate}\nاختر قسم من القائمة تحت عشان تشوف أوامره بالتفصيل.\n${DIVIDER}\n${list}\n${DIVIDER}\n${I.keyboard} كل أمر يشتغل بالسلاش \`/\` أو بالبريفكس \`${prefixOf(interaction)}\`\nمثال: \`${prefixOf(interaction)}باند @عضو السبب\`\n\`<>\` إجباري  •  \`[]\` اختياري`,
     image: 'banner',
   });
-  return { embeds: [embed], files, components: [helpMenu(client)] };
+  return { content, files, components: [helpMenu(client)] };
 }
 
 function helpPlugin(interaction, pluginId) {
@@ -68,13 +68,13 @@ function helpPlugin(interaction, pluginId) {
   const plugin = client.plugins.get(pluginId);
   const lines = commandsOf(client, pluginId).map((c) => `${emoji.dot} \`${usage(c)}\`\n${c.description}`);
   lines.unshift(`البريفكس: \`${prefixOf(interaction)}\` — مثال: \`${prefixOf(interaction)}${commandsOf(client, pluginId)[0]?.name || ''}\``);
-  const { embed, files } = card({
+  const { content, files } = card({
     title: `${plugin.emoji} ${plugin.nameAr}`,
     description: `${plugin.description}\n${DIVIDER}\n${truncate(lines.join('\n\n'), 3800) || 'ما فيه أوامر.'}`,
     image: 'line',
     footer: `${plugin.name} • Sword`,
   });
-  return { embeds: [embed], files, components: [helpMenu(client, pluginId)], attachments: [] };
+  return { content, files, components: [helpMenu(client, pluginId)], attachments: [] };
 }
 
 function pluginsPanel(interaction) {
@@ -97,11 +97,11 @@ function pluginsPanel(interaction) {
         default: store.isEnabled(guildId, p.id),
       })),
     );
-  const { embed, files } = card({
+  const { content, files } = card({
     title: `${emoji.gate} إدارة الأقسام`,
     description: `فعّل أو عطّل أي قسم من القائمة.\nالمحدد = شغال ${emoji.on}  •  غير المحدد = مقفل ${emoji.off}\n${DIVIDER}\n${list}`,
   });
-  return { embeds: [embed], files, components: [new ActionRowBuilder().addComponents(menu)], attachments: [] };
+  return { content, files, components: [new ActionRowBuilder().addComponents(menu)], attachments: [] };
 }
 
 const commands = [
@@ -154,17 +154,17 @@ const commands = [
       } else {
         lines.push(`${emoji.dot} ${UPDATE_TEXT[result.status] || result.status}${result.error ? `\n\`${result.error.slice(0, 200)}\`` : ''}`);
       }
-      return interaction.editReply({ embeds: [simple(lines.join('\n'), 'primary', `${I.fast} تحديث البوت`)], components });
+      return interaction.editReply({ content: simple(lines.join('\n'), 'primary', `${I.fast} تحديث البوت`), components });
     },
   },
   {
     data: new SlashCommandBuilder().setName('ping').setDescription('سرعة استجابة البوت'),
     async execute(interaction) {
       const sent = Date.now();
-      await interaction.reply({ embeds: [simple(`${I.ping} ...`)], flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: simple(`${I.ping} ...`), flags: MessageFlags.Ephemeral });
       const roundtrip = Date.now() - sent;
       await interaction.editReply({
-        embeds: [simple(`${emoji.sword} **Pong!**\nالبوت: \`${roundtrip}ms\`  •  الاتصال: \`${Math.round(interaction.client.ws.ping)}ms\``)],
+        content: simple(`${emoji.sword} **Pong!**\nالبوت: \`${roundtrip}ms\`  •  الاتصال: \`${Math.round(interaction.client.ws.ping)}ms\``),
       });
     },
   },
@@ -172,7 +172,7 @@ const commands = [
     data: new SlashCommandBuilder().setName('botinfo').setDescription('معلومات عن بوت Sword'),
     async execute(interaction) {
       const { client } = interaction;
-      const { embed, files } = card({
+      const { content, files } = card({
         title: `${emoji.sword} Sword Bot`,
         description: `بوت سستم متكامل لسيرفر **Sword** ${emoji.gate}\n${DIVIDER}`,
         fields: [
@@ -186,7 +186,7 @@ const commands = [
         ],
         image: 'banner',
       });
-      await interaction.reply({ embeds: [embed], files });
+      await interaction.reply({ content, files });
     },
   },
   {
@@ -194,7 +194,7 @@ const commands = [
     async execute(interaction) {
       const { guild } = interaction;
       const channels = guild.channels.cache;
-      const { embed } = card({
+      const { content } = card({
         title: `${emoji.gate} ${guild.name}`,
         brand: false,
         thumbnail: guild.iconURL({ size: 256 }) || undefined,
@@ -213,7 +213,7 @@ const commands = [
         footer: 'Sword • Server Info',
         image: guild.bannerURL({ size: 1024 }) || undefined,
       });
-      await interaction.reply({ embeds: [embed] });
+      await interaction.reply({ content });
     },
   },
   {
@@ -233,7 +233,7 @@ const commands = [
         fields.push({ name: `${I.joined} دخل السيرفر`, value: ts(member.joinedAt, 'D'), inline: true });
         fields.push({ name: `${I.roles} الرتب (${roles.size})`, value: truncate(roles.map((r) => `${r}`).join(' '), 1000) || 'لا يوجد' });
       }
-      const { embed } = card({
+      const { content } = card({
         title: `${emoji.blade} ${user.username}`,
         brand: false,
         thumbnail: user.displayAvatarURL({ size: 256 }),
@@ -241,7 +241,7 @@ const commands = [
         color: member?.displayColor || 'primary',
         footer: 'Sword • User Info',
       });
-      await interaction.reply({ embeds: [embed] });
+      await interaction.reply({ content });
     },
   },
   {
@@ -251,13 +251,13 @@ const commands = [
       .addUserOption((o) => o.setName('user').setDescription('العضو')),
     async execute(interaction) {
       const user = interaction.options.getUser('user') || interaction.user;
-      const { embed } = card({
+      const { content } = card({
         title: `${I.image} ${user.username}`,
         brand: false,
         image: user.displayAvatarURL({ size: 1024 }),
         description: `[تحميل الصورة](${user.displayAvatarURL({ size: 4096 })})`,
       });
-      await interaction.reply({ embeds: [embed] });
+      await interaction.reply({ content });
     },
   },
 ];
@@ -286,12 +286,12 @@ module.exports = {
     },
     async doupdate(interaction) {
       if (!isOwner(interaction)) return reply.error(interaction, 'للمالك فقط');
-      await interaction.update({ embeds: [simple(`${I.clock} جاري التحديث...`)], components: [] });
+      await interaction.update({ content: simple(`${I.clock} جاري التحديث...`), components: [] });
       const result = await updater.updateAndRestart(interaction.client, { reason: interaction.user.tag });
       const text = result.status === 'updated'
         ? `${emoji.success} تحدّث من \`${result.from}\` إلى \`${result.to}\` — البوت بيرجع خلال ثواني`
         : `${emoji.error} ${UPDATE_TEXT[result.status] || result.status}`;
-      return interaction.editReply({ embeds: [simple(text, result.status === 'updated' ? 'success' : 'error')] });
+      return interaction.editReply({ content: simple(text, result.status === 'updated' ? 'success' : 'error') });
     },
     async plugins(interaction) {
       if (!interaction.memberPermissions.has(PermissionFlagsBits.ManageGuild)) {

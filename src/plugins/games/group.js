@@ -227,7 +227,7 @@ async function mine(session, interaction, game) {
   let turn = 0;
   let board = null;
   const render = (player, reveal = false) => ({
-    embeds: [simple(player ? `دور ${mention(player)} — افتح مربع (ينتهي ${ends(15)})` : `${I.mine} انفجر اللغم!`, player ? 'primary' : 'accent', game.name)],
+    content: simple(player ? `دور ${mention(player)} — افتح مربع (ينتهي ${ends(15)})` : `${I.mine} انفجر اللغم!`, player ? 'primary' : 'accent', game.name),
     components: rows(Array.from({ length: TILES }, (_, t) => {
       if (reveal && t === mineAt) return button(session.cid('tile', t), null, S.Danger, I.mine, true);
       if (opened.has(t)) return button(session.cid('tile', t), null, S.Success, I.success, true);
@@ -276,7 +276,7 @@ async function bomb(session, interaction, game) {
   while (alive.length > 1 && session.active) {
     let holder = pick(alive);
     const render = () => ({
-      embeds: [simple(`${I.nuke} القنبلة مع ${mention(holder)}! مررها بسرعة`, 'accent', game.name)],
+      content: simple(`${I.nuke} القنبلة مع ${mention(holder)}! مررها بسرعة`, 'accent', game.name),
       components: rows(without(alive, [holder]).slice(0, 25).map((p) => button(session.cid('pass', p.id), p.name, S.Secondary, I.send))),
     });
     const msg = await session.send(render());
@@ -292,7 +292,7 @@ async function bomb(session, interaction, game) {
       c.once('end', resolve);
     });
     if (!session.active) return;
-    await msg?.edit({ embeds: [simple(`${I.nuke} **بووم!** انفجرت مع ${mention(holder)}`, 'accent', game.name)], components: [] }).catch(() => null);
+    await msg?.edit({ content: simple(`${I.nuke} **بووم!** انفجرت مع ${mention(holder)}`, 'accent', game.name), components: [] }).catch(() => null);
     alive = without(alive, [holder]);
     await out(session, game, [holder], 'انفجرت معه القنبلة');
     await session.sleep(1500);
@@ -318,7 +318,7 @@ async function chairs(session, interaction, game) {
       const p = seats.get(c);
       return p ? button(session.cid('chair', c), p.name, S.Success, null, true) : button(session.cid('chair', c), null, S.Secondary, I.chairs);
     }));
-    await msg?.edit({ embeds: [simple('# اقعدوا!', 'accent', game.name)], components: render() }).catch(() => null);
+    await msg?.edit({ content: simple('# اقعدوا!', 'accent', game.name), components: render() }).catch(() => null);
     const ids = new Set(alive.map((p) => p.id));
     await new Promise((resolve) => {
       const c = session.components({ time: 10_000 });
@@ -385,7 +385,7 @@ async function hide(session, interaction, game) {
   const hidden = new Map();
   const ids = new Set(alive.map((p) => p.id));
   const hideMsg = await session.send({
-    embeds: [simple(`تخبوا! اختار رقم تتخبى وراه — ينتهي ${ends(20)}`, 'primary', `${I.hideSeek} ${game.name}`)],
+    content: simple(`تخبوا! اختار رقم تتخبى وراه — ينتهي ${ends(20)}`, 'primary', `${I.hideSeek} ${game.name}`),
     components: rows(Array.from({ length: SPOTS }, (_, n) => button(session.cid('spot', n), String(n + 1))), 3),
   });
   await new Promise((resolve) => {
@@ -414,7 +414,7 @@ async function hide(session, interaction, game) {
   while (alive.length > 1 && session.active) {
     const seeker = alive[turn % alive.length];
     const board = await session.send({
-      embeds: [simple(`${last}${mention(seeker)} اختر زر للبحث عن اللاعبين المختبئين!\nاللاعبين المتبقين: **${alive.length}** • ينتهي ${ends(20)}`, 'primary', `${I.hideSeek} ${game.name}`)],
+      content: simple(`${last}${mention(seeker)} اختر زر للبحث عن اللاعبين المختبئين!\nاللاعبين المتبقين: **${alive.length}** • ينتهي ${ends(20)}`, 'primary', `${I.hideSeek} ${game.name}`),
       components: rows(Array.from({ length: SPOTS }, (_, n) => button(session.cid('seek', n), String(n + 1), searched.has(n) ? S.Danger : S.Secondary, null, searched.has(n))), 3),
     });
     const i = await session.waitComponent({ time: 20_000, accept: (x) => x.user.id === seeker.id && session.part(x) === 'seek', deny: 'مو دورك تدور' });
@@ -442,7 +442,7 @@ async function hide(session, interaction, game) {
 // ── خمن ───────────────────────────────────────────────────────────
 async function guess(session, interaction, game) {
   const target = 1 + rand(100);
-  await post(interaction, { embeds: [simple(`اخترت رقم من **1** إلى **100** — خمنوا!\nأول واحد يعرفه يفوز • ينتهي ${ends(60)}`, 'primary', `${I.guess} ${game.name}`)] });
+  await post(interaction, { content: simple(`اخترت رقم من **1** إلى **100** — خمنوا!\nأول واحد يعرفه يفوز • ينتهي ${ends(60)}`, 'primary', `${I.guess} ${game.name}`) });
   const winner = await new Promise((resolve) => {
     const c = session.messages({ time: 60_000, filter: (m) => /^\d{1,3}$/.test(clean(m.content)) });
     c.on('collect', (m) => {
@@ -475,14 +475,14 @@ async function buttons(session, interaction, game) {
   const COUNT = 15;
   for (let round = 1; round <= 5 && session.active; round += 1) {
     const msg = await session.send({
-      embeds: [simple(`الجولة **${round}/5** — استعدوا...`, 'primary', game.name)],
+      content: simple(`الجولة **${round}/5** — استعدوا...`, 'primary', game.name),
       components: rows(Array.from({ length: COUNT }, (_, n) => button(session.cid('b', round, n), null, S.Secondary, null, true))),
     });
     await session.sleep(2000 + rand(4000));
     if (!session.active) return;
     const target = rand(COUNT);
     await msg?.edit({
-      embeds: [simple(`الجولة **${round}/5** — اضغط الأخضر!`, 'success', game.name)],
+      content: simple(`الجولة **${round}/5** — اضغط الأخضر!`, 'success', game.name),
       components: rows(Array.from({ length: COUNT }, (_, n) => button(session.cid('b', round, n), null, n === target ? S.Success : S.Secondary))),
     }).catch(() => null);
     const frozen = new Set();

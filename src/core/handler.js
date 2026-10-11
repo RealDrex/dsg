@@ -1,6 +1,6 @@
 const { Guild, MessageFlags } = require('discord.js');
 const store = require('./store');
-const { reply, simple, emoji } = require('./theme');
+const { reply, emoji } = require('./theme');
 const logger = require('./logger');
 const { fromSlash } = require('./options');
 
@@ -72,7 +72,7 @@ async function handleInteraction(interaction) {
   } catch (err) {
     logger.error(`Interaction ${interaction.commandName || interaction.customId}:`, err);
     if (interaction.isAutocomplete()) return;
-    const payload = { embeds: [simple(`${emoji.error} صار خطأ غير متوقع، حاول مرة ثانية.`, 'error')], flags: MessageFlags.Ephemeral };
+    const payload = { content: `${emoji.error} صار خطأ غير متوقع، حاول مرة ثانية.`, flags: MessageFlags.Ephemeral };
     try {
       if (interaction.deferred || interaction.replied) await interaction.followUp(payload);
       else await interaction.reply(payload);

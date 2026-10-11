@@ -1,6 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
 const store = require('../../core/store');
-const { file, simple, emoji, DIVIDER, reply } = require('../../core/theme');
+const { file, emoji, DIVIDER, reply } = require('../../core/theme');
 const { fill } = require('../../utils/text');
 const { I } = require('../../core/icons');
 
@@ -18,7 +18,7 @@ async function onMessage(message) {
   const rule = text && cfg.replies.find((r) => MATCH[r.match]?.test(text, r.trigger));
   if (rule) {
     const content = fill(rule.response, { user: `${message.author}`, username: message.author.username, server: message.guild.name });
-    const payload = rule.embed ? { embeds: [simple(content)] } : { content };
+    const payload = { content };
     if (rule.reply) await message.reply(payload).catch(() => null);
     else await message.channel.send(payload).catch(() => null);
   }
@@ -44,8 +44,7 @@ const replyData = new SlashCommandBuilder()
     .addStringOption((o) => o.setName('response').setDescription('الرد — {user} {username} {server} و \\n لسطر جديد').setRequired(true).setMaxLength(1800))
     .addStringOption((o) => o.setName('match').setDescription('طريقة المطابقة').addChoices(
       { name: 'مطابق تماماً', value: 'exact' }, { name: 'يحتوي', value: 'contains' }, { name: 'يبدأ بـ', value: 'starts' }))
-    .addBooleanOption((o) => o.setName('reply').setDescription('رد على الرسالة نفسها (Reply)'))
-    .addBooleanOption((o) => o.setName('embed').setDescription('الرد داخل إمبد')))
+    .addBooleanOption((o) => o.setName('reply').setDescription('رد على الرسالة نفسها (Reply)')))
   .addSubcommand((s) => s.setName('remove').setDescription('حذف رد تلقائي')
     .addStringOption((o) => o.setName('trigger').setDescription('الكلمة').setRequired(true).setAutocomplete(true)))
   .addSubcommand((s) => s.setName('list').setDescription('عرض الردود التلقائية'));
@@ -68,7 +67,6 @@ async function replyCommand(interaction) {
         response: o.getString('response').replace(/\\n/g, '\n'),
         match: o.getString('match') || 'exact',
         reply: o.getBoolean('reply') ?? true,
-        embed: o.getBoolean('embed') ?? false,
       });
     }
   });
@@ -164,7 +162,6 @@ module.exports = {
             { key: 'response', type: 'textarea', label: 'الرد', max: 1800, required: true },
             { key: 'match', type: 'select', label: 'المطابقة', options: Object.entries(MATCH).map(([value, m]) => ({ value, label: m.label })) },
             { key: 'reply', type: 'bool', label: 'رد على الرسالة نفسها' },
-            { key: 'embed', type: 'bool', label: 'داخل إمبد' },
           ],
         },
       ],

@@ -13,12 +13,12 @@
 //   2 خاصة     → + سجن/عفو
 //   3 ستريشن   → كل شي
 const {
-  PermissionFlagsBits, EmbedBuilder, AuditLogEvent, MessageFlags,
+  PermissionFlagsBits, AuditLogEvent, MessageFlags, AttachmentBuilder,
   ActionRowBuilder, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
 } = require('discord.js');
 const store = require('../../core/store');
 const cases = require('../../core/cases');
-const { simple, colors } = require('../../core/theme');
+const { simple } = require('../../core/theme');
 const { I } = require('../../core/icons');
 const { normalize } = require('../../core/i18n');
 const { ts, parseDuration } = require('../../utils/time');
@@ -119,11 +119,11 @@ const ok = (text) => ({ ok: text });
 const err = (text) => ({ error: text });
 
 function statusEmbed(title, lines, color = 'primary') {
-  return { reply: { embeds: [simple(lines.join('\n'), color, title)], allowedMentions: { parse: [] } }, noReact: true };
+  return { reply: { content: simple(lines.join('\n'), color, title), allowedMentions: { parse: [] } }, noReact: true };
 }
 
 async function dm(user, guild, text) {
-  await user.send({ embeds: [simple(text, 'accent')] }).catch(() => null);
+  await user.send({ content: simple(text, 'accent') }).catch(() => null);
 }
 
 // ── per-action logging ───────────────────────────────────────────────
@@ -148,7 +148,7 @@ function logAction(guild, cfg, kind, { target, mod, minutes, reason }) {
   ];
   if (minutes) lines.push(`${I.timeout} **المدة :** ${minutes} دقيقة`);
   lines.push(`${I.report} **السبب :** ${reason || NO_REASON}`);
-  channel.send({ embeds: [simple(lines.join('\n'), meta.color, `${meta.icon} ${meta.label}`)], allowedMentions: { parse: [] } }).catch(() => null);
+  channel.send({ content: simple(lines.join('\n'), meta.color, `${meta.icon} ${meta.label}`), allowedMentions: { parse: [] } }).catch(() => null);
 }
 
 // ── timed punishments (vmute / tmute / jail / timeout) ────────────────
@@ -247,7 +247,7 @@ async function sendPicker(ctx, type, target) {
     .setPlaceholder('اختر السبب والمدة')
     .addOptions(options);
   await ctx.message.reply({
-    embeds: [simple(`${LOGS[type].icon} **${PUNISH[type].label}** لـ ${target}\nاختر السبب والمدة 👇`, 'accent')],
+    content: simple(`${LOGS[type].icon} **${PUNISH[type].label}** لـ ${target}\nاختر السبب والمدة 👇`, 'accent'),
     components: [new ActionRowBuilder().addComponents(menu)],
     allowedMentions: { parse: [], repliedUser: false },
   }).catch(() => null);
@@ -627,7 +627,7 @@ const COMMANDS = [
       if (!row) return err('هذا الأمر يشتغل داخل تذكرة فقط.');
       require('../../core/db').prepare("UPDATE tickets SET status='closed', closed_at=? WHERE channel_id=?").run(Date.now(), ctx.channel.id);
       await ctx.channel.permissionOverwrites.edit(row.owner_id, { SendMessages: false }).catch(() => null);
-      await ctx.channel.send({ embeds: [simple(`${I.lock} تم إغلاق التذكرة بواسطة ${ctx.member}`, 'accent')] }).catch(() => null);
+      await ctx.channel.send({ content: simple(`${I.lock} تم إغلاق التذكرة بواسطة ${ctx.member}`, 'accent') }).catch(() => null);
       return { noReact: true };
     },
   },
@@ -656,7 +656,7 @@ const COMMANDS = [
       const row = ticketRow(ctx);
       const t = (await ctx.target()) || (row && await ctx.guild.members.fetch(row.owner_id).catch(() => null));
       if (!t) return err('منشن العضو أو استخدمه داخل تذكرة.');
-      await ctx.channel.send({ content: `${t}`, embeds: [simple(`${I.mail} تذكير: الرجاء مراجعة التذكرة والرد ${I.sword}`, 'primary')] }).catch(() => null);
+      await ctx.channel.send({ content: `${t}\n${I.mail} تذكير: الرجاء مراجعة التذكرة والرد ${I.sword}` }).catch(() => null);
       return { noReact: true };
     },
   },
@@ -691,9 +691,8 @@ const COMMANDS = [
     names: ['افتار', 'avatar', 'av'], level: 0, desc: 'عرض أفتار العضو',
     async run(ctx) {
       const u = (await ctx.userTarget()) || ctx.author;
-      const embed = new EmbedBuilder().setColor(colors.primary).setTitle(`${I.user} أفتار ${u.username}`)
-        .setImage(u.displayAvatarURL({ size: 1024, forceStatic: false }));
-      return { reply: { embeds: [embed], allowedMentions: { parse: [] } }, noReact: true };
+      const av = u.displayAvatarURL({ size: 1024, forceStatic: false });
+      return { reply: { content: `**${I.user} أفتار ${u.username}**`, files: [new AttachmentBuilder(av)], allowedMentions: { parse: [] } }, noReact: true };
     },
   },
   {
@@ -702,8 +701,7 @@ const COMMANDS = [
       const u = await (await ctx.userTarget() || ctx.author).fetch(true).catch(() => null);
       const url = u?.bannerURL?.({ size: 1024, forceStatic: false });
       if (!url) return err('العضو ما عنده بانر.');
-      const embed = new EmbedBuilder().setColor(colors.primary).setTitle(`${I.image} بانر ${u.username}`).setImage(url);
-      return { reply: { embeds: [embed], allowedMentions: { parse: [] } }, noReact: true };
+      return { reply: { content: `**${I.image} بانر ${u.username}**`, files: [new AttachmentBuilder(url)], allowedMentions: { parse: [] } }, noReact: true };
     },
   },
 ];
@@ -781,7 +779,7 @@ async function react(message, good, cfg) {
 // the command after a delay so nothing lingers. noticeDelay = 0 keeps them.
 async function notice(message, text, cfg) {
   const delay = cfg?.noticeDelay ?? 6000;
-  const m = await message.reply({ embeds: [simple(text, 'error')], allowedMentions: { repliedUser: false } }).catch(() => null);
+  const m = await message.reply({ content: simple(text, 'error'), allowedMentions: { repliedUser: false } }).catch(() => null);
   if (delay > 0) setTimeout(() => { m?.delete().catch(() => null); message.delete().catch(() => null); }, delay);
 }
 
@@ -839,7 +837,7 @@ async function onMemberAdd(member) {
 // ── picker interactions ──────────────────────────────────────────────
 async function onPick(interaction, [type, targetId, invokerId]) {
   if (interaction.user.id !== invokerId) {
-    return interaction.reply({ embeds: [simple('هذا الاختيار مو لك.', 'error')], flags: MessageFlags.Ephemeral });
+    return interaction.reply({ content: simple('هذا الاختيار مو لك.', 'error'), flags: MessageFlags.Ephemeral });
   }
   if (interaction.values[0] === 'custom') {
     const modal = new ModalBuilder().setCustomId(`staff:pmodal:${type}:${targetId}:${invokerId}`).setTitle(PUNISH[type]?.label || 'عقوبة');
@@ -852,7 +850,7 @@ async function onPick(interaction, [type, targetId, invokerId]) {
     return interaction.showModal(modal);
   }
   const preset = (store.get(interaction.guildId, ID).presets || [])[Number(interaction.values[0])];
-  if (!preset) return interaction.reply({ embeds: [simple('الخيار مو موجود.', 'error')], flags: MessageFlags.Ephemeral });
+  if (!preset) return interaction.reply({ content: simple('الخيار مو موجود.', 'error'), flags: MessageFlags.Ephemeral });
   return finishPunish(interaction, type, targetId, preset.minutes || 0, preset.label);
 }
 
@@ -862,7 +860,7 @@ async function onModal(interaction, [type, targetId]) {
   let minutes = 0;
   if (raw) {
     const ms = parseDuration(/^\d+$/.test(raw) ? `${raw}m` : raw);
-    if (!ms) return interaction.reply({ embeds: [simple('مدة غير صحيحة. أمثلة: `30m` `2h` `1d`', 'error')], flags: MessageFlags.Ephemeral });
+    if (!ms) return interaction.reply({ content: simple('مدة غير صحيحة. أمثلة: `30m` `2h` `1d`', 'error'), flags: MessageFlags.Ephemeral });
     minutes = Math.round(ms / 60_000);
   }
   return finishPunish(interaction, type, targetId, minutes, reason);
@@ -872,8 +870,8 @@ async function finishPunish(interaction, type, targetId, minutes, reason) {
   const { guild } = interaction;
   const cfg = store.get(guild.id, ID);
   // Confirmation is private to the executor; the public record is the log channel.
-  const done = async (embed) => {
-    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral }).catch(() => null);
+  const done = async (content) => {
+    await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => null);
     await interaction.message?.delete?.().catch(() => null);
   };
   if (levelOf(interaction.member) < PUNISH[type].level) return done(simple('ما عندك صلاحية لهذا الأمر.', 'error'));
@@ -931,11 +929,11 @@ async function onMemberUpdate(oldM, newM) {
   const ch = guild.channels.cache.get(cfg.logs?.protect) || guild.channels.cache.get(cfg.logs?.ban);
   if (ch) {
     ch.send({
-      embeds: [simple([
+      content: simple([
         `${I.admin} **المسؤول :** <@${executor.id}> \`${executor.id}\``,
         `${I.user} **العضو :** <@${newM.id}>`,
         `${I.report} **السبب :** ${note}`,
-      ].join('\n'), stripped ? 'error' : 'warn', `${I.shieldAlert} حماية الرتب`)],
+      ].join('\n'), stripped ? 'error' : 'warn', `${I.shieldAlert} حماية الرتب`),
       allowedMentions: { parse: [] },
     }).catch(() => null);
   }
