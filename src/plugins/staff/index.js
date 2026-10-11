@@ -419,7 +419,7 @@ const COMMANDS = [
     },
   },
   {
-    symbol: '#', word: 'سطف', level: 3, desc: 'يسمّي العضو «سطيف» ويسكّته ويقفل الاسكات (أو يفكه بإعادة الأمر) — منشن/آيدي/ريبلاي',
+    symbol: '#', word: 'سطف', level: 3, desc: 'يسمّي العضو «سطيف» ويعطيه ميوت صوتي (أو يفكه بإعادة الأمر) — منشن/آيدي/ريبلاي',
     async run(ctx) {
       let t = await ctx.target();
       if (!t && ctx.message.reference?.messageId) {
@@ -431,16 +431,19 @@ const COMMANDS = [
       if (rec) {
         // release — clear the record FIRST so the auto-reapply doesn't fight it
         data.stuffClear(ctx.guild.id, t.id);
-        if (ctx.cfg.muteRole) await t.roles.remove(ctx.cfg.muteRole, `فك سطف by ${ctx.author.tag}`).catch(() => null);
+        if (t.voice?.channel) await t.voice.setMute(false, `فك سطف by ${ctx.author.tag}`).catch(() => null);
         await t.setNickname(rec.old_nick || null, `فك سطف by ${ctx.author.tag}`).catch(() => null);
         return ok(`تم فك السطف عن ${t}`);
       }
-      const problem = guard(ctx, t, 'سطف') || roleUsable(ctx, ctx.cfg.muteRole, 'الاسكات');
+      const problem = guard(ctx, t, 'سطف');
       if (problem) return err(problem);
       data.stuffSet(ctx.guild.id, t.id, t.nickname || '', ctx.author.id);
-      await t.roles.add(ctx.cfg.muteRole, `سطف by ${ctx.author.tag}`);
       await t.setNickname('سطيف', `سطف by ${ctx.author.tag}`).catch(() => null);
-      return ok(`تم سطف ${t} — اسمه «سطيف» ومسكّت ومقفل`);
+      let muted = false;
+      if (t.voice?.channel) muted = await t.voice.setMute(true, `سطف by ${ctx.author.tag}`).then(() => true).catch(() => false);
+      return ok(muted
+        ? `تم سطف ${t} — اسمه «سطيف» ومميوت صوتي`
+        : `تم سطف ${t} — اسمه «سطيف»، والميوت الصوتي بينطبق أول ما يدخل روم صوتي`);
     },
   },
 
@@ -889,11 +892,8 @@ async function finishPunish(interaction, type, targetId, minutes, reason) {
 async function onMemberUpdate(oldM, newM) {
   const cfg = store.get(newM.guild.id, ID);
 
-  // Sticky سطف: keep the mute role and the «سطيف» nick on a stuffed member.
+  // Sticky سطف: keep the «سطيف» nick on a stuffed member (voice mute is kept in onVoiceUpdate).
   if (data.stuffGet(newM.guild.id, newM.id)) {
-    if (cfg.muteRole && newM.guild.roles.cache.get(cfg.muteRole) && !newM.roles.cache.has(cfg.muteRole)) {
-      newM.roles.add(cfg.muteRole, 'سطف: إعادة الاسكات تلقائياً').catch(() => null);
-    }
     if ((newM.nickname || null) !== 'سطيف') newM.setNickname('سطيف', 'سطف: إعادة الاسم تلقائياً').catch(() => null);
   }
 
@@ -939,6 +939,14 @@ async function onMemberUpdate(oldM, newM) {
       allowedMentions: { parse: [] },
     }).catch(() => null);
   }
+}
+
+// ── sticky سطف voice mute: re-mute a stuffed member if anyone unmutes them ──
+async function onVoiceUpdate(oldS, newS) {
+  const m = newS.member;
+  if (!m || !newS.channel || newS.serverMute) return;
+  if (!data.stuffGet(newS.guild.id, m.id)) return;
+  m.voice.setMute(true, 'سطف: إعادة الميوت الصوتي تلقائياً').catch(() => null);
 }
 
 // ── auto-expiry sweeper ──────────────────────────────────────────────
@@ -1016,6 +1024,7 @@ module.exports = {
     messageCreate: onMessage,
     guildMemberAdd: onMemberAdd,
     guildMemberUpdate: onMemberUpdate,
+    voiceStateUpdate: onVoiceUpdate,
     channelCreate: onChannelCreate,
     inviteCreate: (invite) => { if (invite.guild) cacheGuild(invite.guild); },
     inviteDelete: (invite) => { if (invite.guild) cacheGuild(invite.guild); },
