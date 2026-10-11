@@ -79,6 +79,7 @@ module.exports = {
   user: lucide('user'),
   gem: lucide('gem', '#f47fff'),
   joined: lucide('log-in'),
+  logout: lucide('log-out'),
   image: lucide('image'),
   mail: lucide('mail'),
   leave: lucide('user-minus'),

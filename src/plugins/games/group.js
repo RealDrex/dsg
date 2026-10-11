@@ -13,7 +13,7 @@ const without = (list, gone) => list.filter((p) => !gone.some((g) => g.id === p.
 
 async function out(session, game, players, why) {
   if (!players.length) return;
-  await session.say(`${I.skull} ${players.map(mention).join(' ، ')} — ${why}`, { title: game.name, icon: I[game.icon], color: 'accent' });
+  await session.say(`${players.map(mention).join(' ، ')} — ${why}`);
 }
 
 async function done(session, game, alive) {
@@ -25,7 +25,7 @@ async function done(session, game, alive) {
 // Spins the wheel: sends the animated GIF, lets it land, then returns the message
 // (which freezes on the chosen slice). `extra` is edited in afterwards (text + buttons).
 async function spin(session, order, index, round) {
-  const head = `${I.roulette} **الجولة ${round}** — ${order.length} لاعبين`;
+  const head = `**الجولة ${round}** — ${order.length} لاعبين`;
   try {
     const gif = new AttachmentBuilder(await art.spinGif(order, index, { title: `الجولة ${round}` }), { name: 'wheel.gif' });
     const msg = await session.send({ content: `${head}\nالعجلة تدور...`, files: [gif] });
@@ -57,7 +57,7 @@ async function roulette(session, interaction, game, { random = false } = {}) {
     const spun = await spin(session, order, index, round);
     if (!session.active) return;
     if (random) {
-      await settle(spun, `${I.rouletteZ} وقفت العجلة على ${mention(chosen)} — **طلع من اللعبة**`);
+      await settle(spun, `وقفت العجلة على ${mention(chosen)} — **طلع من اللعبة**`);
       shop.recordDeath(session.guildId, chosen.id);
       alive = without(alive, [chosen]);
       await out(session, game, [chosen], 'وقفت عليه العجلة');

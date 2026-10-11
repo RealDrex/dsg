@@ -227,13 +227,13 @@ async function lobby(session, interaction, { game, min = 2, max = 20, rules, ima
 
   const buttons = (closed) => {
     if (closed) return [];
-    // imageOnly lobbies (روليت): buttons without icons, no instant start.
+    // imageOnly lobbies (روليت): join / leave / powers-shop / bag with icons.
     if (imageOnly) {
       return rows([
-        button(session.cid('join'), 'دخول', ButtonStyle.Success),
-        button(session.cid('leave'), 'خروج', ButtonStyle.Secondary),
-        button(session.cid('bag'), 'الحقيبة', ButtonStyle.Secondary),
-        button(session.cid('shop'), 'المتجر', ButtonStyle.Secondary),
+        button(session.cid('join'), 'انضمام', ButtonStyle.Success, I.joined),
+        button(session.cid('leave'), 'انسحاب', ButtonStyle.Secondary, I.logout),
+        button(session.cid('shop'), 'متجر الخصائص', ButtonStyle.Secondary, I.cart),
+        button(session.cid('bag'), 'الحقيبة', ButtonStyle.Secondary, I.backpack),
       ]);
     }
     return rows([
@@ -301,22 +301,21 @@ async function lobby(session, interaction, { game, min = 2, max = 20, rules, ima
   return shuffle([...players.values()]);
 }
 
-// Announces the winner(s) and awards points.
+// Announces the winner(s) and awards points. Single winner = just a mention + the winner image.
 async function finish(session, game, winners, amount) {
   const list = (Array.isArray(winners) ? winners : [winners]).filter(Boolean);
-  if (!list.length) return session.say('ما فيه فائز هالمرة', { title: `${game.name} — انتهت`, icon: I.flag });
+  if (!list.length) return session.say('ما فيه فائز هالمرة');
   for (const w of list) points.award(session.guildId, w.id, game.key, amount);
   const names = list.map(mention).join(' ، ');
-  const head = `${iconText(I.trophy)} **${game.name} — الفائز**\n${I.crown} ${names}\n${I.coins} **+${amount}** نقطة`;
   if (list.length === 1) {
     try {
       const file = new AttachmentBuilder(await art.winnerCard(list[0], game, amount), { name: 'winner.png' });
-      return session.send({ content: head, files: [file] });
+      return session.send({ content: `${names}`, files: [file] });
     } catch (err) {
       logger.warn('winner card:', err.message);
     }
   }
-  return session.send({ content: head });
+  return session.send({ content: `${names} — +${amount}` });
 }
 
 /** Runs a game: one per channel, stoppable with "ايقاف", errors logged. */

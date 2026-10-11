@@ -314,8 +314,8 @@ async function spinGif(players, chosenIndex, { title } = {}) {
       transparent: transparentIndex >= 0,
       transparentIndex: transparentIndex >= 0 ? transparentIndex : undefined,
       dispose: 2, // clear each frame so the spin doesn't smear through transparency
-      delay: last ? 2000 : 45 + Math.round(70 * t), // slows down as it lands, holds at the end
-      repeat: -1, // play once, then freeze on the last frame
+      delay: last ? 1800 : 45 + Math.round(70 * t), // slows down as it lands, pauses on the winner
+      repeat: 0, // loop forever so the wheel keeps spinning in Discord
     });
   }
   gif.finish();
