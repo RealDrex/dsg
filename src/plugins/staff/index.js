@@ -418,6 +418,31 @@ const COMMANDS = [
       return ok(`تم حط ${t} في البلاك`);
     },
   },
+  {
+    symbol: '#', word: 'سطف', level: 3, desc: 'يسمّي العضو «سطيف» ويسكّته ويقفل الاسكات (أو يفكه بإعادة الأمر) — منشن/آيدي/ريبلاي',
+    async run(ctx) {
+      let t = await ctx.target();
+      if (!t && ctx.message.reference?.messageId) {
+        const ref = await ctx.channel.messages.fetch(ctx.message.reference.messageId).catch(() => null);
+        if (ref) t = await ctx.guild.members.fetch(ref.author.id).catch(() => null);
+      }
+      if (!t) return err('منشن العضو أو رد على رسالته أو حط آيديه.');
+      const rec = data.stuffGet(ctx.guild.id, t.id);
+      if (rec) {
+        // release — clear the record FIRST so the auto-reapply doesn't fight it
+        data.stuffClear(ctx.guild.id, t.id);
+        if (ctx.cfg.muteRole) await t.roles.remove(ctx.cfg.muteRole, `فك سطف by ${ctx.author.tag}`).catch(() => null);
+        await t.setNickname(rec.old_nick || null, `فك سطف by ${ctx.author.tag}`).catch(() => null);
+        return ok(`تم فك السطف عن ${t}`);
+      }
+      const problem = guard(ctx, t, 'سطف') || roleUsable(ctx, ctx.cfg.muteRole, 'الاسكات');
+      if (problem) return err(problem);
+      data.stuffSet(ctx.guild.id, t.id, t.nickname || '', ctx.author.id);
+      await t.roles.add(ctx.cfg.muteRole, `سطف by ${ctx.author.tag}`);
+      await t.setNickname('سطيف', `سطف by ${ctx.author.tag}`).catch(() => null);
+      return ok(`تم سطف ${t} — اسمه «سطيف» ومسكّت ومقفل`);
+    },
+  },
 
   // ── channel control ────────────────────────────────────────────────
   {
@@ -716,7 +741,7 @@ for (const cmd of COMMANDS) {
   for (const n of cmd.names || []) normalMap.set(normalize(n), cmd);
 }
 // Words the core prefix handler must hand over to this plugin.
-const OWNED = new Set([...normalMap.keys(), normalize('طرد'), normalize('بلاك'), normalize('تذكير'), normalize('باند'), normalize('سجن'), normalize('وقت')]);
+const OWNED = new Set([...normalMap.keys(), normalize('طرد'), normalize('بلاك'), normalize('تذكير'), normalize('باند'), normalize('سجن'), normalize('وقت'), normalize('سطف')]);
 
 // ── message engine ───────────────────────────────────────────────────
 function recognise(message) {
@@ -860,9 +885,18 @@ async function finishPunish(interaction, type, targetId, minutes, reason) {
   }
 }
 
-// ── role-abuse guard ─────────────────────────────────────────────────
+// ── role-abuse guard + sticky سطف ────────────────────────────────────
 async function onMemberUpdate(oldM, newM) {
   const cfg = store.get(newM.guild.id, ID);
+
+  // Sticky سطف: keep the mute role and the «سطيف» nick on a stuffed member.
+  if (data.stuffGet(newM.guild.id, newM.id)) {
+    if (cfg.muteRole && newM.guild.roles.cache.get(cfg.muteRole) && !newM.roles.cache.has(cfg.muteRole)) {
+      newM.roles.add(cfg.muteRole, 'سطف: إعادة الاسكات تلقائياً').catch(() => null);
+    }
+    if ((newM.nickname || null) !== 'سطيف') newM.setNickname('سطيف', 'سطف: إعادة الاسم تلقائياً').catch(() => null);
+  }
+
   if (!cfg.roleGuard?.enabled) return;
   const protectedRoles = cfg.roleGuard.protected?.length ? cfg.roleGuard.protected : cfg.roles.admin;
   const added = newM.roles.cache.filter((r) => !oldM.roles.cache.has(r.id) && protectedRoles.includes(r.id));

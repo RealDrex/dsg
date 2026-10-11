@@ -53,6 +53,15 @@ db.exec(`
     strikes  INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (guild_id, user_id)
   );
+
+  CREATE TABLE IF NOT EXISTS staff_stuff (
+    guild_id TEXT NOT NULL,
+    user_id  TEXT NOT NULL,
+    old_nick TEXT,
+    by_id    TEXT,
+    at       INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, user_id)
+  );
 `);
 
 const stmt = {
@@ -79,6 +88,10 @@ const stmt = {
   strInc: db.prepare('INSERT INTO staff_strikes (guild_id, user_id, strikes) VALUES (?, ?, 1) ON CONFLICT (guild_id, user_id) DO UPDATE SET strikes = strikes + 1'),
   strGet: db.prepare('SELECT strikes FROM staff_strikes WHERE guild_id = ? AND user_id = ?'),
   strDel: db.prepare('DELETE FROM staff_strikes WHERE guild_id = ? AND user_id = ?'),
+
+  stuffSet: db.prepare('INSERT INTO staff_stuff (guild_id, user_id, old_nick, by_id, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (guild_id, user_id) DO NOTHING'),
+  stuffGet: db.prepare('SELECT * FROM staff_stuff WHERE guild_id = ? AND user_id = ?'),
+  stuffDel: db.prepare('DELETE FROM staff_stuff WHERE guild_id = ? AND user_id = ?'),
 };
 
 module.exports = {
@@ -113,4 +126,9 @@ module.exports = {
   // Role-abuse strikes
   strikeAdd: (g, u) => { stmt.strInc.run(g, u); return stmt.strGet.get(g, u)?.strikes || 0; },
   strikeReset: (g, u) => stmt.strDel.run(g, u),
+
+  // "سطف" — sticky rename + mute
+  stuffSet: (g, u, oldNick, by) => stmt.stuffSet.run(g, u, oldNick, by, Date.now()),
+  stuffGet: (g, u) => stmt.stuffGet.get(g, u),
+  stuffClear: (g, u) => stmt.stuffDel.run(g, u),
 };
