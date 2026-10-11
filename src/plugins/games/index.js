@@ -187,6 +187,20 @@ const stopCommand = {
   },
 };
 
+// Bare "ايقاف" typed in chat stops whatever game is running in that channel
+// (no prefix needed). Host or anyone with Manage Messages can stop it.
+const STOP_WORDS = new Set(['ايقاف', 'إيقاف', 'وقف', 'stop'].map(normalize));
+async function onStopMessage(message) {
+  if (!message.inGuild() || message.author.bot || !message.member || !message.content) return;
+  const first = message.content.trim().split(/\s+/)[0].replace(/^[!\-#.+]/, '');
+  if (!STOP_WORDS.has(normalize(first))) return;
+  const session = current(message.channelId);
+  if (!session) return;
+  if (!canStop({ user: message.author, member: message.member }, session)) return;
+  session.stop('stopped');
+  await message.reply({ content: simple(`${I.stop} تم إيقاف **${session.game.name}**`, 'accent'), allowedMentions: { repliedUser: false } }).catch(() => null);
+}
+
 module.exports = {
   id: 'games',
   name: 'Games',
@@ -195,6 +209,7 @@ module.exports = {
   description: 'ألعاب جماعية (روليت، مافيا، كراسي...)، تحديات، أسئلة سريعة، نقاط وتوب وتحويل وتصويت.',
   defaults: { channels: [], groupWin: 5, duelWin: 3, quizPoint: 1, quizTime: 20, lobbyTime: 30 },
   commands: [...GAMES.map(gameCommand), topCommand, pointsCommand, transferCommand, voteCommand, stopCommand],
+  events: { messageCreate: onStopMessage },
   components: { buy: require('./shop').onBuy },
   // Lobby images: each game shows the generated Sword banner unless the server uploads its own.
   images: GAMES.filter((g) => g.kind === 'group' || g.kind === 'duel').map((g) => ({ key: g.key, label: g.name, icon: g.icon })),

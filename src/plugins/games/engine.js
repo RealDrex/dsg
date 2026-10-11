@@ -227,19 +227,20 @@ async function lobby(session, interaction, { game, min = 2, max = 20, rules, ima
 
   const buttons = (closed) => {
     if (closed) return [];
-    const b = [
+    // imageOnly lobbies (روليت): buttons without icons, no instant start.
+    if (imageOnly) {
+      return rows([
+        button(session.cid('join'), 'دخول', ButtonStyle.Success),
+        button(session.cid('leave'), 'خروج', ButtonStyle.Secondary),
+        button(session.cid('bag'), 'الحقيبة', ButtonStyle.Secondary),
+        button(session.cid('shop'), 'المتجر', ButtonStyle.Secondary),
+      ]);
+    }
+    return rows([
       button(session.cid('join'), 'دخول', ButtonStyle.Success, I.plus),
       button(session.cid('leave'), 'خروج', ButtonStyle.Secondary, I.minus),
-    ];
-    // imageOnly lobbies (روليت) start only after the wait time — no instant start —
-    // and show the bag/shop buttons.
-    if (!imageOnly) {
-      b.push(button(session.cid('start'), 'ابدأ الحين', ButtonStyle.Primary, I.fast));
-    } else {
-      b.push(button(session.cid('bag'), 'الحقيبة', ButtonStyle.Secondary, I.backpack));
-      b.push(button(session.cid('shop'), 'المتجر', ButtonStyle.Secondary, I.cart));
-    }
-    return rows(b);
+      button(session.cid('start'), 'ابدأ الحين', ButtonStyle.Primary, I.fast),
+    ]);
   };
 
   const render = (closed = false, note, first = false) => {
