@@ -20,7 +20,7 @@ const WORDS = {
   list: 'القائمة', add: 'إضافة', remove: 'إزالة', delete: 'حذف', clear: 'مسح', punish: 'عقوبة', info: 'معلومات',
   panel: 'لوحة', spam: 'سبام', links: 'روابط', mentions: 'منشنات', raid: 'رايد', nuke: 'تخريب',
   ignore: 'استثناء', whitelist: 'وايت_ليست', words: 'كلمات', channel: 'الروم', message: 'الرسالة',
-  style: 'الشكل', dm: 'الخاص', leave: 'المغادرة', test: 'تجربة', disable: 'إيقاف', setup: 'إعداد',
+  style: 'الشكل', dm: 'الخاص', leave: 'المغادرة', test: 'تجربة', disable: 'إيقاف', setup: 'إعداد', owner: 'الأونرشيب',
   set: 'تحديد', view: 'عرض', reward: 'مكافآت', stack: 'تجميع', announce: 'إعلان', xp: 'الخبرة',
   reset: 'تصفير', delay: 'التأخير', create: 'إنشاء', type: 'النوع', close: 'إغلاق', claim: 'استلام',
   rename: 'تسمية', image: 'صورة', refresh: 'تحديث',

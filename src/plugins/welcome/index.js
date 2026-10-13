@@ -7,9 +7,18 @@ const { I } = require('../../core/icons');
 
 const VARS_HELP = '`{user}` منشن • `{username}` الاسم • `{server}` السيرفر • `{count}` عدد الأعضاء';
 
+// Wrap a Latin/mixed token in isolate marks so it doesn't scramble the RTL line.
+const iso = (s) => `⁨${s}⁩`;
+
 function welcomePayload(member, cfg) {
-  const text = `${emoji.gate} **أهلاً ${member} في ${member.guild.name}** — العضو رقم ${member.guild.memberCount}\n${fill(cfg.message, memberVars(member))}`;
-  const payload = { content: text, allowedMentions: { parse: cfg.mention ? ['users'] : [] } };
+  const vars = { ...memberVars(member), server: iso(member.guild.name) };
+  let text = fill(cfg.message, vars);
+  const users = cfg.mention ? [member.id] : [];
+  if (cfg.ownerId) {
+    text += `\n${I.crown} ${iso(`<@${cfg.ownerId}>`)}`;
+    users.push(cfg.ownerId);
+  }
+  const payload = { content: text, allowedMentions: { users } };
   if (cfg.image) payload.files = [file('welcome')];
   return payload;
 }
@@ -44,7 +53,9 @@ const data = new SlashCommandBuilder()
     .addStringOption((o) => o.setName('text').setDescription('النص — المتغيرات: {user} {username} {server} {count}').setRequired(true).setMaxLength(1500)))
   .addSubcommand((s) => s.setName('style').setDescription('شكل رسالة الترحيب')
     .addBooleanOption((o) => o.setName('image').setDescription('صورة بانر Sword').setRequired(true))
-    .addBooleanOption((o) => o.setName('mention').setDescription('منشن العضو فوق الإمبد')))
+    .addBooleanOption((o) => o.setName('mention').setDescription('منشن العضو الجديد')))
+  .addSubcommand((s) => s.setName('owner').setDescription('منشن الأونرشيب في رسالة الترحيب')
+    .addUserOption((o) => o.setName('user').setDescription('الأونر — فاضي = إلغاء المنشن')))
   .addSubcommand((s) => s.setName('dm').setDescription('رسالة خاص للعضو الجديد')
     .addBooleanOption((o) => o.setName('enabled').setDescription('تفعيل').setRequired(true))
     .addStringOption((o) => o.setName('text').setDescription('النص').setMaxLength(1500)))
@@ -73,6 +84,11 @@ async function execute(interaction) {
         cfg.mention = o.getBoolean('mention') ?? cfg.mention;
       });
       return reply.success(interaction, 'تم تحديث شكل الترحيب.');
+    case 'owner': {
+      const u = o.getUser('user');
+      set((cfg) => { cfg.ownerId = u?.id || ''; });
+      return reply.success(interaction, u ? `بيتمنشن الأونرشيب ${u} بكل ترحيب.` : 'تم إلغاء منشن الأونرشيب.');
+    }
     case 'dm':
       set((cfg) => {
         cfg.dm.enabled = o.getBoolean('enabled');
@@ -105,7 +121,8 @@ module.exports = {
   description: 'ترحيب بإمبد وبانر Sword، رسالة خاص للعضو الجديد، ورسالة مغادرة.',
   defaults: {
     channelId: null,
-    message: 'حيّاك الله {user} في **{server}**\nأنت العضو رقم **{count}** — نورت السيرفر!',
+    message: 'حيّاك الله {user} في ⁨Sword⁩',
+    ownerId: '',
     image: true,
     mention: true,
     dm: { enabled: false, message: 'أهلاً {username}! حيّاك في **{server}**\nلا تنسى تقرأ القوانين.' },
@@ -119,7 +136,8 @@ module.exports = {
         { key: 'channelId', type: 'channel', label: 'روم الترحيب', hint: 'فاضي = الترحيب مقفل' },
         { key: 'message', type: 'textarea', label: 'رسالة الترحيب', max: 1500 },
         { key: 'image', type: 'bool', label: 'بانر WELCOME الساموراي' },
-        { key: 'mention', type: 'bool', label: 'منشن العضو فوق الرسالة' },
+        { key: 'mention', type: 'bool', label: 'منشن العضو الجديد' },
+        { key: 'ownerId', type: 'text', label: 'آيدي الأونرشيب (ينمنشن بكل ترحيب)', hint: 'فاضي = بدون منشن' },
       ],
     },
     {
