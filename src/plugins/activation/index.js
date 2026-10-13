@@ -194,13 +194,16 @@ async function lockRooms(guild, cfg) {
 // room hides. The server owner can always run this to recover.
 async function unlockAll(guild, cfg) {
   const botTop = guild.members.me.roles.highest.position;
-  let restored = 0;
+  let restored = 0; let skippedHigh = 0;
   for (const row of data.holdAll(guild.id)) {
     const m = await guild.members.fetch(row.userId).catch(() => null);
-    const roles = row.roles.filter((id) => guild.roles.cache.get(id) && guild.roles.cache.get(id).position < botTop);
-    if (m && roles.length) await m.roles.add(roles, 'إلغاء نظام التفعيل: إرجاع الرتب').catch(() => null);
-    data.holdClear(guild.id, row.userId);
-    restored += 1;
+    const roles = row.roles.filter((id) => guild.roles.cache.get(id));
+    const addable = roles.filter((id) => guild.roles.cache.get(id).position < botTop);
+    skippedHigh += roles.length - addable.length; // roles the bot is too low to give back
+    if (m && addable.length) await m.roles.add(addable, 'إلغاء نظام التفعيل: إرجاع الرتب').catch(() => null);
+    // keep the row if some roles still couldn't be restored, so a later run (after the
+    // bot is moved up) can finish the job.
+    if (roles.length === addable.length) { data.holdClear(guild.id, row.userId); restored += 1; }
   }
   let lifted = 0;
   if (cfg.sowrdRole) {
@@ -208,7 +211,7 @@ async function unlockAll(guild, cfg) {
       try { await ch.permissionOverwrites.delete(cfg.sowrdRole, 'إلغاء نظام التفعيل'); lifted += 1; } catch { /* ignore */ }
     }
   }
-  return { restored, lifted };
+  return { restored, lifted, skippedHigh };
 }
 
 // ── text commands: ac/  acp/  aclock/  تفعيل <target> ────────────────
@@ -248,10 +251,13 @@ async function onMessage(message) {
     return;
   }
   if (low === 'acunlock/' || low === 'acunlock') {
-    if (!admin) return;
+    if (!admin && message.author.id !== message.guild.ownerId) {
+      return void message.reply({ content: `${emoji.error} تحتاج صلاحية إدارة أو تكون المالك.`, allowedMentions: { repliedUser: false } }).catch(() => null);
+    }
     const res = await unlockAll(message.guild, cfg).catch((e) => ({ error: e.message }));
-    const txt = res.error ? `${emoji.error} ${res.error}`
+    let txt = res.error ? `${emoji.error} ${res.error}`
       : `${I.success} تم فك القفل — رجعت رتب \`${res.restored}\` عضو وأزلت الإخفاء عن \`${res.lifted}\` روم.`;
+    if (!res.error && res.skippedHigh) txt += `\n${emoji.warn} فيه \`${res.skippedHigh}\` رتبة أعلى من رتبة البوت ما قدر يرجّعها — ارفع رتبة البوت فوق وأعد \`acunlock/\`.`;
     await message.reply({ content: txt, allowedMentions: { repliedUser: false } }).catch(() => null);
     return;
   }
