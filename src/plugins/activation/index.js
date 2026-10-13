@@ -432,8 +432,9 @@ module.exports = {
     async close(interaction) {
       const t = data.byChannel(interaction.channelId);
       if (!t) return reply.error(interaction, 'Ticket already closed.');
-      if (!canManage(interaction.member, cfgOf(interaction.guildId)) && t.owner_id !== interaction.user.id) {
-        return reply.error(interaction, "You can't close this ticket.");
+      // Only staff / activation role can close — the ticket owner cannot.
+      if (!canManage(interaction.member, cfgOf(interaction.guildId))) {
+        return reply.error(interaction, 'Activation role / staff only.');
       }
       await interaction.reply({ content: '🔒 Closing...' });
       data.close(interaction.channelId);
