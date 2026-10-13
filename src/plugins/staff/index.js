@@ -896,6 +896,8 @@ async function onMemberUpdate(oldM, newM) {
   }
 
   if (!cfg.roleGuard?.enabled) return;
+  // Never guard bots: giving the server's own bot a role must not be reverted.
+  if (newM.user.bot) return;
   const protectedRoles = cfg.roleGuard.protected?.length ? cfg.roleGuard.protected : cfg.roles.admin;
   const added = newM.roles.cache.filter((r) => !oldM.roles.cache.has(r.id) && protectedRoles.includes(r.id));
   if (!added.size) return;
