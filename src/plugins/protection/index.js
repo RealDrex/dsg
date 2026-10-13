@@ -7,6 +7,7 @@ const cases = require('../../core/cases');
 const { card, simple, emoji, DIVIDER, reply } = require('../../core/theme');
 const { formatDuration } = require('../../utils/time');
 const { I, asEmoji } = require('../../core/icons');
+const spamData = require('./data');
 
 const FEATURES = {
   antiSpam: { label: 'مضاد السبام', emoji: I.message, desc: 'تايم أوت لمن يرسل رسائل كثيرة بسرعة' },
@@ -114,6 +115,31 @@ async function punish(member, minutes, reason) {
   cases.create(member.guild, { action: 'auto', userId: member.id, modId: member.client.user.id, reason, duration: minutes * 60_000 });
 }
 
+// Escalating anti-spam ladder (minutes): 1st = warn only, then 10m,30m,1h,… up to 1 week.
+const SPAM_LADDER = [0, 10, 30, 60, 180, 360, 720, 1440, 4320, 10080];
+const spamMinutes = (offense) => SPAM_LADDER[Math.min(offense - 1, SPAM_LADDER.length - 1)];
+
+async function escalateSpam(message, count) {
+  const { member, guild, author, channel } = message;
+  const offense = spamData.bump(guild.id, author.id);
+  const minutes = spamMinutes(offense);
+
+  if (offense === 1) {
+    // 1st time: private warning + a momentary timeout that's lifted right away.
+    if (member.moderatable) {
+      await member.timeout(60_000, 'Sword Protection: سبام — تحذير').catch(() => null);
+      await member.timeout(null, 'Sword Protection: إزالة التايم أوت فوراً').catch(() => null);
+    }
+    await author.send({ content: simple(`${emoji.warn} تحذير من **${guild.name}**\nرسائلك تعتبر سبام — لا تكررها، وإلا بتتقيّد.`, 'warn') }).catch(() => null);
+    cases.create(guild, { action: 'auto', userId: author.id, modId: message.client.user.id, reason: 'سبام — تحذير أول' });
+  } else {
+    await punish(member, minutes, `سبام (مخالفة ${offense})`);
+    await author.send({ content: simple(`${emoji.error} تم تقييدك في **${guild.name}** بسبب السبام لمدة **${formatDuration(minutes * 60_000)}** (مخالفة ${offense}).`, 'error') }).catch(() => null);
+  }
+
+  alert(guild, `${I.message} سبام`, `${author} أرسل \`${count}\` رسائل بسرعة في ${channel} — ${offense === 1 ? 'تحذير أول (خاص)' : `تايم أوت ${formatDuration(minutes * 60_000)}`} • مخالفة \`${offense}\`.`);
+}
+
 async function onMessage(message) {
   if (!message.inGuild() || message.author.bot || !message.member) return;
   const cfg = cfgOf(message.guildId);
@@ -148,12 +174,11 @@ async function onMessage(message) {
       if (cfg.spam.action === 'kick' && message.member.kickable) {
         await message.member.kick('Sword Protection: سبام');
         cases.create(message.guild, { action: 'auto', userId: message.author.id, modId: message.client.user.id, reason: 'سبام — طرد' });
+        await message.author.send({ content: simple(`${emoji.error} تم طردك من **${message.guild.name}** بسبب السبام.`, 'error') }).catch(() => null);
+        alert(message.guild, `${I.message} سبام`, `${message.author} أرسل \`${count}\` رسائل بسرعة في ${message.channel} — تم طرده.`);
       } else {
-        await punish(message.member, cfg.spam.minutes, 'سبام');
+        await escalateSpam(message, count);
       }
-      await message.channel.send({ content: simple(`${emoji.error} ${message.author} تم معاقبته بسبب السبام.`, 'error') })
-        .then((m) => setTimeout(() => m.delete().catch(() => null), 6000)).catch(() => null);
-      alert(message.guild, `${I.message} سبام`, `${message.author} أرسل \`${count}\` رسائل خلال ${cfg.spam.seconds} ثواني في ${message.channel}.`);
     }
   }
 }
