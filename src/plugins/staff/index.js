@@ -505,10 +505,10 @@ const COMMANDS = [
   grantCmd(['هير', 'here'], 'hereRole', 'الهير', 'صلاحية منشن @here'),
   grantCmd(['ساوند', 'soundboard'], 'soundRole', 'الساوند', 'صلاحية الساوندبورد'),
   {
-    names: ['رول', 'role'], level: 3, desc: 'إعطاء/سحب رتبة — رول <عضو> <منشن أو آيدي أو اسم الرتبة>',
+    names: ['role'], level: 3, desc: 'إعطاء/سحب رتبة — role <عضو> <منشن أو آيدي أو اسم الرتبة>',
     async run(ctx) {
       const t = await ctx.target();
-      if (!t) return err('منشن العضو أو حط آيديه. مثال: `رول @عضو الرتبة`');
+      if (!t) return err('منشن العضو أو حط آيديه. مثال: `role @عضو الرتبة`');
       const role = resolveRole(ctx.guild, ctx.reasonFrom(1));
       if (!role) return err('ما لقيت الرتبة — منشن أو آيدي أو اسمها الصحيح.');
       if (role.managed || role.id === ctx.guild.id) return err(`الرتبة \`${role.name}\` (\`${role.id}\`) ما تنعطى يدوياً — مُدارة ببوت/خدمة/بوست أو @everyone. استخدم منشن الرتبة الصحيحة \`@الرتبة\`.`);
