@@ -799,7 +799,14 @@ async function onMessage(message) {
   }
 
   const cfg = store.get(message.guildId, ID);
-  message._staffArgs = args;
+  // Reply support: "اسكات/سجن/…" as a reply on someone's message targets its author.
+  // Only when no explicit mention/id is already given (so inline targets still win).
+  let finalArgs = args;
+  if (message.reference?.messageId && !mentionId((args.trim().split(/\s+/)[0] || ''))) {
+    const ref = await message.channel.messages.fetch(message.reference.messageId).catch(() => null);
+    if (ref?.author?.id) finalArgs = `<@${ref.author.id}> ${args}`.trim();
+  }
+  message._staffArgs = finalArgs;
   message._staffLevel = level;
   try {
     const res = await cmd.run(makeCtx(message, cfg));
