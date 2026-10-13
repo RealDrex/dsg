@@ -10,6 +10,7 @@ const { reply } = require('../../core/theme');
 const { I, setIcon } = require('../../core/icons');
 const { normalize } = require('../../core/i18n');
 const logger = require('../../core/logger');
+const transcript = require('../tickets/transcript');
 const data = require('./data');
 const art = require('./art');
 
@@ -169,6 +170,26 @@ async function openTicket(interaction) {
     allowedMentions: { users: [member.id], roles: cfg.staffRole ? [cfg.staffRole] : [] },
   });
   return reply.success(interaction, `Ticket opened: ${channel}`);
+}
+
+// Build an HTML transcript of the ticket (Discord theme) and post it to the log
+// room with a mention of the activated member and the staffer who handled it.
+async function logTicket(guild, channel, cfg, { number, ownerId, actorId, activated }) {
+  const logCh = cfg.logChannelId && await guild.channels.fetch(cfg.logChannelId).catch(() => null);
+  if (!logCh) return;
+  let html; let count = 0;
+  try {
+    const owner = await guild.client.users.fetch(ownerId).catch(() => null);
+    ({ html, count } = await transcript.build(channel, { number, typeLabel: 'Activation', ownerTag: owner?.tag || ownerId }));
+  } catch (e) { logger.warn('[activation] transcript:', e.message); return; }
+  const file = new AttachmentBuilder(Buffer.from(html), { name: 'index.html' });
+  const head = [
+    `📋 **Activation Ticket #${pad(number)}**`,
+    `العضو: <@${ownerId}>`,
+    actorId ? `${activated ? 'فعّله ✅' : 'أغلق التذكرة'}: <@${actorId}>` : null,
+    `الرسائل: ${count}`,
+  ].filter(Boolean).join('\n');
+  await logCh.send({ content: head, files: [file], allowedMentions: { users: [ownerId, actorId].filter(Boolean) } }).catch(() => null);
 }
 
 async function lockRooms(guild, cfg) {
@@ -419,6 +440,7 @@ module.exports = {
       const res = await activateMember(interaction.guild, target, cfg).catch((e) => ({ error: e.message }));
       if (res.error) return reply.error(interaction, res.error);
       await interaction.reply({ content: `✅ Activated ${target} — rooms are now visible. Closing ticket.`, allowedMentions: { users: [target.id] } });
+      await logTicket(interaction.guild, interaction.channel, cfg, { number: t.number, ownerId: t.owner_id, actorId: interaction.user.id, activated: true });
       data.close(interaction.channelId);
       setTimeout(() => interaction.channel?.delete('activation done').catch(() => null), 5000);
     },
@@ -453,6 +475,7 @@ module.exports = {
         return reply.error(interaction, 'Activation role / staff only.');
       }
       await interaction.reply({ content: '🔒 Closing...' });
+      await logTicket(interaction.guild, interaction.channel, cfgOf(interaction.guildId), { number: t.number, ownerId: t.owner_id, actorId: interaction.user.id, activated: false });
       data.close(interaction.channelId);
       setTimeout(() => interaction.channel?.delete(`closed by ${interaction.user.tag}`).catch(() => null), 3000);
     },
