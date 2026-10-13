@@ -118,6 +118,8 @@ async function quarantine(member, cfg) {
 
 // The activated "Sword" member role id (config, falling back to the fixed id).
 const memberRoleId = (cfg) => cfg.memberRole || '1559430792411877417';
+// The log room id (config, falling back to the fixed id even if saved as null).
+const logChannelId = (cfg) => cfg.logChannelId || '1559549676640800889';
 
 async function activateMember(guild, target, cfg) {
   if (!cfg.sowrdRole || !guild.roles.cache.get(cfg.sowrdRole)) throw new Error('SOWRD role is not set or missing.');
@@ -133,7 +135,7 @@ async function activateMember(guild, target, cfg) {
     && guild.roles.cache.get(id).position < guild.members.me.roles.highest.position);
   if (guild.roles.cache.get(mId)) add.push(mId);
   if (add.length) await target.roles.add([...new Set(add)], 'تفعيل العضو: الرتب').catch(() => null);
-  const log = cfg.logChannelId && guild.channels.cache.get(cfg.logChannelId);
+  const log = guild.channels.cache.get(logChannelId(cfg)) || await guild.channels.fetch(logChannelId(cfg)).catch(() => null);
   if (log) log.send({ content: `✅ Activated ${target} \`${target.id}\``, allowedMentions: { parse: [] } }).catch(() => null);
   return { ok: true };
 }
@@ -175,8 +177,8 @@ async function openTicket(interaction) {
 // Build an HTML transcript of the ticket (Discord theme) and post it to the log
 // room with a mention of the activated member and the staffer who handled it.
 async function logTicket(guild, channel, cfg, { number, ownerId, actorId, activated }) {
-  const logCh = cfg.logChannelId && await guild.channels.fetch(cfg.logChannelId).catch(() => null);
-  if (!logCh) return;
+  const logCh = await guild.channels.fetch(logChannelId(cfg)).catch(() => null);
+  if (!logCh) { logger.warn('[activation] log room not reachable:', logChannelId(cfg)); return; }
   let html; let count = 0;
   try {
     const owner = await guild.client.users.fetch(ownerId).catch(() => null);
