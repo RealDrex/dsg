@@ -156,15 +156,25 @@ async function onMessage(message) {
   const low = bare.toLowerCase();
   const admin = message.member.permissions.has(P.ManageGuild);
 
+  // Target room from a #mention or an id after the command, else the current room.
+  const targetChannel = () => {
+    const mentioned = message.mentions.channels.find((c) => c.isTextBased?.());
+    if (mentioned) return mentioned;
+    const id = resolveId(parts.slice(1).join(' '));
+    return (id && message.guild.channels.cache.get(id)) || message.channel;
+  };
+
   if (low === 'ac/' || low === 'ac') {
     if (!admin) return;
-    await message.channel.send(await ticketPanelPayload()).catch(() => null);
+    const ch = targetChannel();
+    await ch.send(await ticketPanelPayload()).catch(() => null);
     message.delete().catch(() => null);
     return;
   }
   if (low === 'acp/' || low === 'acp') {
     if (!admin) return;
-    await message.channel.send(await activatePanelPayload()).catch(() => null);
+    const ch = targetChannel();
+    await ch.send(await activatePanelPayload()).catch(() => null);
     message.delete().catch(() => null);
     return;
   }
