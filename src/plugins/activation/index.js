@@ -6,7 +6,7 @@ const {
   ModalBuilder, TextInputBuilder, TextInputStyle, AttachmentBuilder, MessageFlags,
 } = require('discord.js');
 const store = require('../../core/store');
-const { reply, emoji } = require('../../core/theme');
+const { reply } = require('../../core/theme');
 const { I, setIcon } = require('../../core/icons');
 const { normalize } = require('../../core/i18n');
 const logger = require('../../core/logger');
@@ -24,18 +24,19 @@ const canActivate = (member, cfg) => member.id === member.guild.ownerId
 const canManage = (member, cfg) => canActivate(member, cfg) || member.permissions.has(P.ManageChannels);
 
 // ── banners / panels ─────────────────────────────────────────────────
+// Panel buttons are plain English with no icon (icons live only on ticket buttons).
 async function ticketPanelPayload() {
-  const file = new AttachmentBuilder(await art.banner('ACTIVATION SOWRD', 'افتح تذكرة التفعيل عشان ننشّط حسابك'), { name: 'activation.png' });
+  const file = new AttachmentBuilder(await art.banner('ACTIVATION SOWRD', 'Open a ticket to get activated'), { name: 'activation.png' });
   const row = new ActionRowBuilder().addComponents(
-    setIcon(new ButtonBuilder().setCustomId('activation:open').setLabel('فتح تذكرة التفعيل').setStyle(ButtonStyle.Success), I.ticket),
+    new ButtonBuilder().setCustomId('activation:open').setLabel('Open Ticket').setStyle(ButtonStyle.Success),
   );
   return { files: [file], components: [row] };
 }
 
 async function activatePanelPayload() {
-  const file = new AttachmentBuilder(await art.banner('ACTIVATION PANEL', 'اضغط تفعيل وحط العضو اللي تبي تنشّطه'), { name: 'activation-panel.png' });
+  const file = new AttachmentBuilder(await art.banner('ACTIVATION PANEL', 'Press Activate and enter the member to activate'), { name: 'activation-panel.png' });
   const row = new ActionRowBuilder().addComponents(
-    setIcon(new ButtonBuilder().setCustomId('activation:panel').setLabel('تفعيل').setStyle(ButtonStyle.Success), I.unlock),
+    new ButtonBuilder().setCustomId('activation:panel').setLabel('Activate').setStyle(ButtonStyle.Success),
   );
   return { files: [file], components: [row] };
 }
@@ -76,12 +77,13 @@ async function ready(client) {
   }
 }
 
+// Ticket control buttons keep the SVG icons, English labels.
 function ticketControls() {
   return new ActionRowBuilder().addComponents(
-    setIcon(new ButtonBuilder().setCustomId('activation:activate').setLabel('تفعيل').setStyle(ButtonStyle.Success), I.unlock),
-    setIcon(new ButtonBuilder().setCustomId('activation:add').setLabel('إضافة').setStyle(ButtonStyle.Secondary), I.plus),
-    setIcon(new ButtonBuilder().setCustomId('activation:remove').setLabel('إزالة').setStyle(ButtonStyle.Secondary), I.minus),
-    setIcon(new ButtonBuilder().setCustomId('activation:close').setLabel('إغلاق').setStyle(ButtonStyle.Danger), I.lock),
+    setIcon(new ButtonBuilder().setCustomId('activation:activate').setLabel('Activate').setStyle(ButtonStyle.Success), I.unlock),
+    setIcon(new ButtonBuilder().setCustomId('activation:add').setLabel('Add').setStyle(ButtonStyle.Secondary), I.plus),
+    setIcon(new ButtonBuilder().setCustomId('activation:remove').setLabel('Remove').setStyle(ButtonStyle.Secondary), I.minus),
+    setIcon(new ButtonBuilder().setCustomId('activation:close').setLabel('Close').setStyle(ButtonStyle.Danger), I.lock),
   );
 }
 
@@ -113,7 +115,7 @@ async function quarantine(member, cfg) {
 }
 
 async function activateMember(guild, target, cfg) {
-  if (!cfg.sowrdRole || !guild.roles.cache.get(cfg.sowrdRole)) throw new Error('رتبة SOWRD مو محددة أو مو موجودة.');
+  if (!cfg.sowrdRole || !guild.roles.cache.get(cfg.sowrdRole)) throw new Error('SOWRD role is not set or missing.');
   const held = data.holdGet(guild.id, target.id);
   const hadSowrd = target.roles.cache.has(cfg.sowrdRole);
   if (!hadSowrd && !held.length) return { already: true };
@@ -124,7 +126,7 @@ async function activateMember(guild, target, cfg) {
   data.holdClear(guild.id, target.id);
   if (hadSowrd) await target.roles.remove(cfg.sowrdRole, 'تفعيل العضو').catch(() => null);
   const log = cfg.logChannelId && guild.channels.cache.get(cfg.logChannelId);
-  if (log) log.send({ content: `${I.unlock} تم تفعيل ${target} \`${target.id}\``, allowedMentions: { parse: [] } }).catch(() => null);
+  if (log) log.send({ content: `✅ Activated ${target} \`${target.id}\``, allowedMentions: { parse: [] } }).catch(() => null);
   return { ok: true };
 }
 
@@ -140,7 +142,7 @@ async function openTicket(interaction) {
   const staffAllow = cfg.staffRole && guild.roles.cache.has(cfg.staffRole)
     ? [{ id: cfg.staffRole, allow: [P.ViewChannel, P.SendMessages, P.ReadMessageHistory, P.AttachFiles, P.ManageMessages] }] : [];
   const channel = await guild.channels.create({
-    name: `تفعيل-${pad(number)}`,
+    name: `activation-${pad(number)}`,
     type: ChannelType.GuildText,
     parent: parent || undefined,
     topic: `Activation #${pad(number)} • ${member.user.tag} (${member.id})`,
@@ -155,15 +157,15 @@ async function openTicket(interaction) {
 
   const ping = cfg.staffRole && guild.roles.cache.get(cfg.staffRole) ? `<@&${cfg.staffRole}>` : '';
   await channel.send({
-    content: `${member} ${ping}\nحيّاك في تذكرة التفعيل — عرّفنا عن نفسك ومن وين عرفت السيرفر وبنفعّلك.`,
+    content: `${member} ${ping}\nWelcome to your activation ticket — tell us about yourself and how you found the server, and we'll activate you.`,
     components: [ticketControls()],
     allowedMentions: { users: [member.id], roles: cfg.staffRole ? [cfg.staffRole] : [] },
   });
-  return reply.success(interaction, `تم فتح تذكرتك: ${channel}`);
+  return reply.success(interaction, `Ticket opened: ${channel}`);
 }
 
 async function lockRooms(guild, cfg) {
-  if (!cfg.sowrdRole || !guild.roles.cache.get(cfg.sowrdRole)) throw new Error('رتبة SOWRD مو موجودة.');
+  if (!cfg.sowrdRole || !guild.roles.cache.get(cfg.sowrdRole)) throw new Error('SOWRD role is missing.');
   // 1) hide every room from SOWRD except the activation category
   let denied = 0; let allowed = 0;
   for (const ch of guild.channels.cache.values()) {
@@ -232,60 +234,53 @@ async function onMessage(message) {
     if (id) return message.guild.channels.cache.get(id) || message.channel;
     return (fallbackId && message.guild.channels.cache.get(fallbackId)) || message.channel;
   };
-  const postReport = async (ch, which) => {
-    const res = await sendPanel(message.guild, ch, which).then(() => null).catch((e) => e.message);
-    await message.reply({
-      content: res ? `${emoji.error} ما قدرت أرسل البنل في ${ch}: ${res}` : `${I.success} تم إرسال البنل في ${ch}`,
-      allowedMentions: { repliedUser: false },
-    }).catch(() => null);
-  };
+  const react = (ok) => message.react(ok ? '✅' : '❌').catch(() => null);
+  const say = (text) => message.reply({ content: text, allowedMentions: { repliedUser: false } }).catch(() => null);
 
   if (low === 'ac/' || low === 'ac') {
     if (!admin) return;
-    await postReport(targetChannel(cfg.ticketPanelChannel), 'ticket');
+    const err = await sendPanel(message.guild, targetChannel(cfg.ticketPanelChannel), 'ticket').then(() => null).catch((e) => e.message);
+    await react(!err);
+    if (err) await say(`Failed to send panel: ${err}`);
     return;
   }
   if (low === 'acp/' || low === 'acp') {
     if (!admin) return;
-    await postReport(targetChannel(cfg.activatePanelChannel), 'activate');
+    const err = await sendPanel(message.guild, targetChannel(cfg.activatePanelChannel), 'activate').then(() => null).catch((e) => e.message);
+    await react(!err);
+    if (err) await say(`Failed to send panel: ${err}`);
     return;
   }
   if (low === 'acunlock/' || low === 'acunlock') {
-    if (!admin && message.author.id !== message.guild.ownerId) {
-      return void message.reply({ content: `${emoji.error} تحتاج صلاحية إدارة أو تكون المالك.`, allowedMentions: { repliedUser: false } }).catch(() => null);
-    }
+    if (!admin && message.author.id !== message.guild.ownerId) return void react(false);
     const res = await unlockAll(message.guild, cfg).catch((e) => ({ error: e.message }));
-    let txt = res.error ? `${emoji.error} ${res.error}`
-      : `${I.success} تم فك القفل — رجعت رتب \`${res.restored}\` عضو وأزلت الإخفاء عن \`${res.lifted}\` روم.`;
-    if (!res.error && res.skippedHigh) txt += `\n${emoji.warn} فيه \`${res.skippedHigh}\` رتبة أعلى من رتبة البوت ما قدر يرجّعها — ارفع رتبة البوت فوق وأعد \`acunlock/\`.`;
-    await message.reply({ content: txt, allowedMentions: { repliedUser: false } }).catch(() => null);
+    await react(!res.error);
+    if (res.error) return void say(`Error: ${res.error}`);
+    let txt = `Unlocked — restored ${res.restored} members, lifted hides on ${res.lifted} rooms.`;
+    if (res.skippedHigh) txt += ` ${res.skippedHigh} role(s) are above the bot — move the bot role up and run !acunlock again.`;
+    await say(txt);
     return;
   }
   if (low === 'aclock/' || low === 'aclock') {
     if (!admin) return;
     const res = await lockRooms(message.guild, cfg).catch((e) => ({ error: e.message }));
-    const txt = res.error ? `${emoji.error} ${res.error}` : `${I.success} تم إخفاء الرومات عن رتبة SOWRD ما عدا كاتوقري التفعيل.\nمخفي: \`${res.denied}\` روم • تم حجز رتب \`${res.gated}\` عضو (لين يتفعلون).`;
-    await message.reply({ content: txt, allowedMentions: { repliedUser: false } }).catch(() => null);
+    await react(!res.error);
+    await say(res.error ? `Error: ${res.error}` : `Done — hidden ${res.denied} rooms, gated ${res.gated} members.`);
     return;
   }
 
-  if (normalize(bare) === normalize('تفعيل')) {
-    if (!canActivate(message.member, cfg)) {
-      return void message.reply({ content: `${emoji.error} التفعيل فقط لرتبة التفعيل.`, allowedMentions: { repliedUser: false } }).catch(() => null);
-    }
+  if (normalize(bare) === normalize('تفعيل') || low === 'activate') {
+    if (!canActivate(message.member, cfg)) return void react(false);
     let id = resolveId(parts.slice(1).join(' '));
     if (!id && message.reference?.messageId) {
       const ref = await message.channel.messages.fetch(message.reference.messageId).catch(() => null);
       id = ref?.author?.id || null;
     }
-    if (!id) return void message.reply({ content: `${emoji.error} منشن العضو أو حط آيديه أو رد على رسالته.`, allowedMentions: { repliedUser: false } }).catch(() => null);
+    if (!id) return void react(false);
     const target = await message.guild.members.fetch(id).catch(() => null);
-    if (!target) return void message.reply({ content: `${emoji.error} العضو مو موجود بالسيرفر.`, allowedMentions: { repliedUser: false } }).catch(() => null);
+    if (!target) return void react(false);
     const res = await activateMember(message.guild, target, cfg).catch((e) => ({ error: e.message }));
-    const txt = res.error ? `${emoji.error} ${res.error}`
-      : res.already ? `${target} أصلاً مفعّل.`
-        : `${I.success} تم تفعيل ${target} — صارت الرومات ظاهرة له.`;
-    await message.reply({ content: txt, allowedMentions: { users: [target.id] } }).catch(() => null);
+    await react(!res.error);
   }
 }
 
@@ -309,7 +304,7 @@ async function onMemberUpdate(_oldM, newM) {
 function userModal(action, label) {
   return new ModalBuilder().setCustomId(`activation:${action}`).setTitle(label).addComponents(
     new ActionRowBuilder().addComponents(
-      new TextInputBuilder().setCustomId('user').setLabel('آيدي العضو أو منشنه').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(40),
+      new TextInputBuilder().setCustomId('user').setLabel('Member ID or mention').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(40),
     ),
   );
 }
@@ -400,62 +395,62 @@ module.exports = {
     },
     async activate(interaction) {
       const cfg = cfgOf(interaction.guildId);
-      if (!canActivate(interaction.member, cfg)) return reply.error(interaction, 'التفعيل فقط لرتبة التفعيل.');
+      if (!canActivate(interaction.member, cfg)) return reply.error(interaction, 'Activation role only.');
       const t = data.byChannel(interaction.channelId);
-      if (!t) return reply.error(interaction, 'هذا مو روم تذكرة تفعيل.');
+      if (!t) return reply.error(interaction, 'This is not an activation ticket.');
       const target = await interaction.guild.members.fetch(t.owner_id).catch(() => null);
-      if (!target) return reply.error(interaction, 'صاحب التذكرة مو موجود بالسيرفر.');
+      if (!target) return reply.error(interaction, 'Ticket owner is no longer in the server.');
       const res = await activateMember(interaction.guild, target, cfg).catch((e) => ({ error: e.message }));
       if (res.error) return reply.error(interaction, res.error);
-      await interaction.reply({ content: `${I.success} تم تفعيل ${target} — صارت الرومات ظاهرة له. التذكرة بتنقفل.`, allowedMentions: { users: [target.id] } });
+      await interaction.reply({ content: `✅ Activated ${target} — rooms are now visible. Closing ticket.`, allowedMentions: { users: [target.id] } });
       data.close(interaction.channelId);
       setTimeout(() => interaction.channel?.delete('activation done').catch(() => null), 5000);
     },
     async add(interaction) {
-      if (!canManage(interaction.member, cfgOf(interaction.guildId))) return reply.error(interaction, 'لرتبة التفعيل / الإدارة فقط.');
-      return interaction.showModal(userModal('addsubmit', 'إضافة عضو للتذكرة'));
+      if (!canManage(interaction.member, cfgOf(interaction.guildId))) return reply.error(interaction, 'Activation role / staff only.');
+      return interaction.showModal(userModal('addsubmit', 'Add member to ticket'));
     },
     async remove(interaction) {
-      if (!canManage(interaction.member, cfgOf(interaction.guildId))) return reply.error(interaction, 'لرتبة التفعيل / الإدارة فقط.');
-      return interaction.showModal(userModal('removesubmit', 'إزالة عضو من التذكرة'));
+      if (!canManage(interaction.member, cfgOf(interaction.guildId))) return reply.error(interaction, 'Activation role / staff only.');
+      return interaction.showModal(userModal('removesubmit', 'Remove member from ticket'));
     },
     async addsubmit(interaction) {
       const id = resolveId(interaction.fields.getTextInputValue('user'));
       const target = id && await interaction.guild.members.fetch(id).catch(() => null);
-      if (!target) return reply.error(interaction, 'العضو مو موجود.');
+      if (!target) return reply.error(interaction, 'Member not found.');
       await interaction.channel.permissionOverwrites.edit(target.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, AttachFiles: true });
-      return interaction.reply({ content: `${I.plus} تمت إضافة ${target} للتذكرة.`, allowedMentions: { users: [target.id] } });
+      return interaction.reply({ content: `✅ Added ${target} to the ticket.`, allowedMentions: { users: [target.id] } });
     },
     async removesubmit(interaction) {
       const id = resolveId(interaction.fields.getTextInputValue('user'));
       const t = data.byChannel(interaction.channelId);
-      if (id && t && id === t.owner_id) return reply.error(interaction, 'ما تقدر تشيل صاحب التذكرة.');
-      if (!id) return reply.error(interaction, 'آيدي غير صحيح.');
+      if (id && t && id === t.owner_id) return reply.error(interaction, "You can't remove the ticket owner.");
+      if (!id) return reply.error(interaction, 'Invalid ID.');
       await interaction.channel.permissionOverwrites.delete(id).catch(() => null);
-      return interaction.reply({ content: `${I.minus} تمت إزالة <@${id}> من التذكرة.`, allowedMentions: { parse: [] } });
+      return interaction.reply({ content: `✅ Removed <@${id}> from the ticket.`, allowedMentions: { parse: [] } });
     },
     async close(interaction) {
       const t = data.byChannel(interaction.channelId);
-      if (!t) return reply.error(interaction, 'التذكرة مقفلة.');
+      if (!t) return reply.error(interaction, 'Ticket already closed.');
       if (!canManage(interaction.member, cfgOf(interaction.guildId)) && t.owner_id !== interaction.user.id) {
-        return reply.error(interaction, 'ما تقدر تقفل هذي التذكرة.');
+        return reply.error(interaction, "You can't close this ticket.");
       }
-      await interaction.reply({ content: `${I.lock} جاري الإغلاق...` });
+      await interaction.reply({ content: '🔒 Closing...' });
       data.close(interaction.channelId);
       setTimeout(() => interaction.channel?.delete(`closed by ${interaction.user.tag}`).catch(() => null), 3000);
     },
     async panel(interaction) {
-      if (!canActivate(interaction.member, cfgOf(interaction.guildId))) return reply.error(interaction, 'التفعيل فقط لرتبة التفعيل.');
-      return interaction.showModal(userModal('panelsubmit', 'تفعيل عضو'));
+      if (!canActivate(interaction.member, cfgOf(interaction.guildId))) return reply.error(interaction, 'Activation role only.');
+      return interaction.showModal(userModal('panelsubmit', 'Activate member'));
     },
     async panelsubmit(interaction) {
       const cfg = cfgOf(interaction.guildId);
       const id = resolveId(interaction.fields.getTextInputValue('user'));
       const target = id && await interaction.guild.members.fetch(id).catch(() => null);
-      if (!target) return reply.error(interaction, 'العضو مو موجود بالسيرفر.');
+      if (!target) return reply.error(interaction, 'Member not found in the server.');
       const res = await activateMember(interaction.guild, target, cfg).catch((e) => ({ error: e.message }));
       if (res.error) return reply.error(interaction, res.error);
-      return interaction.reply({ content: res.already ? `${target} أصلاً مفعّل.` : `${I.success} تم تفعيل ${target}.`, flags: MessageFlags.Ephemeral });
+      return interaction.reply({ content: res.already ? `${target} is already activated.` : `✅ Activated ${target}.`, flags: MessageFlags.Ephemeral });
     },
   },
 };
