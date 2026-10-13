@@ -30,6 +30,7 @@ const stmt = {
   holdSet: db.prepare('INSERT INTO activation_hold (guild_id, user_id, roles, at) VALUES (?, ?, ?, ?) ON CONFLICT (guild_id, user_id) DO UPDATE SET roles = excluded.roles, at = excluded.at'),
   holdGet: db.prepare('SELECT roles FROM activation_hold WHERE guild_id = ? AND user_id = ?'),
   holdDel: db.prepare('DELETE FROM activation_hold WHERE guild_id = ? AND user_id = ?'),
+  holdAll: db.prepare('SELECT user_id, roles FROM activation_hold WHERE guild_id = ?'),
 };
 
 module.exports = {
@@ -42,4 +43,5 @@ module.exports = {
   holdSet: (g, u, roles) => stmt.holdSet.run(g, u, JSON.stringify(roles), Date.now()),
   holdGet: (g, u) => { const r = stmt.holdGet.get(g, u); return r ? JSON.parse(r.roles) : []; },
   holdClear: (g, u) => stmt.holdDel.run(g, u),
+  holdAll: (g) => stmt.holdAll.all(g).map((r) => ({ userId: r.user_id, roles: JSON.parse(r.roles) })),
 };

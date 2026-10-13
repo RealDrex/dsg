@@ -102,8 +102,8 @@ function removableRoles(member, cfg) {
 // Gate a member: stash their other roles and strip them so SOWRD is the only thing
 // deciding what they see (this is the only way an Administrator stays hidden too).
 async function quarantine(member, cfg) {
-  // Never gate the server owner (can't hide rooms from them anyway) — keeps a way back in.
-  if (member.id === member.guild.ownerId) return;
+  // Never gate the server owner (can't hide rooms from them anyway) or bots.
+  if (member.user.bot || member.id === member.guild.ownerId) return;
   if (!cfg.sowrdRole || !member.roles.cache.has(cfg.sowrdRole)) return;
   const rem = removableRoles(member, cfg);
   if (!rem.size) return;
@@ -181,13 +181,34 @@ async function lockRooms(guild, cfg) {
   const members = await guild.members.fetch().catch(() => null);
   if (members) {
     for (const m of members.values()) {
-      if (!m.user.bot && m.roles.cache.has(cfg.sowrdRole) && removableRoles(m, cfg).size) {
+      if (!m.user.bot && m.id !== guild.ownerId && m.roles.cache.has(cfg.sowrdRole) && removableRoles(m, cfg).size) {
         await quarantine(m, cfg);
         gated += 1;
       }
     }
   }
   return { denied, allowed, gated };
+}
+
+// Full undo: give everyone their held roles back, clear holds, and lift the SOWRD
+// room hides. The server owner can always run this to recover.
+async function unlockAll(guild, cfg) {
+  const botTop = guild.members.me.roles.highest.position;
+  let restored = 0;
+  for (const row of data.holdAll(guild.id)) {
+    const m = await guild.members.fetch(row.userId).catch(() => null);
+    const roles = row.roles.filter((id) => guild.roles.cache.get(id) && guild.roles.cache.get(id).position < botTop);
+    if (m && roles.length) await m.roles.add(roles, 'إلغاء نظام التفعيل: إرجاع الرتب').catch(() => null);
+    data.holdClear(guild.id, row.userId);
+    restored += 1;
+  }
+  let lifted = 0;
+  if (cfg.sowrdRole) {
+    for (const ch of guild.channels.cache.values()) {
+      try { await ch.permissionOverwrites.delete(cfg.sowrdRole, 'إلغاء نظام التفعيل'); lifted += 1; } catch { /* ignore */ }
+    }
+  }
+  return { restored, lifted };
 }
 
 // ── text commands: ac/  acp/  aclock/  تفعيل <target> ────────────────
@@ -224,6 +245,14 @@ async function onMessage(message) {
   if (low === 'acp/' || low === 'acp') {
     if (!admin) return;
     await postReport(targetChannel(cfg.activatePanelChannel), 'activate');
+    return;
+  }
+  if (low === 'acunlock/' || low === 'acunlock') {
+    if (!admin) return;
+    const res = await unlockAll(message.guild, cfg).catch((e) => ({ error: e.message }));
+    const txt = res.error ? `${emoji.error} ${res.error}`
+      : `${I.success} تم فك القفل — رجعت رتب \`${res.restored}\` عضو وأزلت الإخفاء عن \`${res.lifted}\` روم.`;
+    await message.reply({ content: txt, allowedMentions: { repliedUser: false } }).catch(() => null);
     return;
   }
   if (low === 'aclock/' || low === 'aclock') {
@@ -340,6 +369,14 @@ module.exports = {
       async run(guild) {
         const res = await lockRooms(guild, cfgOf(guild.id));
         return `تم — مخفي ${res.denied} روم، وحجزت رتب ${res.gated} عضو.`;
+      },
+    },
+    unlockAll: {
+      label: 'فك القفل وإرجاع الرتب',
+      description: 'يرجّع رتب كل الأعضاء المحجوزين ويلغي إخفاء الرومات عن SOWRD',
+      async run(guild) {
+        const res = await unlockAll(guild, cfgOf(guild.id));
+        return `تم — رجعت رتب ${res.restored} عضو، وأزلت الإخفاء عن ${res.lifted} روم.`;
       },
     },
   },
