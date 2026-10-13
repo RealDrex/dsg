@@ -72,6 +72,7 @@ async function ready(client) {
   for (const guild of client.guilds.cache.values()) {
     if (!store.isEnabled(guild.id, ID)) continue;
     const cfg = cfgOf(guild.id);
+    await ensureMemberRole(guild, cfg).catch(() => null);
     await ensurePanel(guild, cfg.ticketPanelChannel, 'ticket', 'ticketPanelMsg');
     await ensurePanel(guild, cfg.activatePanelChannel, 'activate', 'activatePanelMsg');
   }
@@ -114,16 +115,28 @@ async function quarantine(member, cfg) {
   await member.roles.remove([...rem.keys()], 'نظام التفعيل: حجز الرتب لحين التفعيل').catch(() => null);
 }
 
+// Ensure the "activated" member role exists (named Sword, distinct colour).
+async function ensureMemberRole(guild, cfg) {
+  const existing = cfg.memberRole && guild.roles.cache.get(cfg.memberRole);
+  if (existing) return existing;
+  const role = await guild.roles.create({ name: 'Sword', color: cfg.memberColor || 0x9e1b1b, reason: 'نظام التفعيل: رتبة المفعّلين' }).catch(() => null);
+  if (role) store.update(guild.id, ID, (c) => { c.memberRole = role.id; });
+  return role;
+}
+
 async function activateMember(guild, target, cfg) {
   if (!cfg.sowrdRole || !guild.roles.cache.get(cfg.sowrdRole)) throw new Error('SOWRD role is not set or missing.');
   const held = data.holdGet(guild.id, target.id);
   const hadSowrd = target.roles.cache.has(cfg.sowrdRole);
-  if (!hadSowrd && !held.length) return { already: true };
+  if (!hadSowrd && !held.length && cfg.memberRole && target.roles.cache.has(cfg.memberRole)) return { already: true };
   // restore held roles first, then drop the gate
   const restore = held.filter((id) => guild.roles.cache.has(id)
     && guild.roles.cache.get(id).position < guild.members.me.roles.highest.position);
   if (restore.length) await target.roles.add(restore, 'تفعيل العضو: إرجاع الرتب').catch(() => null);
   data.holdClear(guild.id, target.id);
+  // give the activated "Sword" member role
+  const memberRole = await ensureMemberRole(guild, cfg);
+  if (memberRole && !target.roles.cache.has(memberRole.id)) await target.roles.add(memberRole.id, 'تفعيل العضو').catch(() => null);
   if (hadSowrd) await target.roles.remove(cfg.sowrdRole, 'تفعيل العضو').catch(() => null);
   const log = cfg.logChannelId && guild.channels.cache.get(cfg.logChannelId);
   if (log) log.send({ content: `✅ Activated ${target} \`${target.id}\``, allowedMentions: { parse: [] } }).catch(() => null);
@@ -322,6 +335,8 @@ module.exports = {
   description: 'نظام تفعيل: رتبة SOWRD تلقائية للأعضاء الجدد، تذكرة تفعيل، وزر تفعيل يفك الرتبة ويظهر الرومات.',
   defaults: {
     sowrdRole: '760413937581162539',
+    memberRole: '',
+    memberColor: 0x9e1b1b,
     category: '1559405080048836608',
     staffRole: '1505729933807194263',
     ticketPanelChannel: '1559405250065211442',
@@ -336,7 +351,8 @@ module.exports = {
       title: 'إعداد التفعيل', icon: 'unlock',
       description: 'ac/ يحط بانل فتح التذكرة • acp/ يحط بانل التفعيل • aclock/ يخفي الرومات عن رتبة SOWRD',
       fields: [
-        { key: 'sowrdRole', type: 'role', label: 'رتبة SOWRD (تلقائية + تنفك بالتفعيل)' },
+        { key: 'sowrdRole', type: 'role', label: 'رتبة SOWRD (غير مفعّل — تلقائية + تنفك بالتفعيل)' },
+        { key: 'memberRole', type: 'role', label: 'رتبة Sword (المفعّلين — تنعطى بالتفعيل)', hint: 'فاضي = البوت ينشئها تلقائياً' },
         { key: 'category', type: 'category', label: 'كاتوقري تذاكر التفعيل' },
         { key: 'staffRole', type: 'role', label: 'رتبة التفعيل (تنمنشن وتقدر تفعّل بس)' },
         { key: 'ticketPanelChannel', type: 'channel', label: 'روم بنل فتح التذكرة' },
