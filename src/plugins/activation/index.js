@@ -179,17 +179,19 @@ async function lockRooms(guild, cfg) {
     } catch { /* skip channels we can't edit */ }
   }
   // 2) quarantine everyone who already has SOWRD (strip strong/admin roles)
-  let gated = 0;
+  const botTop = guild.members.me.roles.highest.position;
+  let gated = 0; let blocked = 0;
   const members = await guild.members.fetch().catch(() => null);
   if (members) {
     for (const m of members.values()) {
-      if (!m.user.bot && m.id !== guild.ownerId && m.roles.cache.has(cfg.sowrdRole) && removableRoles(m, cfg).size) {
-        await quarantine(m, cfg);
-        gated += 1;
-      }
+      if (m.user.bot || m.id === guild.ownerId || !m.roles.cache.has(cfg.sowrdRole)) continue;
+      if (removableRoles(m, cfg).size) { await quarantine(m, cfg); gated += 1; }
+      // a non-managed role at/above the bot can't be stripped → this member stays visible
+      const stuck = m.roles.cache.some((r) => r.id !== guild.id && r.id !== cfg.sowrdRole && !r.managed && r.position >= botTop);
+      if (stuck) blocked += 1;
     }
   }
-  return { denied, allowed, gated };
+  return { denied, allowed, gated, blocked };
 }
 
 // Full undo: give everyone their held roles back, clear holds, and lift the SOWRD
@@ -265,7 +267,10 @@ async function onMessage(message) {
     if (!admin) return;
     const res = await lockRooms(message.guild, cfg).catch((e) => ({ error: e.message }));
     await react(!res.error);
-    await say(res.error ? `Error: ${res.error}` : `Done — hidden ${res.denied} rooms, gated ${res.gated} members.`);
+    if (res.error) { await say(`Error: ${res.error}`); return; }
+    let txt = `Done — hidden ${res.denied} rooms, gated ${res.gated} members.`;
+    if (res.blocked) txt += ` ⚠️ ${res.blocked} member(s) hold a role ABOVE the bot — move the bot's role to the very top, then run !aclock again.`;
+    await say(txt);
     return;
   }
 
