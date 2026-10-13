@@ -51,8 +51,9 @@ async function sendPanel(guild, channel, which) {
 // On startup: make sure each panel exists in its room, post it if missing.
 async function ensurePanel(guild, channelId, which, msgKey) {
   if (!channelId) return;
-  const channel = guild.channels.cache.get(channelId);
-  if (!channel) { logger.warn(`[activation] روم ${msgKey} (${channelId}) مو موجود`); return; }
+  // fetch (not cache) so private rooms resolve; a failure means the bot can't see it.
+  const channel = await guild.channels.fetch(channelId).catch(() => null);
+  if (!channel) { logger.warn(`[activation] روم ${which} (${channelId}) البوت ما يقدر يشوفه — أعطه صلاحية View Channel`); return; }
   const existingId = cfgOf(guild.id)[msgKey];
   if (existingId) {
     const msg = await channel.messages.fetch(existingId).catch(() => null);
