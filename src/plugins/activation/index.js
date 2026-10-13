@@ -97,8 +97,9 @@ function resolveId(str) {
 // above the bot in the hierarchy).
 function removableRoles(member, cfg) {
   const botTop = member.guild.members.me.roles.highest.position;
+  const mId = memberRoleId(cfg);
   return member.roles.cache.filter((r) => r.id !== member.guild.id
-    && r.id !== cfg.sowrdRole && !r.managed && r.position < botTop);
+    && r.id !== cfg.sowrdRole && r.id !== mId && !r.managed && r.position < botTop);
 }
 
 // Gate a member: stash their other roles and strip them so SOWRD is the only thing
@@ -123,16 +124,14 @@ async function activateMember(guild, target, cfg) {
   const held = data.holdGet(guild.id, target.id);
   const hadSowrd = target.roles.cache.has(cfg.sowrdRole);
   if (!hadSowrd && !held.length && target.roles.cache.has(mId)) return { already: true };
-  // restore held roles first, then drop the gate
-  const restore = held.filter((id) => guild.roles.cache.has(id)
-    && guild.roles.cache.get(id).position < guild.members.me.roles.highest.position);
-  if (restore.length) await target.roles.add(restore, 'تفعيل العضو: إرجاع الرتب').catch(() => null);
   data.holdClear(guild.id, target.id);
-  // give the activated "Sword" member role
-  if (guild.roles.cache.get(mId) && !target.roles.cache.has(mId)) {
-    await target.roles.add(mId, 'تفعيل العضو').catch(() => null);
-  }
+  // 1) drop the gate role FIRST so the quarantine watcher won't re-strip what we add next
   if (hadSowrd) await target.roles.remove(cfg.sowrdRole, 'تفعيل العضو').catch(() => null);
+  // 2) restore any held roles + give the activated "Sword" member role, in one update
+  const add = held.filter((id) => guild.roles.cache.get(id)
+    && guild.roles.cache.get(id).position < guild.members.me.roles.highest.position);
+  if (guild.roles.cache.get(mId)) add.push(mId);
+  if (add.length) await target.roles.add([...new Set(add)], 'تفعيل العضو: الرتب').catch(() => null);
   const log = cfg.logChannelId && guild.channels.cache.get(cfg.logChannelId);
   if (log) log.send({ content: `✅ Activated ${target} \`${target.id}\``, allowedMentions: { parse: [] } }).catch(() => null);
   return { ok: true };
@@ -310,6 +309,8 @@ async function onJoin(member) {
 async function onMemberUpdate(_oldM, newM) {
   const cfg = cfgOf(newM.guild.id);
   if (newM.user.bot || !cfg.sowrdRole || !newM.roles.cache.has(cfg.sowrdRole)) return;
+  // Activated members are never gated, even if they briefly hold SOWRD.
+  if (newM.roles.cache.has(memberRoleId(cfg))) return;
   if (removableRoles(newM, cfg).size) await quarantine(newM, cfg);
 }
 
