@@ -9,6 +9,7 @@ const store = require('../../core/store');
 const { reply, emoji } = require('../../core/theme');
 const { I, setIcon } = require('../../core/icons');
 const { normalize } = require('../../core/i18n');
+const logger = require('../../core/logger');
 const data = require('./data');
 const art = require('./art');
 
@@ -17,7 +18,9 @@ const ID = 'activation';
 const pad = (n) => String(n).padStart(4, '0');
 
 const cfgOf = (g) => store.get(g, ID);
-const canActivate = (member, cfg) => !!cfg.staffRole && member.roles.cache.has(cfg.staffRole);
+// The activation role can activate; the server owner can too (recovery path).
+const canActivate = (member, cfg) => member.id === member.guild.ownerId
+  || (!!cfg.staffRole && member.roles.cache.has(cfg.staffRole));
 const canManage = (member, cfg) => canActivate(member, cfg) || member.permissions.has(P.ManageChannels);
 
 // ── banners / panels ─────────────────────────────────────────────────
@@ -35,6 +38,41 @@ async function activatePanelPayload() {
     setIcon(new ButtonBuilder().setCustomId('activation:panel').setLabel('تفعيل').setStyle(ButtonStyle.Success), I.unlock),
   );
   return { files: [file], components: [row] };
+}
+
+// Send a panel to a channel and remember its message id (so we don't repost it).
+async function sendPanel(guild, channel, which) {
+  const payload = which === 'ticket' ? await ticketPanelPayload() : await activatePanelPayload();
+  const sent = await channel.send(payload);
+  store.update(guild.id, ID, (c) => { c[which === 'ticket' ? 'ticketPanelMsg' : 'activatePanelMsg'] = sent.id; });
+  return sent;
+}
+
+// On startup: make sure each panel exists in its room, post it if missing.
+async function ensurePanel(guild, channelId, which, msgKey) {
+  if (!channelId) return;
+  const channel = guild.channels.cache.get(channelId);
+  if (!channel) { logger.warn(`[activation] روم ${msgKey} (${channelId}) مو موجود`); return; }
+  const existingId = cfgOf(guild.id)[msgKey];
+  if (existingId) {
+    const msg = await channel.messages.fetch(existingId).catch(() => null);
+    if (msg) return;
+  }
+  try {
+    await sendPanel(guild, channel, which);
+    logger.info(`[activation] تم إرسال بنل ${which} في #${channel.name}`);
+  } catch (e) {
+    logger.warn(`[activation] تعذر إرسال بنل ${which} في ${channelId}: ${e.message}`);
+  }
+}
+
+async function ready(client) {
+  for (const guild of client.guilds.cache.values()) {
+    if (!store.isEnabled(guild.id, ID)) continue;
+    const cfg = cfgOf(guild.id);
+    await ensurePanel(guild, cfg.ticketPanelChannel, 'ticket', 'ticketPanelMsg');
+    await ensurePanel(guild, cfg.activatePanelChannel, 'activate', 'activatePanelMsg');
+  }
 }
 
 function ticketControls() {
@@ -63,6 +101,8 @@ function removableRoles(member, cfg) {
 // Gate a member: stash their other roles and strip them so SOWRD is the only thing
 // deciding what they see (this is the only way an Administrator stays hidden too).
 async function quarantine(member, cfg) {
+  // Never gate the server owner (can't hide rooms from them anyway) — keeps a way back in.
+  if (member.id === member.guild.ownerId) return;
   if (!cfg.sowrdRole || !member.roles.cache.has(cfg.sowrdRole)) return;
   const rem = removableRoles(member, cfg);
   if (!rem.size) return;
@@ -128,7 +168,10 @@ async function lockRooms(guild, cfg) {
   for (const ch of guild.channels.cache.values()) {
     const inKeep = ch.id === cfg.category || ch.parentId === cfg.category;
     try {
-      await ch.permissionOverwrites.edit(cfg.sowrdRole, { ViewChannel: inKeep }, { reason: 'إعداد نظام التفعيل' });
+      // SOWRD must be able to actually read the panel in the activation rooms.
+      await ch.permissionOverwrites.edit(cfg.sowrdRole,
+        inKeep ? { ViewChannel: true, ReadMessageHistory: true } : { ViewChannel: false },
+        { reason: 'إعداد نظام التفعيل' });
       if (inKeep) allowed += 1; else denied += 1;
     } catch { /* skip channels we can't edit */ }
   }
@@ -156,26 +199,30 @@ async function onMessage(message) {
   const low = bare.toLowerCase();
   const admin = message.member.permissions.has(P.ManageGuild);
 
-  // Target room from a #mention or an id after the command, else the current room.
-  const targetChannel = () => {
+  // Target room from a #mention / id after the command, else the configured room, else here.
+  const targetChannel = (fallbackId) => {
     const mentioned = message.mentions.channels.find((c) => c.isTextBased?.());
     if (mentioned) return mentioned;
     const id = resolveId(parts.slice(1).join(' '));
-    return (id && message.guild.channels.cache.get(id)) || message.channel;
+    if (id) return message.guild.channels.cache.get(id) || message.channel;
+    return (fallbackId && message.guild.channels.cache.get(fallbackId)) || message.channel;
+  };
+  const postReport = async (ch, which) => {
+    const res = await sendPanel(message.guild, ch, which).then(() => null).catch((e) => e.message);
+    await message.reply({
+      content: res ? `${emoji.error} ما قدرت أرسل البنل في ${ch}: ${res}` : `${I.success} تم إرسال البنل في ${ch}`,
+      allowedMentions: { repliedUser: false },
+    }).catch(() => null);
   };
 
   if (low === 'ac/' || low === 'ac') {
     if (!admin) return;
-    const ch = targetChannel();
-    await ch.send(await ticketPanelPayload()).catch(() => null);
-    message.delete().catch(() => null);
+    await postReport(targetChannel(cfg.ticketPanelChannel), 'ticket');
     return;
   }
   if (low === 'acp/' || low === 'acp') {
     if (!admin) return;
-    const ch = targetChannel();
-    await ch.send(await activatePanelPayload()).catch(() => null);
-    message.delete().catch(() => null);
+    await postReport(targetChannel(cfg.activatePanelChannel), 'activate');
     return;
   }
   if (low === 'aclock/' || low === 'aclock') {
@@ -241,7 +288,10 @@ module.exports = {
     sowrdRole: '760413937581162539',
     category: '1559405080048836608',
     staffRole: '1505729933807194263',
+    ticketPanelChannel: '1559405250065211442',
     activatePanelChannel: '1559406871788523630',
+    ticketPanelMsg: null,
+    activatePanelMsg: null,
     logChannelId: null,
     counter: 0,
   },
@@ -253,7 +303,8 @@ module.exports = {
         { key: 'sowrdRole', type: 'role', label: 'رتبة SOWRD (تلقائية + تنفك بالتفعيل)' },
         { key: 'category', type: 'category', label: 'كاتوقري تذاكر التفعيل' },
         { key: 'staffRole', type: 'role', label: 'رتبة التفعيل (تنمنشن وتقدر تفعّل بس)' },
-        { key: 'activatePanelChannel', type: 'channel', label: 'روم بانل التفعيل' },
+        { key: 'ticketPanelChannel', type: 'channel', label: 'روم بنل فتح التذكرة' },
+        { key: 'activatePanelChannel', type: 'channel', label: 'روم بنل التفعيل (الإدارة)' },
         { key: 'logChannelId', type: 'channel', label: 'روم لوق التفعيل' },
       ],
     },
@@ -291,6 +342,7 @@ module.exports = {
       },
     },
   },
+  ready,
   events: {
     messageCreate: onMessage,
     guildMemberAdd: onJoin,
