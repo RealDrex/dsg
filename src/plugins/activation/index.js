@@ -157,7 +157,7 @@ async function openTicket(interaction) {
 
   const ping = cfg.staffRole && guild.roles.cache.get(cfg.staffRole) ? `<@&${cfg.staffRole}>` : '';
   await channel.send({
-    content: `${member} ${ping}\nWelcome to your activation ticket — tell us about yourself and how you found the server, and we'll activate you.`,
+    content: `${member} ${ping}\nحيّاك في تذكرة التفعيل — عرّفنا عن نفسك ومن وين عرفت السيرفر وبنفعّلك.`,
     components: [ticketControls()],
     allowedMentions: { users: [member.id], roles: cfg.staffRole ? [cfg.staffRole] : [] },
   });
