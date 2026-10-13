@@ -247,7 +247,7 @@ async function sendPicker(ctx, type, target) {
     .setPlaceholder('اختر السبب والمدة')
     .addOptions(options);
   await ctx.message.reply({
-    content: simple(`${LOGS[type].icon} **${PUNISH[type].label}** لـ ${target}\nاختر السبب والمدة 👇`, 'accent'),
+    content: `**${PUNISH[type].label}** لـ ${target}\nاختر السبب والمدة`,
     components: [new ActionRowBuilder().addComponents(menu)],
     allowedMentions: { parse: [], repliedUser: false },
   }).catch(() => null);
