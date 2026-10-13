@@ -9,8 +9,11 @@ const store = require('../../core/store');
 const { reply } = require('../../core/theme');
 const { I, setIcon } = require('../../core/icons');
 const { normalize } = require('../../core/i18n');
+const crypto = require('node:crypto');
+const config = require('../../config');
 const logger = require('../../core/logger');
 const transcript = require('../tickets/transcript');
+const transcripts = require('../../core/transcripts');
 const data = require('./data');
 const art = require('./art');
 
@@ -136,7 +139,7 @@ async function activateMember(guild, target, cfg) {
   if (guild.roles.cache.get(mId)) add.push(mId);
   if (add.length) await target.roles.add([...new Set(add)], 'تفعيل العضو: الرتب').catch(() => null);
   const log = guild.channels.cache.get(logChannelId(cfg)) || await guild.channels.fetch(logChannelId(cfg)).catch(() => null);
-  if (log) log.send({ content: `✅ Activated ${target} \`${target.id}\``, allowedMentions: { parse: [] } }).catch(() => null);
+  if (log) log.send({ content: `تم تفعيل ${target} \`${target.id}\``, allowedMentions: { parse: [] } }).catch(() => null);
   return { ok: true };
 }
 
@@ -184,14 +187,18 @@ async function logTicket(guild, channel, cfg, { number, ownerId, actorId, activa
     const owner = await guild.client.users.fetch(ownerId).catch(() => null);
     ({ html, count } = await transcript.build(channel, { number, typeLabel: 'Activation', ownerTag: owner?.tag || ownerId }));
   } catch (e) { logger.warn('[activation] transcript:', e.message); return; }
-  const file = new AttachmentBuilder(Buffer.from(html), { name: 'index.html' });
+  // Save the transcript and post it as a browser link (not a downloadable file).
+  const id = crypto.randomBytes(8).toString('hex');
+  transcripts.save(id, html);
+  const base = (config.web.publicUrl || `http://82.47.102.201:${config.web.port}`).replace(/\/$/, '');
   const head = [
-    `📋 **Activation Ticket #${pad(number)}**`,
+    `**Activation Ticket #${pad(number)}**`,
     `العضو: <@${ownerId}>`,
-    actorId ? `${activated ? 'فعّله ✅' : 'أغلق التذكرة'}: <@${actorId}>` : null,
+    actorId ? `${activated ? 'فعّله' : 'أغلق التذكرة'}: <@${actorId}>` : null,
     `الرسائل: ${count}`,
+    `الترانسكربت: ${base}/t/${id}`,
   ].filter(Boolean).join('\n');
-  await logCh.send({ content: head, files: [file], allowedMentions: { users: [ownerId, actorId].filter(Boolean) } }).catch(() => null);
+  await logCh.send({ content: head, allowedMentions: { users: [ownerId, actorId].filter(Boolean) } }).catch(() => null);
 }
 
 async function lockRooms(guild, cfg) {

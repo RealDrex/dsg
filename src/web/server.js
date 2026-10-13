@@ -52,6 +52,14 @@ function start(client, plugins = client?.plugins) {
   const commands = describeCommands(plugins).map((c) => ({ ...c, usage: usage(c) }));
   const ready = () => !!client?.isReady();
 
+  // ── Ticket / activation transcripts (opened as a web page) ─────
+  const transcripts = require('../core/transcripts');
+  app.get('/t/:id', (req, res) => {
+    const html = transcripts.get(req.params.id);
+    if (!html) return res.status(404).type('text/plain').send('Transcript not found.');
+    return res.type('text/html').send(html);
+  });
+
   // ── Public API ────────────────────────────────────────────────
   app.get('/api/stats', (req, res) => {
     res.json({
