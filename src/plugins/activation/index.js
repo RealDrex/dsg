@@ -52,10 +52,36 @@ function resolveId(str) {
   return m ? m[0] : null;
 }
 
+// Roles we can safely pull off a gated member (not @everyone / SOWRD / managed /
+// above the bot in the hierarchy).
+function removableRoles(member, cfg) {
+  const botTop = member.guild.members.me.roles.highest.position;
+  return member.roles.cache.filter((r) => r.id !== member.guild.id
+    && r.id !== cfg.sowrdRole && !r.managed && r.position < botTop);
+}
+
+// Gate a member: stash their other roles and strip them so SOWRD is the only thing
+// deciding what they see (this is the only way an Administrator stays hidden too).
+async function quarantine(member, cfg) {
+  if (!cfg.sowrdRole || !member.roles.cache.has(cfg.sowrdRole)) return;
+  const rem = removableRoles(member, cfg);
+  if (!rem.size) return;
+  const held = new Set([...data.holdGet(member.guild.id, member.id), ...rem.keys()]);
+  data.holdSet(member.guild.id, member.id, [...held]);
+  await member.roles.remove([...rem.keys()], 'نظام التفعيل: حجز الرتب لحين التفعيل').catch(() => null);
+}
+
 async function activateMember(guild, target, cfg) {
   if (!cfg.sowrdRole || !guild.roles.cache.get(cfg.sowrdRole)) throw new Error('رتبة SOWRD مو محددة أو مو موجودة.');
-  if (!target.roles.cache.has(cfg.sowrdRole)) return { already: true };
-  await target.roles.remove(cfg.sowrdRole, 'تفعيل العضو');
+  const held = data.holdGet(guild.id, target.id);
+  const hadSowrd = target.roles.cache.has(cfg.sowrdRole);
+  if (!hadSowrd && !held.length) return { already: true };
+  // restore held roles first, then drop the gate
+  const restore = held.filter((id) => guild.roles.cache.has(id)
+    && guild.roles.cache.get(id).position < guild.members.me.roles.highest.position);
+  if (restore.length) await target.roles.add(restore, 'تفعيل العضو: إرجاع الرتب').catch(() => null);
+  data.holdClear(guild.id, target.id);
+  if (hadSowrd) await target.roles.remove(cfg.sowrdRole, 'تفعيل العضو').catch(() => null);
   const log = cfg.logChannelId && guild.channels.cache.get(cfg.logChannelId);
   if (log) log.send({ content: `${I.unlock} تم تفعيل ${target} \`${target.id}\``, allowedMentions: { parse: [] } }).catch(() => null);
   return { ok: true };
@@ -97,6 +123,7 @@ async function openTicket(interaction) {
 
 async function lockRooms(guild, cfg) {
   if (!cfg.sowrdRole || !guild.roles.cache.get(cfg.sowrdRole)) throw new Error('رتبة SOWRD مو موجودة.');
+  // 1) hide every room from SOWRD except the activation category
   let denied = 0; let allowed = 0;
   for (const ch of guild.channels.cache.values()) {
     const inKeep = ch.id === cfg.category || ch.parentId === cfg.category;
@@ -105,7 +132,18 @@ async function lockRooms(guild, cfg) {
       if (inKeep) allowed += 1; else denied += 1;
     } catch { /* skip channels we can't edit */ }
   }
-  return { denied, allowed };
+  // 2) quarantine everyone who already has SOWRD (strip strong/admin roles)
+  let gated = 0;
+  const members = await guild.members.fetch().catch(() => null);
+  if (members) {
+    for (const m of members.values()) {
+      if (!m.user.bot && m.roles.cache.has(cfg.sowrdRole) && removableRoles(m, cfg).size) {
+        await quarantine(m, cfg);
+        gated += 1;
+      }
+    }
+  }
+  return { denied, allowed, gated };
 }
 
 // ── text commands: ac/  acp/  aclock/  تفعيل <target> ────────────────
@@ -133,7 +171,7 @@ async function onMessage(message) {
   if (low === 'aclock/' || low === 'aclock') {
     if (!admin) return;
     const res = await lockRooms(message.guild, cfg).catch((e) => ({ error: e.message }));
-    const txt = res.error ? `${emoji.error} ${res.error}` : `${I.success} تم إخفاء كل الرومات عن رتبة SOWRD ما عدا كاتوقري التفعيل.\nمخفي: \`${res.denied}\` • ظاهر: \`${res.allowed}\``;
+    const txt = res.error ? `${emoji.error} ${res.error}` : `${I.success} تم إخفاء الرومات عن رتبة SOWRD ما عدا كاتوقري التفعيل.\nمخفي: \`${res.denied}\` روم • تم حجز رتب \`${res.gated}\` عضو (لين يتفعلون).`;
     await message.reply({ content: txt, allowedMentions: { repliedUser: false } }).catch(() => null);
     return;
   }
@@ -163,8 +201,15 @@ async function onJoin(member) {
   const cfg = cfgOf(member.guild.id);
   if (member.user.bot || !cfg.sowrdRole) return;
   if (member.guild.roles.cache.get(cfg.sowrdRole)) {
-    member.roles.add(cfg.sowrdRole, 'نظام التفعيل: رتبة SOWRD تلقائياً').catch(() => null);
+    await member.roles.add(cfg.sowrdRole, 'نظام التفعيل: رتبة SOWRD تلقائياً').catch(() => null);
   }
+}
+
+// Keep the gate airtight: if a SOWRD holder gains any strong role, pull it back.
+async function onMemberUpdate(_oldM, newM) {
+  const cfg = cfgOf(newM.guild.id);
+  if (newM.user.bot || !cfg.sowrdRole || !newM.roles.cache.has(cfg.sowrdRole)) return;
+  if (removableRoles(newM, cfg).size) await quarantine(newM, cfg);
 }
 
 // ── add/remove member to a ticket (via modal) ────────────────────────
@@ -229,16 +274,17 @@ module.exports = {
     },
     lockRooms: {
       label: 'إخفاء الرومات عن SOWRD',
-      description: 'يخلي رتبة SOWRD ما تشوف إلا كاتوقري التفعيل (للأعضاء الحاليين والجدد)',
+      description: 'يخفي الرومات عن SOWRD (ما عدا كاتوقري التفعيل) ويحجز رتب كل من معه SOWRD حتى لو أدمن',
       async run(guild) {
         const res = await lockRooms(guild, cfgOf(guild.id));
-        return `تم — مخفي ${res.denied} روم، ظاهر ${res.allowed}.`;
+        return `تم — مخفي ${res.denied} روم، وحجزت رتب ${res.gated} عضو.`;
       },
     },
   },
   events: {
     messageCreate: onMessage,
     guildMemberAdd: onJoin,
+    guildMemberUpdate: onMemberUpdate,
     channelDelete(channel) { if (data.byChannel(channel.id)) data.close(channel.id); },
   },
   components: {
