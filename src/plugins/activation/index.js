@@ -359,7 +359,7 @@ module.exports = {
     activatePanelChannel: '1559406871788523630',
     ticketPanelMsg: null,
     activatePanelMsg: null,
-    logChannelId: null,
+    logChannelId: '1559549676640800889',
     counter: 0,
   },
   dashboard: [
