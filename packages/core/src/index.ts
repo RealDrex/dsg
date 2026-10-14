@@ -7,3 +7,5 @@ export * from './history';
 export * from './recommend';
 export * from './api';
 export * from './search';
+export * from './fx';
+export * from './brands';

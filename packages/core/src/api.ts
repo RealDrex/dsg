@@ -43,11 +43,24 @@ export const SearchQuery = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
-/** Look a product up on the web when it is not in the catalog: free text or a scanned barcode. */
+/** A photo the shopper took or picked, base64 encoded (max ~5 MB decoded). */
+export const DiscoverImage = z.object({
+  mediaType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  data: z.string().min(100).max(7_000_000).regex(/^[A-Za-z0-9+/]+={0,2}$/),
+});
+
+/**
+ * Look products up on the web: free text, a scanned barcode, or a photo
+ * (optionally with a text hint). Exactly one of q / gtin / image leads.
+ */
 export const DiscoverBody = z.object({
   q: z.string().trim().min(2).max(120).optional(),
   gtin: z.string().regex(/^\d{8,14}$/).optional(),
-}).refine((b) => !!b.q !== !!b.gtin, { message: 'exactly one of q or gtin' });
+  image: DiscoverImage.optional(),
+}).refine((b) => (b.gtin ? !b.q && !b.image : !!(b.q || b.image)), { message: 'send q, gtin or image' });
+
+/** More sellers for a product we already know: everything, or used / refurbished only. */
+export const ProductDiscoverBody = z.object({ focus: z.enum(['all', 'used']).default('all') });
 
 export const OffersQuery = z.object({
   sort: SortModeSchema.default('value'),
@@ -101,13 +114,22 @@ export interface AuthResponse {
   user: UserDTO;
 }
 
+/** retailer: a shop in the market · global: ships from abroad (AliExpress, Amazon.com…) · classifieds: used listings (Haraj…) */
+export type StoreKind = 'retailer' | 'global' | 'classifieds';
+export type ItemCondition = 'new' | 'used' | 'refurbished';
+
 export interface StoreDTO {
   id: string;
   name: string;
   nameAr: string;
+  /** Store logo (its site icon, served through our API) or an admin-configured logo. */
   logoUrl: string | null;
   brandColor: string | null;
   website: string | null;
+  domain: string | null;
+  /** In our store directory. false = a seller we only found on the web: shown with an "unknown seller" badge. */
+  known: boolean;
+  kind: StoreKind;
 }
 
 export interface ProductSummaryDTO {
@@ -119,6 +141,8 @@ export interface ProductSummaryDTO {
   model: string | null;
   category: string;
   imageUrl: string | null;
+  /** Maker's logo (its site icon), when we know the brand's website. */
+  brandLogoUrl: string | null;
   bestPriceMinor: number | null;
   currency: CurrencyCode;
   offerCount: number;
@@ -130,9 +154,28 @@ export interface SearchResponse {
   canDiscover: boolean;
 }
 
+/** exact: the product searched for · similar: an alternative that looks/works alike (never a counterfeit). */
+export interface DiscoveredDTO extends ProductSummaryDTO {
+  match: 'exact' | 'similar';
+}
+
 export interface DiscoverResponse {
   status: 'found' | 'not_found' | 'unavailable';
-  results: ProductSummaryDTO[];
+  results: DiscoveredDTO[];
+}
+
+/**
+ * A running web search. The app polls it and shows what is really happening:
+ * the searches being run and the sites they returned.
+ */
+export interface DiscoverJobDTO {
+  jobId: string | null;
+  status: 'running' | 'found' | 'not_found' | 'unavailable' | 'failed';
+  queries: string[];
+  sites: string[];
+  results: DiscoveredDTO[];
+  error: { code: string; message: string } | null;
+  elapsedMs: number;
 }
 
 export interface ProductDTO extends ProductSummaryDTO {
@@ -159,6 +202,11 @@ export interface OfferDTO {
   etaHours: number | null;
   branch: { id: string; name: string; nameAr: string; distanceKm: number | null; lat: number; lng: number } | null;
   observedAt: string;
+  condition: ItemCondition;
+  /** The listing's own title (useful for used items and marketplace sellers). */
+  title: string | null;
+  /** The price as the seller showed it, when it was in another currency (priceMinor is then converted). */
+  original: { priceMinor: number; currency: string; exact: boolean } | null;
   sourceType: SourceType;
   sourceName: string;
   confidence: Confidence;
@@ -182,7 +230,10 @@ export interface SponsoredDTO {
 export interface OffersResponse {
   productId: string;
   sort: SortMode;
+  /** New items, ranked. */
   offers: OfferDTO[];
+  /** Used and refurbished listings, cheapest first. Never mixed into the ranking above. */
+  used: OfferDTO[];
   sponsored: SponsoredDTO[];
   currency: CurrencyCode;
   coverage: { market: string; live: boolean; storeCount: number };

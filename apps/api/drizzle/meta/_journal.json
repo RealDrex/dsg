@@ -15,6 +15,13 @@
       "when": 1791948823735,
       "tag": "0001_discovery",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792019216205,
+      "tag": "0002_more_sellers",
+      "breakpoints": true
     }
   ]
 }

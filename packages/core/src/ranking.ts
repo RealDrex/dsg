@@ -28,6 +28,10 @@ export interface OfferInput {
   distanceKm: number | null;
   observedAt: Date | string;
   sourceType: SourceType;
+  /** false for a seller outside our store directory (found on the web). Defaults to true. */
+  sellerKnown?: boolean;
+  /** Ships from another country (longer delivery, customs, no local warranty). */
+  fromAbroad?: boolean;
 }
 
 export interface RankedOffer<T extends OfferInput = OfferInput> {
@@ -52,7 +56,10 @@ export type RankReason =
   | 'stale_price'
   | 'stock_unconfirmed'
   | 'out_of_stock'
-  | 'shipping_unknown';
+  | 'shipping_unknown'
+  | 'unknown_seller'
+  | 'ships_from_abroad'
+  | 'suspicious_price';
 
 const HOUR = 3_600_000;
 
@@ -76,6 +83,9 @@ export function priceConfidence(sourceType: SourceType, observedAt: Date | strin
   return 'stale';
 }
 
+/** Below this share of the median price, an offer is flagged as suspicious. */
+const SUSPICIOUS_BELOW = 0.6;
+
 const CONF_PENALTY: Record<Confidence, number> = { high: 0, medium: 0.03, low: 0.08, stale: 0.5 };
 const STOCK_PENALTY: Record<Stock, number> = { in_stock: 0, limited: 0.02, unknown: 0.06, out_of_stock: 1 };
 
@@ -95,6 +105,8 @@ function valueScore(o: OfferInput, final: number, cheapest: number, conf: Confid
   if (o.etaHours !== null) s -= o.etaHours <= 6 ? 0.01 : o.etaHours <= 30 ? 0.005 : 0;
   s += CONF_PENALTY[conf] + STOCK_PENALTY[o.stock];
   if (o.shippingMinor === null) s += 0.02;
+  if (o.sellerKnown === false) s += 0.08; // a known store up to ~8% dearer is usually the safer buy
+  if (o.fromAbroad) s += 0.06; // weeks of shipping, possible customs, warranty abroad
   return s;
 }
 
@@ -105,7 +117,12 @@ export function rankOffers<T extends OfferInput>(offers: T[], mode: SortMode, no
     return { offer, final: f.minor, estimate: f.estimate, confidence: priceConfidence(offer.sourceType, offer.observedAt, now) };
   });
   const usable = rows.filter((r) => r.confidence !== 'stale' && r.offer.stock !== 'out_of_stock');
-  const cheapest = Math.min(...(usable.length ? usable : rows).map((r) => r.final));
+  // A price far below what the other sellers ask is a warning sign (wrong item, used, counterfeit, scam).
+  const finals = usable.map((r) => r.final).sort((a, b) => a - b);
+  const median = finals.length >= 3 ? finals[Math.floor(finals.length / 2)]! : null;
+  const isSuspicious = (final: number) => median !== null && final < median * SUSPICIOUS_BELOW;
+  const base = usable.filter((r) => !isSuspicious(r.final));
+  const cheapest = Math.min(...(base.length ? base : usable.length ? usable : rows).map((r) => r.final));
   const maxWarranty = Math.max(...rows.map((r) => r.offer.warrantyMonths ?? 0));
   const minDistance = Math.min(...rows.map((r) => r.offer.distanceKm ?? Infinity));
   const minEta = Math.min(...rows.map((r) => r.offer.etaHours ?? Infinity));
@@ -127,6 +144,8 @@ export function rankOffers<T extends OfferInput>(offers: T[], mode: SortMode, no
       default:
         score = valueScore(o, r.final, cheapest, r.confidence);
     }
+    const suspicious = isSuspicious(r.final);
+    if (suspicious && mode === 'value') score += 1; // shown, with a warning, but never recommended as best value
     // Unusable offers always sink to the bottom, in every mode.
     if (unusable) score += 1e12;
 
@@ -142,6 +161,9 @@ export function rankOffers<T extends OfferInput>(offers: T[], mode: SortMode, no
     if (o.stock === 'unknown') reasons.push('stock_unconfirmed');
     if (o.stock === 'out_of_stock') reasons.push('out_of_stock');
     if (o.shippingMinor === null) reasons.push('shipping_unknown');
+    if (o.sellerKnown === false) reasons.push('unknown_seller');
+    if (o.fromAbroad) reasons.push('ships_from_abroad');
+    if (suspicious) reasons.push('suspicious_price');
     return { ...r, score, reasons };
   });
 

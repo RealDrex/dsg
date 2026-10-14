@@ -27,6 +27,12 @@ export const Listing = z.object({
   url: z.string().url().max(2048).optional(),
   branchId: z.string().uuid().optional(),
   observedAt: z.coerce.date().optional(),
+  condition: z.enum(['new', 'used', 'refurbished']).default('new'),
+  /** Kept for used and marketplace listings, where the title says what exactly is sold. */
+  keepTitle: z.boolean().optional(),
+  /** Seller's own price when it was in another currency (priceMinor is the converted amount). */
+  origPriceMinor: z.number().int().positive().max(1e11).optional(),
+  origCurrency: z.string().regex(/^[A-Z]{3}$/).optional(),
 });
 export type Listing = z.infer<typeof Listing>;
 
@@ -50,7 +56,7 @@ const OUTLIER_HIGH = 1.6;
  * (web discovery creates the product first); otherwise listings are matched
  * by GTIN, then brand+model.
  */
-export async function importListings(db: DB, sourceId: string, input: unknown[], opts: { productId?: string } = {}): Promise<ImportReport> {
+export async function importListings(db: DB, sourceId: string, input: unknown[], opts: { productId?: string; flagOutliers?: boolean } = {}): Promise<ImportReport> {
   const source = await db.query.dataSources.findFirst({ where: eq(dataSources.id, sourceId) });
   if (!source) throw new Error('source_not_found');
   if (!source.storeId) throw new Error('source_has_no_store');
@@ -102,9 +108,10 @@ export async function importListings(db: DB, sourceId: string, input: unknown[],
     const others = await db
       .select({ p: offers.priceMinor, s: offers.shippingMinor, f: offers.feesMinor })
       .from(offers)
-      .where(and(eq(offers.productId, productId), eq(offers.active, true), eq(offers.flagged, false), ne(offers.sourceId, sourceId)));
+      .where(and(eq(offers.productId, productId), eq(offers.active, true), eq(offers.flagged, false), eq(offers.condition, l.condition), ne(offers.sourceId, sourceId)));
     let flagReason: string | null = null;
-    if (others.length >= 2) {
+    // Web search results are shown with a warning instead (see rankOffers' suspicious_price): hiding them would hide the risk.
+    if (opts.flagOutliers !== false && others.length >= 2) {
       const finals = others.map((o) => o.p + (o.s ?? 0) + o.f).sort((a, b) => a - b);
       const median = finals[Math.floor(finals.length / 2)]!;
       if (final < median * OUTLIER_LOW) flagReason = 'price_far_below_market';
@@ -116,6 +123,8 @@ export async function importListings(db: DB, sourceId: string, input: unknown[],
       productId, storeId: store.id, branchId: l.branchId ?? null, sourceId, externalId: l.externalId, country: market.code, currency: l.currency,
       channel: l.channel, priceMinor: l.priceMinor, shippingMinor: l.shippingMinor ?? null, feesMinor: l.feesMinor ?? 0, stock: l.stock,
       warrantyMonths: l.warrantyMonths ?? null, returnDays: l.returnDays ?? null, etaHours: l.etaHours ?? null, url: l.url ?? null,
+      condition: l.condition, title: l.keepTitle ? l.title : null,
+      origPriceMinor: l.origPriceMinor ?? null, origCurrency: l.origPriceMinor ? l.origCurrency ?? null : null,
       observedAt, flagged: flagReason !== null, flagReason, active: true,
     };
     const existing = await db.query.offers.findFirst({ where: and(eq(offers.sourceId, sourceId), eq(offers.externalId, l.externalId)) });
@@ -130,7 +139,7 @@ export async function importListings(db: DB, sourceId: string, input: unknown[],
       report.created++;
     }
     if (flagReason) report.flagged++;
-    else await db.insert(priceObservations).values({ offerId, productId, finalMinor: final, observedAt });
+    else if (l.condition === 'new') await db.insert(priceObservations).values({ offerId, productId, finalMinor: final, observedAt });
   }
 
   await db.update(dataSources).set({ lastRunAt: new Date(), lastStatus: `ok: ${report.created} new, ${report.updated} updated, ${report.flagged} flagged, ${report.unmatched} unmatched, ${report.rejected.length} rejected` }).where(eq(dataSources.id, sourceId));

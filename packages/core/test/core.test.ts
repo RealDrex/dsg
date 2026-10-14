@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   assessUrl, buyTiming, classifyScan, formatMoney, isValidGtin, normalizeGtin, priceConfidence, rankOffers, recommend,
-  effectivePriceMarket, expandSearchQuery, normalizeSearchText, type OfferInput,
+  effectivePriceMarket, expandSearchQuery, normalizeSearchText, convertToMinor, isExactRate, siteDomain, brandDomain, type OfferInput,
 } from '../src';
 
 describe('barcode', () => {
@@ -154,5 +154,49 @@ describe('search text', () => {
     expect(expandSearchQuery('ماك بوك اير')).toEqual([['ماك بوك', 'macbook'], ['اير', 'air']]);
     expect(expandSearchQuery('Galaxy A55')).toEqual([['galaxy'], ['a55']]);
     expect(expandSearchQuery('قلاية هوائية')[0]).toContain('airfryer');
+  });
+});
+
+describe('sellers, currencies and suspicious prices', () => {
+  const base: OfferInput = {
+    id: 'a', storeId: 's', channel: 'online', priceMinor: 100000, shippingMinor: 0, feesMinor: 0, stock: 'in_stock', warrantyMonths: 12,
+    returnDays: 14, etaHours: 48, distanceKm: null, observedAt: new Date(), sourceType: 'web_search',
+  };
+  it('flags a price far below the others and never ranks it best value', () => {
+    const offers: OfferInput[] = [
+      { ...base, id: 'jarir', priceMinor: 500000 },
+      { ...base, id: 'amazon', priceMinor: 520000 },
+      { ...base, id: 'noon', priceMinor: 510000 },
+      { ...base, id: 'cheap', priceMinor: 150000, sellerKnown: false },
+    ];
+    const value = rankOffers(offers, 'value');
+    expect(value[0]!.offer.id).toBe('jarir');
+    const cheap = value.find((r) => r.offer.id === 'cheap')!;
+    expect(cheap.reasons).toEqual(expect.arrayContaining(['suspicious_price', 'unknown_seller']));
+    expect(cheap.reasons).not.toContain('lowest_final_price'); // shown with a warning, never badged "lowest price"
+    expect(value[0]!.reasons).toContain('lowest_final_price');
+    expect(rankOffers(offers, 'cheapest')[0]!.offer.id).toBe('cheap');
+  });
+  it('prefers a known store unless an unknown seller is clearly cheaper', () => {
+    const near = rankOffers([{ ...base, id: 'known', priceMinor: 100000 }, { ...base, id: 'unknown', priceMinor: 96000, sellerKnown: false }], 'value');
+    expect(near[0]!.offer.id).toBe('known');
+    const far = rankOffers([{ ...base, id: 'known', priceMinor: 100000 }, { ...base, id: 'unknown', priceMinor: 85000, sellerKnown: false }], 'value');
+    expect(far[0]!.offer.id).toBe('unknown');
+  });
+  it('converts foreign prices; pegged pairs are exact', () => {
+    expect(convertToMinor(199, 'USD', 'SAR')).toBe(74625);
+    expect(convertToMinor(100, 'AED', 'SAR')).toBe(10211);
+    expect(convertToMinor(10, 'XYZ', 'SAR')).toBeNull();
+    expect(isExactRate('USD', 'SAR')).toBe(true);
+    expect(isExactRate('CNY', 'SAR')).toBe(false);
+  });
+  it('normalises site names for logos', () => {
+    expect(siteDomain('https://www.Jarir.com/sa/ar')).toBe('jarir.com');
+    expect(siteDomain('amazon.sa')).toBe('amazon.sa');
+    expect(siteDomain('127.0.0.1')).toBeNull();
+    expect(siteDomain('localhost')).toBeNull();
+    expect(siteDomain('javascript:alert(1)')).toBeNull();
+    expect(brandDomain('Apple')).toBe('apple.com');
+    expect(brandDomain('Unknown Brand')).toBeNull();
   });
 });

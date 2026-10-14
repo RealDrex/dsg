@@ -1,16 +1,19 @@
 import type { FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { classifyScan, DiscoverBody, effectivePriceMarket, OffersQuery, PurchaseBody, ScanBody, SearchQuery, type DiscoverResponse, type ScanResponse, type SearchResponse } from '@bestprice/core';
+import { classifyScan, DiscoverBody, effectivePriceMarket, OffersQuery, ProductDiscoverBody, PurchaseBody, ScanBody, SearchQuery, siteDomain, type DiscoverJobDTO, type ScanResponse, type SearchResponse } from '@bestprice/core';
 import { parse, requireUser, type Ctx } from '../app';
 import { clickEvents, offers, purchases, searchHistory, sponsoredPlacements, stores } from '../db/schema';
 import { notFound } from '../lib/errors';
 import { safeOutboundUrl } from '../lib/net';
+import { toStoreDTO } from '../services/catalog';
 
 const IdParam = z.object({ id: z.string().uuid() });
+const JobParam = z.object({ jobId: z.string().uuid() });
+const unavailable: DiscoverJobDTO = { jobId: null, status: 'unavailable', queries: [], sites: [], results: [], error: null, elapsedMs: 0 };
 
 export async function catalogRoutes(app: FastifyInstance, ctx: Ctx) {
-  const { db, catalog, discovery } = ctx;
+  const { db, catalog, discovery, jobs } = ctx;
   const countryOf = (req: { user: { country: string } | null }, q?: string) => q ?? req.user?.country ?? 'SA';
 
   app.get('/v1/products/search', async (req): Promise<SearchResponse> => {
@@ -21,14 +24,44 @@ export async function catalogRoutes(app: FastifyInstance, ctx: Ctx) {
   });
 
   /**
-   * Looks a product up on the web (AI + web search) when the catalog has no
-   * match. Costs money per call, so it needs a session, is rate limited and
-   * has a daily quota; results are cached per query.
+   * Searches the web for products (text, barcode or photo). Costs money per
+   * call, so it needs a session, is rate limited and has a daily quota;
+   * results are cached per query. Returns a job the app polls for progress.
    */
-  app.post('/v1/products/discover', { config: { rateLimit: { max: 6, timeWindow: '1 minute' } } }, async (req): Promise<DiscoverResponse> => {
+  app.post('/v1/products/discover', { bodyLimit: 8_000_000, config: { rateLimit: { max: 6, timeWindow: '1 minute' } } }, async (req): Promise<DiscoverJobDTO> => {
     const user = requireUser(req);
     const body = parse(DiscoverBody, req.body);
-    return discovery.discover(user, body, countryOf(req));
+    if (!discovery.available) return unavailable;
+    const country = countryOf(req);
+    return jobs.start(user.id, (p) => discovery.discover(user, body, country, p));
+  });
+
+  app.get('/v1/products/discover/:jobId', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (req): Promise<DiscoverJobDTO> => {
+    const user = requireUser(req);
+    const { jobId } = parse(JobParam, req.params);
+    const job = jobs.get(user.id, jobId);
+    if (!job) throw notFound('job_not_found');
+    return job;
+  });
+
+  /** More sellers, or used listings, for a product we already have. */
+  app.post('/v1/products/:id/discover', { config: { rateLimit: { max: 6, timeWindow: '1 minute' } } }, async (req): Promise<DiscoverJobDTO> => {
+    const user = requireUser(req);
+    const { id } = parse(IdParam, req.params);
+    const { focus } = parse(ProductDiscoverBody, req.body ?? {});
+    if (!discovery.available) return unavailable;
+    const country = countryOf(req);
+    return jobs.start(user.id, (p) => discovery.discoverForProduct(user, id, focus, country, p));
+  });
+
+  /** Store and brand logos (site icons), cached server-side so devices never call third parties. */
+  app.get('/v1/logo/:domain', { config: { rateLimit: { max: 300, timeWindow: '1 minute' } } }, async (req, reply) => {
+    const { domain } = parse(z.object({ domain: z.string().max(253) }), req.params);
+    const d = siteDomain(domain);
+    const img = d ? await ctx.logos.get(d) : null;
+    if (!img) throw notFound('logo_not_found');
+    // Public images: loadable from the web build on another origin too.
+    return reply.header('content-type', img.type).header('cache-control', 'public, max-age=604800').header('cross-origin-resource-policy', 'cross-origin').send(img.body);
   });
 
   app.get('/v1/products/:id', async (req) => {
@@ -53,7 +86,7 @@ export async function catalogRoutes(app: FastifyInstance, ctx: Ctx) {
 
   app.get('/v1/stores', async () => {
     const rows = await db.select().from(stores).where(eq(stores.active, true));
-    return rows.map((s) => ({ id: s.id, name: s.name, nameAr: s.nameAr, logoUrl: s.logoUrl, brandColor: s.brandColor, website: s.website }));
+    return rows.filter((s) => s.known).map((s) => toStoreDTO(s, ctx.cfg.PUBLIC_BASE_URL));
   });
 
   /**

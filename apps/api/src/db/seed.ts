@@ -34,6 +34,17 @@ const STORES = [
   { slug: 'blackbox', name: 'Black Box', nameAr: 'بلاك بوكس', brandColor: '#2B2B2B', website: 'https://www.blackbox.com.sa', allowedDomains: ['blackbox.com.sa'] },
   { slug: 'stc', name: 'stc', nameAr: 'stc', brandColor: '#4F008C', website: 'https://www.stc.com.sa', allowedDomains: ['stc.com.sa'] },
   { slug: 'namshi', name: 'Namshi', nameAr: 'نمشي', brandColor: '#111111', website: 'https://www.namshi.com', allowedDomains: ['namshi.com'] },
+  { slug: 'syarah', name: 'Syarah', nameAr: 'سيارة', brandColor: '#0A7CFF', website: 'https://syarah.com', allowedDomains: ['syarah.com'] },
+  // Ship from abroad: shown with a "from abroad" label; prices may be converted from another currency.
+  { slug: 'aliexpress', name: 'AliExpress', nameAr: 'علي إكسبريس', brandColor: '#E62E04', website: 'https://ar.aliexpress.com', allowedDomains: ['aliexpress.com', 'aliexpress.us'], kind: 'global' },
+  { slug: 'temu', name: 'Temu', nameAr: 'تيمو', brandColor: '#FB7701', website: 'https://www.temu.com', allowedDomains: ['temu.com'], kind: 'global' },
+  { slug: 'amazon-com', name: 'Amazon.com', nameAr: 'أمازون العالمي', brandColor: '#232F3E', website: 'https://www.amazon.com', allowedDomains: ['amazon.com'], kind: 'global' },
+  { slug: 'ebay', name: 'eBay', nameAr: 'إيباي', brandColor: '#0064D2', website: 'https://www.ebay.com', allowedDomains: ['ebay.com'], kind: 'global' },
+  { slug: 'shein', name: 'SHEIN', nameAr: 'شي إن', brandColor: '#111111', website: 'https://ar.shein.com', allowedDomains: ['shein.com'], kind: 'global' },
+  // Classifieds: used items between people.
+  { slug: 'haraj', name: 'Haraj', nameAr: 'حراج', brandColor: '#1B8A5A', website: 'https://haraj.com.sa', allowedDomains: ['haraj.com.sa'], kind: 'classifieds' },
+  { slug: 'opensooq', name: 'OpenSooq', nameAr: 'السوق المفتوح', brandColor: '#0A6CC2', website: 'https://sa.opensooq.com', allowedDomains: ['opensooq.com'], kind: 'classifieds' },
+  { slug: 'motory', name: 'Motory', nameAr: 'موتري', brandColor: '#E4002B', website: 'https://ksa.motory.com', allowedDomains: ['motory.com'], kind: 'classifieds' },
 ] as const;
 
 const BRANCHES: Record<string, { name: string; nameAr: string; lat: number; lng: number }[]> = {
@@ -356,6 +367,9 @@ export async function seed(db: DB, opts: { demo: boolean; adminEmail?: string; a
     storeIds[s.slug] = row!.id;
   }
   if (newStores) log(`stores: ${newStores} added`);
+  // SEED_DEMO_DATA decides whether demo prices are shown at all: turning it off hides them (and back on restores them).
+  const toggled = await db.update(dataSources).set({ active: opts.demo }).where(and(eq(dataSources.type, 'demo'), eq(dataSources.active, !opts.demo))).returning({ id: dataSources.id });
+  if (toggled.length) log(`demo prices ${opts.demo ? 'shown' : 'hidden'} (${toggled.length} sources)`);
   if (!opts.demo) return;
   const demoSource = async (slug: string) => {
     if (sourceIds[slug]) return sourceIds[slug]!;

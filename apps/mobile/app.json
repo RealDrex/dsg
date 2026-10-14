@@ -58,7 +58,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Best Price uses the camera to scan product barcodes and QR codes. No images are stored.",
+          "cameraPermission": "Best Price uses the camera to scan barcodes and QR codes, and — when you choose — to photograph a product so it can be identified and found in stores. Photos are used only for that search and are not stored.",
           "recordAudioAndroid": false,
           "microphonePermission": false
         }
@@ -76,7 +76,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Best Price lets you pick a product photo to search for similar products.",
+          "photosPermission": "Best Price lets you pick a product photo to identify it and find where to buy it. Photos are used only for that search and are not stored.",
           "cameraPermission": false,
           "microphonePermission": false
         }

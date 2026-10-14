@@ -10,12 +10,16 @@ Best Price only shows prices from sources it is allowed to use. The AI model nev
 | `partner_catalog` | Direct feed agreed with a store (CSV/JSON/SFTP) | Signed data-sharing agreement. |
 | `affiliate_feed` | Affiliate network product feeds (e.g. Amazon Associates / PA-API, regional networks) | Use the feed's own price/freshness rules and required disclosures. |
 | `user_report` | Price-tag photos / reports from users | Must be verified (e.g. multiple reports or moderator review) before publishing; lower confidence window. |
-| `web_search` | Prices found by the online product lookup (Claude web search) on a known store's page, at the moment a user searched | Created automatically. Shown as unverified with the store link and age; confidence at most "medium" for 6 h, "low" up to 48 h, then stale. Replace with an official feed for stores you cover regularly. |
+| `web_search` | Prices found by web search (Claude with web search) at the moment a user searched: known stores, unknown sellers (named by domain, badged), stores abroad (converted, original shown) and used/refurbished listings (own section) | Created automatically. Shown as unverified with the link and age; confidence at most "medium" for 6 h, "low" up to 48 h, then stale. The listing page is read once (like a link preview) for its photo and published price. Replace with an official feed for stores you cover regularly. |
 | `demo` | Seed data | Development only; always labelled "demo data" in the apps. |
 
 **Not allowed:** scraping sites whose terms forbid it, bypassing bot protection, or using prices without the right to display them.
 
 A source can only be activated after its **legal basis** (`terms_note`: API terms version, agreement reference, affiliate program ID) is recorded — enforced by the API.
+
+### Logos
+
+Store and brand logos are each site's own icon, fetched by the server through a site-icon service and cached (`/v1/logo/:domain`); they identify the store next to its price (nominative use). If a store provides an official logo file, set `logo_url` on the store in the admin panel and it takes precedence. Icons smaller than 48 px are ignored and the app shows the store's wordmark instead.
 
 ## Launch market plan
 

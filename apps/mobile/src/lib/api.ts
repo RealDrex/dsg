@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import type {
   AuthResponse, ChatResponse, HistoryResponse, HomeResponse, NotificationDTO, OffersResponse, ProductDTO, ProductSummaryDTO,
-  ScanResponse, SortMode, UserDTO, WatchItemDTO, AssistantMessageDTO, SearchResponse, DiscoverResponse,
+  ScanResponse, SortMode, UserDTO, WatchItemDTO, AssistantMessageDTO, SearchResponse, DiscoverJobDTO,
 } from '@bestprice/core';
 import { getSecret, setSecret } from './storage';
 
@@ -142,8 +142,12 @@ class Client {
   updateMe = (p: Partial<UserDTO>) => this.patch<UserDTO>('/v1/me', p);
   home = () => this.get<HomeResponse>('/v1/home');
   search = (q: string) => this.get<SearchResponse>(`/v1/products/search?q=${encodeURIComponent(q)}`);
-  /** Web lookup for products not in the catalog; slow (web search), so a longer timeout. */
-  discover = (b: { q: string } | { gtin: string }) => this.request<DiscoverResponse>('POST', '/v1/products/discover', b, 150_000);
+  /** Starts a web search (text, barcode or photo); poll the job with discoverJob. */
+  discover = (b: { q: string } | { gtin: string } | { image: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string }; q?: string }) =>
+    this.request<DiscoverJobDTO>('POST', '/v1/products/discover', b, 60_000);
+  discoverJob = (jobId: string) => this.get<DiscoverJobDTO>(`/v1/products/discover/${jobId}`);
+  /** More sellers, or used listings, for a product. */
+  discoverProduct = (id: string, focus: 'all' | 'used') => this.request<DiscoverJobDTO>('POST', `/v1/products/${id}/discover`, { focus });
   product = (id: string) => this.get<ProductDTO>(`/v1/products/${id}`);
   offers = (id: string, sort: SortMode, loc?: { lat: number; lng: number } | null) =>
     this.get<OffersResponse>(`/v1/products/${id}/offers?sort=${sort}${loc ? `&lat=${loc.lat.toFixed(3)}&lng=${loc.lng.toFixed(3)}` : ''}`);

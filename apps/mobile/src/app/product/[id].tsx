@@ -6,13 +6,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import * as Location from 'expo-location';
 import Svg, { Circle, Line as SvgLine, Polygon, Polyline } from 'react-native-svg';
-import { displayGtin, formatAmount, currencySymbol, type HistoryResponse, type OfferDTO, type OffersResponse, type ProductDTO, type SortMode } from '@bestprice/core';
+import { displayGtin, formatAmount, currencySymbol, minorDigitsOf, type HistoryResponse, type OfferDTO, type OffersResponse, type ProductDTO, type SortMode } from '@bestprice/core';
 import { api } from '../../lib/api';
 import { ago, type StrKey } from '../../lib/i18n';
 import { registerForPush } from '../../lib/push';
 import { useApp } from '../../lib/store';
+import { useDiscovery } from '../../lib/useDiscovery';
+import { LiveSearchPanel } from '../../ui/live';
 import { IconBack, IconBookmark, Sparkle } from '../../ui/icons';
-import { Glass, GradientButton, ProductThumb, Press, Row, Segmented, Spinner, StoreMark, Txt, Screen } from '../../ui/kit';
+import { Badge, BrandLine, Glass, GhostButton, GradientButton, ProductThumb, Press, Row, Segmented, Spinner, StoreMark, Txt, Screen } from '../../ui/kit';
 import { C, CTA } from '../../ui/theme';
 
 const SORT_WHY: Record<SortMode, StrKey> = { value: 'whyValue', cheapest: 'whyCheap', nearest: 'whyNear', fastest: 'whyFast' };
@@ -29,6 +31,18 @@ export default function Product() {
   const [watchId, setWatchId] = useState<string | null>(null);
   const [target, setTarget] = useState<number | null>(null);
   const [error, setError] = useState(false);
+  const [reload, setReload] = useState(0);
+  const more = useDiscovery();
+
+  /** More sellers / used listings from the web, then refresh what we show. */
+  const findMore = async (focus: 'all' | 'used') => {
+    if (!id) return;
+    const job = await more.start(t('liveSearching'), () => api.discoverProduct(id, focus));
+    if (job?.status === 'unavailable') showToast({ title: t('onlineNeedsKey') });
+    else if (job?.status === 'found') { showToast({ title: t('moreSellersDone') }); setReload((n) => n + 1); }
+    else if (job?.status === 'not_found') showToast({ title: focus === 'used' ? t('usedNone') : t('notFoundOnline') });
+    else if (!job) showToast({ title: t('errorGeneric') });
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -42,12 +56,12 @@ export default function Product() {
         setTarget(w?.targetMinor ?? null);
       })
       .catch(() => setError(true));
-  }, [id]);
+  }, [id, reload]);
 
   useEffect(() => {
     if (!id) return;
     api.offers(id, sort, loc).then(setOffers).catch(() => setError(true));
-  }, [id, sort, loc]);
+  }, [id, sort, loc, reload]);
 
   const pickSort = async (s: SortMode) => {
     setSort(s);
@@ -69,7 +83,7 @@ export default function Product() {
   useEffect(() => {
     if (!id) return;
     api.offers(id, 'value', loc).then((r) => setValueTop(r.offers[0])).catch(() => {});
-  }, [id, loc]);
+  }, [id, loc, reload]);
 
   const toggleWatch = useCallback(async () => {
     if (!product) return;
@@ -131,6 +145,8 @@ export default function Product() {
 
   const isDemo = !!offers?.offers.some((o) => o.isDemo);
   const hasWebPrices = !!offers?.offers.some((o) => o.sourceType === 'web_search');
+  const hasUnknown = !!offers?.offers.some((o) => !o.store.known);
+  const askUsed = async () => { if (!product) return; router.navigate('/assistant'); await startProductChat({ id: product.id, name: product.name }, t('usedAskPrompt')); };
   const chart = history ? buildChart(history) : null;
 
   return (
@@ -165,7 +181,10 @@ export default function Product() {
           </View>
 
           <View style={{ gap: 6 }}>
-            <Txt size={12} color={C.textMute} ltr>{[product.brand, product.model].filter(Boolean).join(' · ')}{product.gtins[0] ? `  ·  EAN ${displayGtin(product.gtins[0])}` : ''}</Txt>
+            <Row style={{ gap: 8, flexWrap: 'wrap' }}>
+              <BrandLine brand={product.brand} logoUrl={product.brandLogoUrl} size={20} />
+              <Txt size={12} color={C.textMute} ltr>{[product.model, product.gtins[0] ? `EAN ${displayGtin(product.gtins[0])}` : null].filter(Boolean).join(' · ')}</Txt>
+            </Row>
             <Txt size={27} weight="800" display style={{ lineHeight: 33 }}>{L(product.nameAr ?? product.name, product.name)}</Txt>
             <Row style={{ flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
               {product.specs.map((s) => (
@@ -225,15 +244,31 @@ export default function Product() {
             <Txt size={12} color={C.textMute} lh={1.6}>{sort === 'nearest' && !loc ? t('whyNearNoLoc') : t(SORT_WHY[sort])}</Txt>
             {offers && offers.offers.length === 0 ? <Txt color={C.textMute}>{t('noOffers')}</Txt> : null}
             {offers?.offers.map((o, i) => renderOffer(o, i === 0))}
+            {hasUnknown ? <Txt size={11.5} color={C.textDim} lh={1.6}>{`⚠️ ${t('unknownSeller')}: ${t('unknownSellerNote')}`}</Txt> : null}
+            {more.state.phase === 'running' ? <LiveSearchPanel state={more.state} /> : (
+              <GhostButton label={`🌐 ${t('moreSellers')}`} onPress={() => findMore('all')} />
+            )}
             {offers?.sponsored.map((s) => (
               <Press key={s.id} onPress={() => WebBrowser.openBrowserAsync(s.clickUrl).catch(() => {})}>
-                <Row style={{ borderRadius: 18, borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,.18)', padding: 12, paddingHorizontal: 14, gap: 12 }}>
+                <Row style={{ borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,.14)', backgroundColor: 'rgba(255,255,255,.03)', padding: 12, paddingHorizontal: 14, gap: 12 }}>
                   <View style={{ paddingVertical: 3, paddingHorizontal: 7, borderRadius: 6, backgroundColor: 'rgba(255,255,255,.07)' }}><Txt size={10} weight="700" color={C.textMute}>{t('ad')}</Txt></View>
                   <Txt size={12.5} color={C.textSoft} style={{ flex: 1 }}>{L(s.labelAr, s.label)}</Txt>
                   {s.priceMinor ? <Txt size={14} weight="600">{formatAmount(s.priceMinor, s.currency)}</Txt> : null}
                 </Row>
               </Press>
             ))}
+          </View>
+
+          <View style={{ gap: 10 }}>
+            <Txt size={22} weight="800" display>{t('usedTitle')}</Txt>
+            {offers?.used.length ? offers.used.map((o) => renderOffer(o, false)) : <Txt size={12.5} color={C.textMute}>{t('usedNone')}</Txt>}
+            <Row style={{ gap: 8 }}>
+              {!offers?.used.length && more.state.phase !== 'running' ? <GhostButton label={t('usedFind')} style={{ flex: 1 }} onPress={() => findMore('used')} /> : null}
+              <Press onPress={askUsed} style={{ flex: 1, height: 44, borderRadius: 14, backgroundColor: 'rgba(62,224,154,.12)', borderWidth: 1, borderColor: 'rgba(62,224,154,.35)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <Sparkle size={14} />
+                <Txt size={13} weight="600" color={C.greenSoft}>{t('usedAsk')}</Txt>
+              </Press>
+            </Row>
           </View>
 
           <Glass style={{ borderRadius: 20, padding: 16, gap: 10 }}>
@@ -298,20 +333,25 @@ export default function Product() {
       <Glass key={o.id} style={{ borderRadius: 18, borderWidth: 1.5, borderColor: top ? C.green : C.line, padding: 14, gap: 10 }}>
         <Row style={{ gap: 12 }}>
           <StoreMark store={o.store} />
-          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-            <Row style={{ gap: 6 }}>
-              <Txt size={14} weight="600">{L(o.store.nameAr, o.store.name)}</Txt>
-              <View style={{ paddingVertical: 2, paddingHorizontal: 7, borderRadius: 7, backgroundColor: local ? 'rgba(90,140,255,.16)' : 'rgba(170,120,255,.16)' }}>
-                <Txt size={10.5} weight="600" color={local ? '#A9C4FF' : '#D0B8FF'}>{local ? t('local') : t('online')}</Txt>
-              </View>
+          <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+            <Row style={{ gap: 6, flexWrap: 'wrap' }}>
+              <Txt size={14} weight="600" numberOfLines={1} style={{ flexShrink: 1 }}>{o.store.known ? L(o.store.nameAr, o.store.name) : o.store.name}</Txt>
+              {o.condition !== 'new' ? <Badge label={o.condition === 'used' ? t('condUsed') : t('condRefurb')} bg="rgba(56,189,248,.16)" fg="#9BDCFB" />
+                : o.store.kind === 'global' ? <Badge label={t('fromAbroad')} bg="rgba(90,140,255,.16)" fg="#A9C4FF" />
+                : <View style={{ paddingVertical: 2, paddingHorizontal: 7, borderRadius: 7, backgroundColor: local ? 'rgba(90,140,255,.16)' : 'rgba(170,120,255,.16)' }}>
+                    <Txt size={10.5} weight="600" color={local ? '#A9C4FF' : '#D0B8FF'}>{local ? t('local') : t('online')}</Txt>
+                  </View>}
+              {!o.store.known ? <Badge label={`⚠️ ${t('unknownSeller')}`} bg={C.amberBg} fg={C.amberText} /> : null}
             </Row>
+            {o.title ? <Txt size={12} color={C.textSoft} numberOfLines={1}>{o.title}</Txt> : null}
             {meta ? <Txt size={12} color={C.textMute} numberOfLines={1}>{meta}</Txt> : null}
           </View>
           <View style={{ alignItems: 'flex-end', gap: 1 }}>
-            <Txt size={17} weight="600">{`${o.finalIsEstimate ? '≥ ' : ''}${formatAmount(o.finalMinor, o.currency)}`}</Txt>
-            <Txt size={11} color={C.textDim}>{ship}</Txt>
+            <Txt size={17} weight="600">{`${o.original && !o.original.exact ? '≈ ' : o.finalIsEstimate ? '≥ ' : ''}${formatAmount(o.finalMinor, o.currency)}`}</Txt>
+            <Txt size={11} color={C.textDim}>{o.original ? origLabel(o) : ship}</Txt>
           </View>
         </Row>
+        {o.reasons.includes('suspicious_price') ? <Txt size={11.5} color={C.coral} lh={1.5}>{`⚠️ ${t('suspiciousPrice')}`}</Txt> : null}
         <Row style={{ flexWrap: 'wrap', gap: 6, columnGap: 12 }}>
           <Txt size={11.5} color={C.textMute}>{stock}</Txt>
           <Txt size={11.5} color={C.textMute}>·</Txt>
@@ -340,6 +380,13 @@ export default function Product() {
         </Row>
       </Glass>
     );
+  }
+
+  /** "approx., original price 199 USD" for prices converted from another currency. */
+  function origLabel(o: OfferDTO): string {
+    const { priceMinor, currency, exact } = o.original!;
+    const d = minorDigitsOf(currency);
+    return `${exact ? t('originalPrice') : t('approxPrice')} ${(priceMinor / 10 ** d).toLocaleString('en-US', { maximumFractionDigits: d })} ${currency}`;
   }
 
   function explain(best: OfferDTO, low: OfferDTO): string {

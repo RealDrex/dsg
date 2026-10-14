@@ -1,4 +1,4 @@
-import React, { useId } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type PressableProps, type StyleProp, type TextProps, type TextStyle, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -265,18 +265,25 @@ export function Wordmark({ size = 22 }: { size?: number }) {
 }
 
 /**
- * Store mark: the store's logo when the catalog has a licensed one (logoUrl),
- * otherwise its wordmark set in the brand colour. No third-party requests
- * unless a logo URL was configured by an admin.
+ * Store mark: the store's logo (its site icon, served by our API) on a white
+ * tile. If there is no logo or it fails to load, the store's wordmark in its
+ * brand colour — so a mark always shows something recognisable.
  */
 export function StoreMark({ store, size = 42 }: { store: { name: string; logoUrl?: string | null; brandColor: string | null }; size?: number }) {
-  const bg = store.brandColor ?? '#333';
-  const light = isLightColor(bg);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [store.logoUrl]);
   const radius = size * 0.29;
-  if (store.logoUrl) {
-    return <Image source={{ uri: store.logoUrl }} style={{ width: size, height: size, borderRadius: radius, backgroundColor: '#fff' }} contentFit="contain" accessibilityLabel={store.name} />;
+  if (store.logoUrl && !failed) {
+    return (
+      <View accessibilityLabel={store.name} style={{ width: size, height: size, borderRadius: radius, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        <Image source={{ uri: store.logoUrl }} style={{ width: size * 0.7, height: size * 0.7 }} contentFit="contain" onError={() => setFailed(true)} recyclingKey={store.logoUrl} />
+      </View>
+    );
   }
-  const word = store.name.split(' ')[0]!;
+  const bg = store.brandColor ?? '#2A3038';
+  const light = isLightColor(bg);
+  // Domains ("shop.example.com") show their first label: "shop".
+  const word = (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(store.name) ? store.name.split('.')[0]! : store.name.split(' ')[0]!) || store.name;
   return (
     <View accessibilityLabel={store.name} style={{ width: size, height: size, borderRadius: radius, backgroundColor: bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: size * 0.05 }}>
       <Text numberOfLines={1}
@@ -284,6 +291,22 @@ export function StoreMark({ store, size = 42 }: { store: { name: string; logoUrl
         {word}
       </Text>
     </View>
+  );
+}
+
+/** Small brand logo + name ("Made by"), when we know the maker's site. */
+export function BrandLine({ brand, logoUrl, size = 18 }: { brand: string | null; logoUrl: string | null; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  if (!brand) return null;
+  return (
+    <Row style={{ gap: 6 }}>
+      {logoUrl && !failed ? (
+        <View style={{ width: size, height: size, borderRadius: size * 0.28, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          <Image source={{ uri: logoUrl }} style={{ width: size * 0.78, height: size * 0.78 }} contentFit="contain" onError={() => setFailed(true)} />
+        </View>
+      ) : null}
+      <Txt size={12} weight="600" color={C.textSoft} ltr>{brand}</Txt>
+    </Row>
   );
 }
 
@@ -297,7 +320,7 @@ function isLightColor(hex: string): boolean {
 
 const CATEGORY_GLYPH: Record<string, string> = {
   laptop: '💻', phone: '📱', tablet: '📲', headphones: '🎧', watch: '⌚', tv: '📺', camera: '📷', gaming: '🎮',
-  coffee: '☕', home: '🏠', beauty: '🧴', grocery: '🛒',
+  coffee: '☕', home: '🏠', beauty: '🧴', grocery: '🛒', fashion: '👜', car: '🚗',
 };
 
 /** Product photo when we have one, otherwise a category glyph tile. */

@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import {
-  effectivePriceMarket, expandSearchQuery, priceConfidence, rankOffers, buyTiming,
+  brandDomain, effectivePriceMarket, expandSearchQuery, isExactRate, rankOffers, buyTiming, siteDomain,
   type CurrencyCode, type HistoryResponse, type OfferDTO, type OfferInput, type OffersResponse,
   type ProductDTO, type ProductSummaryDTO, type SortMode, type SponsoredDTO, type StoreDTO,
 } from '@bestprice/core';
@@ -13,8 +13,15 @@ type StoreRow = typeof stores.$inferSelect;
 type ProductRow = typeof products.$inferSelect;
 type BranchRow = typeof branches.$inferSelect;
 
-export function toStoreDTO(s: StoreRow): StoreDTO {
-  return { id: s.id, name: s.name, nameAr: s.nameAr, logoUrl: s.logoUrl, brandColor: s.brandColor, website: s.website };
+/** Site icons are served through our own API (/v1/logo), so the app never calls a third party for them. */
+export const logoUrlFor = (publicBaseUrl: string, domain: string | null) => (domain ? `${publicBaseUrl}/v1/logo/${domain}` : null);
+
+export function toStoreDTO(s: StoreRow, publicBaseUrl: string): StoreDTO {
+  const domain = siteDomain(s.allowedDomains[0]) ?? siteDomain(s.website);
+  return {
+    id: s.id, name: s.name, nameAr: s.nameAr, logoUrl: s.logoUrl ?? logoUrlFor(publicBaseUrl, domain), brandColor: s.brandColor, website: s.website,
+    domain, known: s.known, kind: s.kind,
+  };
 }
 
 function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
@@ -69,7 +76,7 @@ export class CatalogService {
       return {
         id: o.id, storeId: s.id, channel: o.channel, priceMinor: o.priceMinor, shippingMinor: o.shippingMinor, feesMinor: o.feesMinor,
         stock: o.stock, warrantyMonths: o.warrantyMonths, returnDays: o.returnDays, etaHours: o.etaHours, distanceKm,
-        observedAt: o.observedAt, sourceType: src.type, row: o, store: s, branch, sourceName: src.name,
+        observedAt: o.observedAt, sourceType: src.type, sellerKnown: s.known, fromAbroad: s.kind === 'global', row: o, store: s, branch, sourceName: src.name,
       };
     });
   }
@@ -79,13 +86,14 @@ export class CatalogService {
     if (!product) throw notFound('product_not_found');
     const market = effectivePriceMarket(country);
     const loaded = await this.loadOffers([productId], market.code, loc);
-    const ranked = rankOffers(loaded, sort);
+    const ranked = rankOffers(loaded.filter((o) => o.row.condition === 'new'), sort);
+    const usedRanked = rankOffers(loaded.filter((o) => o.row.condition !== 'new'), 'cheapest');
     const currency = market.currency;
-    const dtos: OfferDTO[] = ranked.map((r) => {
+    const toDTO = (r: (typeof ranked)[number]): OfferDTO => {
       const o = r.offer;
       return {
         id: o.id,
-        store: toStoreDTO(o.store),
+        store: toStoreDTO(o.store, this.publicBaseUrl),
         channel: o.channel,
         priceMinor: o.priceMinor,
         shippingMinor: o.shippingMinor,
@@ -99,6 +107,11 @@ export class CatalogService {
         etaHours: o.etaHours,
         branch: o.branch ? { id: o.branch.id, name: o.branch.name, nameAr: o.branch.nameAr, distanceKm: o.distanceKm, lat: o.branch.lat, lng: o.branch.lng } : null,
         observedAt: new Date(o.observedAt).toISOString(),
+        condition: o.row.condition,
+        title: o.row.title,
+        original: o.row.origPriceMinor !== null && o.row.origCurrency
+          ? { priceMinor: o.row.origPriceMinor, currency: o.row.origCurrency, exact: isExactRate(o.row.origCurrency, o.row.currency) }
+          : null,
         sourceType: o.sourceType,
         sourceName: o.sourceName,
         confidence: r.confidence,
@@ -107,7 +120,9 @@ export class CatalogService {
         buyUrl: safeOutboundUrl(o.row.url, o.store.allowedDomains) ? `${this.publicBaseUrl}/r/${o.id}` : null,
         isDemo: o.sourceType === 'demo',
       };
-    });
+    };
+    const dtos = ranked.map(toDTO);
+    const used = usedRanked.map(toDTO);
     const now = new Date();
     const sponsoredRows = await this.db
       .select({ p: sponsoredPlacements, s: stores })
@@ -122,31 +137,31 @@ export class CatalogService {
       .limit(2);
     const sponsored: SponsoredDTO[] = sponsoredRows
       .filter(({ p, s }) => safeOutboundUrl(p.url, s.allowedDomains))
-      .map(({ p, s }) => ({ id: p.id, label: p.label, labelAr: p.labelAr, priceMinor: p.priceMinor, currency, store: toStoreDTO(s), clickUrl: `${this.publicBaseUrl}/r/s/${p.id}` }));
+      .map(({ p, s }) => ({ id: p.id, label: p.label, labelAr: p.labelAr, priceMinor: p.priceMinor, currency, store: toStoreDTO(s, this.publicBaseUrl), clickUrl: `${this.publicBaseUrl}/r/s/${p.id}` }));
     return {
       productId,
       sort,
       offers: dtos,
+      used,
       sponsored,
       currency,
       coverage: { market: market.code, live: market.code === country, storeCount: new Set(dtos.map((d) => d.store.id)).size },
     };
   }
 
-  /** Lowest trustworthy (non-stale, in-stock-ish) final price per product. */
+  /**
+   * Lowest trustworthy final price per product: new items only, not stale,
+   * not out of stock, and never a price flagged as suspiciously low.
+   */
   async bestPrices(productIds: string[], market: string): Promise<Map<string, { minor: number; storeName: string; offerCount: number }>> {
-    const loaded = await this.loadOffers(productIds, market);
+    const loaded = (await this.loadOffers(productIds, market)).filter((o) => o.row.condition === 'new');
+    const byProduct = new Map<string, LoadedOffer[]>();
+    for (const o of loaded) byProduct.set(o.row.productId, [...(byProduct.get(o.row.productId) ?? []), o]);
     const out = new Map<string, { minor: number; storeName: string; offerCount: number }>();
-    for (const o of loaded) {
-      const conf = priceConfidence(o.sourceType, o.observedAt);
-      if (conf === 'stale' || o.stock === 'out_of_stock') continue;
-      const final = o.priceMinor + (o.shippingMinor ?? 0) + o.feesMinor;
-      const cur = out.get(o.row.productId);
-      if (!cur) out.set(o.row.productId, { minor: final, storeName: o.store.name, offerCount: 1 });
-      else {
-        cur.offerCount += 1;
-        if (final < cur.minor) Object.assign(cur, { minor: final, storeName: o.store.name });
-      }
+    for (const [pid, list] of byProduct) {
+      const ok = rankOffers(list, 'cheapest').filter((r) => r.confidence !== 'stale' && r.offer.stock !== 'out_of_stock');
+      const best = ok.find((r) => !r.reasons.includes('suspicious_price'));
+      if (best) out.set(pid, { minor: best.finalMinor, storeName: best.offer.store.name, offerCount: ok.length });
     }
     return out;
   }
@@ -162,6 +177,7 @@ export class CatalogService {
       model: p.model,
       category: p.category,
       imageUrl: p.imageUrl,
+      brandLogoUrl: logoUrlFor(this.publicBaseUrl, p.brandDomain ?? brandDomain(p.brand)),
       bestPriceMinor: best.get(p.id)?.minor ?? null,
       currency: market.currency,
       offerCount: best.get(p.id)?.offerCount ?? 0,

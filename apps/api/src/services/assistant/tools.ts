@@ -1,6 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import { CURRENCIES, effectivePriceMarket, recommend, type Candidate, type ProductSummaryDTO, type SortMode } from '@bestprice/core';
+import { CURRENCIES, effectivePriceMarket, minorDigitsOf, recommend, type Candidate, type ProductSummaryDTO, type SortMode } from '@bestprice/core';
 import { and, eq } from 'drizzle-orm';
 import type { DB } from '../../db/client';
 import { preferences, products, watches } from '../../db/schema';
@@ -20,7 +20,7 @@ export const TOOL_DEFS: Anthropic.Beta.BetaTool[] = [
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Search text, e.g. "laptop", "iPhone 16", "coffee grinder"' },
-        category: { type: 'string', enum: ['laptop', 'phone', 'headphones', 'tablet', 'watch', 'tv', 'gaming', 'coffee', 'home', 'any'], description: 'Optional category filter' },
+        category: { type: 'string', enum: ['laptop', 'phone', 'headphones', 'tablet', 'watch', 'tv', 'camera', 'gaming', 'coffee', 'home', 'beauty', 'fashion', 'car', 'grocery', 'any'], description: 'Optional category filter' },
         max_price: { type: 'number', description: 'Optional maximum price in major currency units (e.g. 3000 for 3,000 SAR)' },
       },
       required: ['query'],
@@ -205,15 +205,19 @@ export async function runTool(name: string, rawInput: unknown, ctx: ToolContext)
       const i = OffersIn.parse(rawInput);
       const r = await ctx.catalog.rankedOffers(i.product_id, (i.sort ?? 'value') as SortMode, ctx.country, ctx.loc);
       ctx.seen.add(i.product_id);
+      const row = (o: (typeof r.offers)[number]) => ({
+        store: o.store.name, seller_known: o.store.known, ships_from_abroad: o.store.kind === 'global', condition: o.condition, listing_title: o.title,
+        channel: o.channel, price: M(o.priceMinor), original_price: o.original ? `${o.original.priceMinor / 10 ** minorDigitsOf(o.original.currency)} ${o.original.currency}${o.original.exact ? '' : ' (converted approximately)'}` : null,
+        shipping: o.shippingMinor === null ? 'unknown' : M(o.shippingMinor),
+        final_price: M(o.finalMinor), final_is_estimate: o.finalIsEstimate, stock: o.stock, warranty_months: o.warrantyMonths,
+        return_days: o.returnDays, delivery_hours: o.etaHours, branch: o.branch?.name ?? null, distance_km: o.branch?.distanceKm ?? null,
+        price_updated_at: o.observedAt, reliability: o.confidence, source_type: o.sourceType, demo_data: o.isDemo, rank: o.rank, rank_reasons: o.reasons,
+      });
       return {
         currency: r.currency,
-        note: 'Prices and stock may change before purchase. Reliability reflects how recent and trustworthy each price is.',
-        offers: r.offers.map((o) => ({
-          store: o.store.name, channel: o.channel, price: M(o.priceMinor), shipping: o.shippingMinor === null ? 'unknown' : M(o.shippingMinor),
-          final_price: M(o.finalMinor), final_is_estimate: o.finalIsEstimate, stock: o.stock, warranty_months: o.warrantyMonths,
-          return_days: o.returnDays, delivery_hours: o.etaHours, branch: o.branch?.name ?? null, distance_km: o.branch?.distanceKm ?? null,
-          price_updated_at: o.observedAt, reliability: o.confidence, demo_data: o.isDemo, rank: o.rank, rank_reasons: o.reasons,
-        })),
+        note: 'Prices and stock may change before purchase. Reliability reflects how recent and trustworthy each price is. seller_known=false means a seller outside our store directory; suspicious_price in rank_reasons means far below other sellers.',
+        offers: r.offers.map(row),
+        used_listings: r.used.map(row),
       };
     }
     case 'get_price_history': {

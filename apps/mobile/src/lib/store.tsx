@@ -35,7 +35,8 @@ interface AppCtx {
   bump: () => void;
   chat: ChatState;
   setChat: React.Dispatch<React.SetStateAction<ChatState>>;
-  startProductChat: (p: Pick<ProductSummaryDTO, 'id' | 'name'>) => Promise<void>;
+  /** Opens a chat about a product; `ask` is sent as the first question. */
+  startProductChat: (p: Pick<ProductSummaryDTO, 'id' | 'name'>, ask?: string) => Promise<void>;
   newChat: () => void;
   sendChat: (text: string) => Promise<void>;
 }
@@ -120,11 +121,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const newChat = useCallback(() => setChat({ messages: [], typing: false, product: null }), []);
 
-  const startProductChat = useCallback(async (p: Pick<ProductSummaryDTO, 'id' | 'name'>) => {
+  const startProductChat = useCallback(async (p: Pick<ProductSummaryDTO, 'id' | 'name'>, ask?: string) => {
     setChat({ messages: [], typing: true, product: { id: p.id, name: p.name } });
     try {
       const r = await api.startChat([p.id], lang);
-      setChat({ conversationId: r.conversationId, messages: r.messages, typing: false, product: { id: p.id, name: p.name } });
+      setChat({ conversationId: r.conversationId, messages: r.messages, typing: !!ask, product: { id: p.id, name: p.name } });
+      if (!ask) return;
+      const now = new Date().toISOString();
+      const mine: AssistantMessageDTO = { id: `local-${now}`, role: 'user', text: ask, facts: [], opinion: null, sources: [], recommendations: [], chips: [], mood: 'neutral', createdAt: now };
+      setChat((c) => ({ ...c, messages: [...c.messages, mine] }));
+      const a = await api.chat({ conversationId: r.conversationId, message: ask, lang });
+      setChat((c) => ({ ...c, typing: false, messages: [...c.messages.filter((m) => m.id !== mine.id), ...a.messages] }));
     } catch {
       setChat((c) => ({ ...c, typing: false }));
     }

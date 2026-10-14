@@ -10,6 +10,9 @@ const Env = z.object({
   PUBLIC_BASE_URL: z.string().url().default('http://localhost:4000'),
   ANTHROPIC_API_KEY: z.string().optional(),
   ASSISTANT_MODEL: z.string().default('claude-opus-5-5'),
+  /** Online product search: a faster model answers sooner; claude-opus-5-5 searches deeper. */
+  DISCOVERY_MODEL: z.string().default('claude-sonnet-5-5'),
+  DISCOVERY_EFFORT: z.enum(['low', 'medium', 'high']).default('low'),
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD: z.string().optional(),
   SEED_DEMO_DATA: z.string().default('true').transform((v) => v === 'true'),

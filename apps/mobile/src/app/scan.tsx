@@ -7,8 +7,11 @@ import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatAmount, currencySymbol, type ScanResponse } from '@bestprice/core';
-import { api, ApiError } from '../lib/api';
+import { api } from '../lib/api';
+import { MAX_PHOTO_BASE64, mediaTypeOf, setPendingPhoto, type PhotoQuery } from '../lib/photoSearch';
 import { useApp } from '../lib/store';
+import { useDiscovery } from '../lib/useDiscovery';
+import { LiveSearchPanel } from '../ui/live';
 import type { StrKey } from '../lib/i18n';
 import { IconFlash, IconGallery, IconSearch } from '../ui/icons';
 import { Glass, GhostButton, GradientButton, ProductThumb, Press, Row, Txt } from '../ui/kit';
@@ -34,20 +37,13 @@ export default function Scan() {
   const [manual, setManual] = useState(false);
   const [code, setCode] = useState('');
   const [note, setNote] = useState<string | null>(null);
-  const [webLookup, setWebLookup] = useState<'idle' | 'busy' | 'none'>('idle');
-  /** Unknown barcode: look it up in stores online (slow; the server caches results). */
+  const web = useDiscovery();
+  const cam = useRef<CameraView>(null);
+  /** Unknown barcode: look it up on the web (the server caches results). */
   const lookupOnline = async (gtin: string) => {
-    setWebLookup('busy');
-    try {
-      const d = await api.discover({ gtin });
-      if (d.status === 'found' && d.results[0]) {
-        setWebLookup('idle');
-        router.replace(`/product/${d.results[0].id}`);
-      } else setWebLookup('none');
-    } catch (e) {
-      setWebLookup('idle');
-      showToast({ title: e instanceof ApiError && e.status === 429 ? t('discoverLimit') : t('errorGeneric') });
-    }
+    const job = await web.start(t('searchingOnline'), () => api.discover({ gtin }));
+    if (job?.status === 'found' && job.results[0]) router.replace(`/product/${job.results[0].id}`);
+    else if (!job) showToast({ title: t('errorGeneric') });
   };
   const locked = useRef(false);
 
@@ -77,16 +73,26 @@ export default function Scan() {
     }
   };
   const onBarcode = (e: BarcodeScanningResult) => { if (mode === 'barcode' && !result) void lookup(e.data); };
-  const rescan = () => { setResult(null); setNote(null); setWebLookup('idle'); locked.current = false; };
+  const rescan = () => { setResult(null); setNote(null); web.reset(); locked.current = false; };
 
+  /** Photo / price tag / gallery: identify the item from the picture and search for it. */
   const capture = async () => {
     if (mode === 'barcode') { setManual(true); return; }
+    let shot: PhotoQuery | null = null;
     if (mode === 'gallery') {
-      const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.5 }).catch(() => null);
-      if (!r || r.canceled) return;
+      const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.4, base64: true, allowsEditing: true, exif: false }).catch(() => null);
+      const a = r && !r.canceled ? r.assets[0] : null;
+      if (!a?.base64) return;
+      shot = { uri: a.uri, mediaType: mediaTypeOf(a.mimeType), data: a.base64 };
+    } else {
+      const pic = cam.current ? await cam.current.takePictureAsync({ base64: true, quality: 0.35, exif: false }).catch(() => null) : null;
+      if (!pic?.base64) { setNote(t('camUnavailable')); return; }
+      shot = { uri: pic.uri, mediaType: 'image/jpeg', data: pic.base64, hint: mode === 'tag' ? 'Photo of a price tag or shelf label: read the product name and model from it.' : undefined };
     }
-    // Visual recognition is not in the MVP: be honest and route to name search.
-    setNote(t('visualSoon'));
+    if (shot.data.length > MAX_PHOTO_BASE64) { setNote(t('errorGeneric')); return; }
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPendingPhoto(shot);
+    router.replace('/search?photo=1');
   };
 
   const frameH = mode === 'barcode' ? 170 : 300;
@@ -96,7 +102,7 @@ export default function Scan() {
   return (
     <View style={{ flex: 1, backgroundColor: '#06090D', paddingTop: insets.top + 8 }}>
       {camReady ? (
-        <CameraView style={StyleSheet.absoluteFill} facing="back" enableTorch={torch}
+        <CameraView ref={cam} style={StyleSheet.absoluteFill} facing="back" enableTorch={torch}
           barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'qr', 'itf14'] }}
           onBarcodeScanned={result || busy ? undefined : onBarcode} />
       ) : (
@@ -215,12 +221,10 @@ export default function Scan() {
     }
     return (
       <Glass blur style={box}>
-        <Txt size={13.5} lh={1.6}>{r.kind === 'gtin' ? (webLookup === 'none' ? t('notFoundOnline') : t('notFoundBarcode')) : t('qrOther')}</Txt>
-        {r.gtin && r.canDiscover && webLookup !== 'none' ? (
-          webLookup === 'busy'
-            ? <Txt size={12.5} color={C.textSoft}>{t('searchingOnline')}</Txt>
-            : <GradientButton label={t('searchOnline')} onPress={() => lookupOnline(r.gtin!)} />
-        ) : null}
+        <Txt size={13.5} lh={1.6}>{r.kind === 'gtin' ? (web.state.phase === 'done' ? t('notFoundOnline') : t('notFoundBarcode')) : t('qrOther')}</Txt>
+        {web.state.phase === 'running' ? <LiveSearchPanel state={web.state} /> : null}
+        {web.state.phase === 'error' ? <Txt size={12.5} color={C.coral}>{t(web.state.code === 'discovery_daily_limit' ? 'discoverLimit' : 'errorGeneric')}</Txt> : null}
+        {r.gtin && r.canDiscover && web.state.phase === 'idle' ? <GradientButton label={t('searchOnline')} onPress={() => lookupOnline(r.gtin!)} /> : null}
         {r.candidates.map((c) => (
           <Press key={c.id} onPress={() => router.replace(`/product/${c.id}`)}><Txt size={13} color={C.greenSoft}>{c.name}</Txt></Press>
         ))}

@@ -205,7 +205,7 @@ export default function Assistant() {
               {r.cons[0] ? <Row style={{ flex: 1, gap: 6, alignItems: 'flex-start' }}><Txt size={12} weight="700" color={C.coral}>−</Txt><Txt size={12} color={C.textSoft} style={{ flex: 1 }}>{r.cons[0]}</Txt></Row> : null}
             </Row>
           ) : null}
-          <View style={{ borderTopWidth: 1, borderStyle: 'dashed', borderTopColor: C.lineSoft, paddingTop: 8 }}>
+          <View style={{ borderTopWidth: 1, borderTopColor: C.lineSoft, paddingTop: 8 }}>
             <Txt size={12} color={C.textMute} lh={1.6}><Txt size={12} weight="600">{t('whyPicked')} </Txt>{r.why}</Txt>
           </View>
         </Glass>

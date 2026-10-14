@@ -30,7 +30,7 @@ This document lists the controls implemented in the codebase and what must be co
 ### Links, QR codes and SSRF
 - QR payloads are classified, never assumed to be products. URLs get a risk verdict; `javascript:`, `data:`, `file:`, `intent:` etc. are never opened. Credentials-in-URL and IP-literal hosts are blocked; punycode, shorteners, plain HTTP and odd ports show a caution.
 - Outbound "Buy" links go through `/r/:id`, which only redirects (HTTPS) to the store's `allowed_domains` — no open redirect. Import rejects listings with off-domain URLs.
-- Server-side feed fetching (`/admin/sources/:id/fetch`) is HTTPS-only, resolves DNS and refuses private/loopback/link-local/CGNAT ranges, follows no redirects, and caps size and time.
+- Every server-side fetch (partner feeds, product pages read by web search, site icons) goes through one guarded client (`lib/http.ts`): HTTPS only, port 443, no credentials in URLs, IP-literal hosts refused, and DNS resolution checked **inside the socket's lookup** so the address that is checked is the one connected to (no DNS-rebinding window). Private/loopback/link-local/CGNAT ranges are refused; redirects are re-checked hop by hop (feeds follow none); size and time are capped (tested).
 
 ### AI assistant
 - Prices, stores, availability and links come only from database-backed tools. Product cards are rendered server-side from the DB; any product id the model did not receive from a tool in that turn is dropped (tested).
@@ -38,16 +38,20 @@ This document lists the controls implemented in the codebase and what must be co
 - Side-effecting tools are limited to adding a watch (user's own account, plan limit enforced) and saving a preference (only if the user enabled memory; capped).
 - Refusals return a polite message; API failures fall back to the rule-based advisor.
 
-### Online product lookup (web discovery)
-- Runs only for a signed-in session (guest included), rate limited (6/min) with a daily per-user quota; results are cached per query and market (24 h found, 1 h miss) so repeated searches cost nothing.
-- A price is kept only if its page URL was returned by web search in that same run **and** belongs to a store in the store directory (`allowed_domains`); anything else the model reports is dropped (tested). Kept prices go through the normal import pipeline (currency check, outlier flagging) as `web_search` offers, which never reach "high" confidence and are labelled in the app with a "check on the store page" notice.
-- Spec source links must be pages the search returned. Product photos are accepted only from store domains, known store image CDNs, or the spec-source site; other hosts are dropped (tested).
+### Web search for products (text, barcode, photo)
+- Runs only for a signed-in session (guest included), rate limited (6/min) with a daily per-user quota and at most 2 running searches per user; results are cached per query/photo and market (24 h found, 12 h "more sellers", 1 h miss) so repeated searches cost nothing. Search jobs are only visible to the user who started them (tested).
+- A listing is kept only if its page URL was returned by web search **in that same run** (the model cannot invent a link), is HTTPS and passes the URL risk check (no IP hosts, credentials, odd ports, shorteners). Anything else is dropped (tested).
+- Sellers in the store directory are *known*. Any other site becomes an **unknown seller named by its domain** — never by the name a page claims (prevents "Jarir Official" impersonation on look-alike domains) — and is shown with an "unknown seller" badge and a buyer-protection note. Admins can deactivate a seller for good.
+- Prices far below the other sellers (< 60 % of the median) are shown with a warning, never badged "lowest price", never ranked best value and never used as the product's "from" price (tested). Foreign-currency prices are converted for comparison and always shown next to the original; non-pegged rates are marked approximate.
+- When a listing page can be read, its own structured data (JSON-LD / Open Graph) supplies the photo and published price, overriding what the model read from a snippet. Only metadata is parsed, never scripts.
+- The search prompt forbids listing counterfeits (replica / "AAA" / "1:1" / luxury items far below price outside authorised sellers); only unbranded look-alikes may appear, labelled "similar alternative".
+- Photos for photo search are sent to the AI provider for that search only; the server keeps a hash (for caching), never the image.
 - The model's structured output is schema-validated (strict tool + Zod); web page text is treated as data, never as instructions.
 
 ### Privacy
 - Guest use without email. Location is sent per request only for distance and never stored. Country comes from settings, not geolocation.
 - Turning assistant memory off deletes saved preferences. Users can view/delete each preference, clear search & chat history, export all their data (JSON) and permanently delete their account (cascading delete).
-- No third-party analytics or ad SDKs in the app; store logos are rendered locally (no third-party image requests that leak IPs).
+- No third-party analytics or ad SDKs in the app. Store and brand logos (site icons) are fetched once by the server and served from `/v1/logo/:domain` with caching, so shoppers' devices never contact a third party for them. Product photos load from the store's own image host.
 - Notification permission requested only when watching a price.
 
 ### Commercial integrity

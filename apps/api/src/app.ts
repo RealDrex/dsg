@@ -17,7 +17,8 @@ import { catalogRoutes } from './routes/catalog';
 import { watchRoutes } from './routes/watch';
 import { assistantRoutes } from './routes/assistant';
 import { adminRoutes } from './routes/admin';
-import { DiscoveryService } from './services/discovery';
+import { DiscoveryJobs, DiscoveryService } from './services/discovery';
+import { LogoService } from './lib/logo';
 
 export interface Ctx {
   cfg: Config;
@@ -26,6 +27,8 @@ export interface Ctx {
   catalog: CatalogService;
   assistant: AssistantService;
   discovery: DiscoveryService;
+  jobs: DiscoveryJobs;
+  logos: LogoService;
 }
 
 declare module 'fastify' {
@@ -53,7 +56,8 @@ export async function buildApp(cfg: Config, db: DB): Promise<{ app: FastifyInsta
   const catalog = new CatalogService(db, cfg.PUBLIC_BASE_URL);
   const discovery = new DiscoveryService(db, catalog, {
     apiKey: cfg.ANTHROPIC_API_KEY || undefined,
-    model: cfg.ASSISTANT_MODEL,
+    model: cfg.DISCOVERY_MODEL,
+    effort: cfg.DISCOVERY_EFFORT,
     freeDaily: cfg.FREE_DISCOVERY_DAILY,
     proDaily: cfg.PRO_DISCOVERY_DAILY,
   });
@@ -65,7 +69,8 @@ export async function buildApp(cfg: Config, db: DB): Promise<{ app: FastifyInsta
     freeWatchLimit: cfg.FREE_WATCH_LIMIT,
     proWatchLimit: cfg.PRO_WATCH_LIMIT,
   }, discovery);
-  const ctx: Ctx = { cfg, db, tokens, catalog, assistant, discovery };
+  const jobs = new DiscoveryJobs(2, 400, (e) => app.log.error({ err: e }, 'online search failed'));
+  const ctx: Ctx = { cfg, db, tokens, catalog, assistant, discovery, jobs, logos: new LogoService() };
 
   await app.register(helmet, {
     contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },

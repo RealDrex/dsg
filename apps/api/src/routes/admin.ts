@@ -8,7 +8,7 @@ import {
   sponsoredPlacements, stores, unmatchedListings, users, watches,
 } from '../db/schema';
 import { badRequest, conflict, notFound } from '../lib/errors';
-import { fetchPublicJson } from '../lib/net';
+import { fetchPublicJson } from '../lib/http';
 import { importListings, Listing, matchKey } from '../ingest/pipeline';
 
 const IdParam = z.object({ id: z.string().uuid() });

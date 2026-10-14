@@ -53,6 +53,9 @@ export const stores = pgTable('stores', {
   /** Outbound links are only followed to these hosts (and their subdomains). */
   allowedDomains: text('allowed_domains').array().notNull().default(sql`'{}'::text[]`),
   country: text('country').notNull().default('SA'),
+  /** In the curated store directory. Sellers created from web search results are not, and the apps say so. */
+  known: boolean('known').notNull().default(true),
+  kind: text('kind', { enum: ['retailer', 'global', 'classifieds'] }).notNull().default('retailer'),
   active: boolean('active').notNull().default(true),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex('stores_slug_uq').on(t.slug)]);
@@ -78,6 +81,8 @@ export const products = pgTable('products', {
   matchKey: text('match_key'),
   category: text('category').notNull(),
   imageUrl: text('image_url'),
+  /** Maker's website (host only), for its logo. */
+  brandDomain: text('brand_domain'),
   attributes: jsonb('attributes').$type<Record<string, number | string | boolean>>().notNull().default({}),
   specs: jsonb('specs').$type<{ key: string; label: string; labelAr: string; value: string }[]>().notNull().default([]),
   specSourceLabel: text('spec_source_label'),
@@ -125,6 +130,12 @@ export const offers = pgTable('offers', {
   returnDays: integer('return_days'),
   etaHours: integer('eta_hours'),
   url: text('url'),
+  condition: text('condition', { enum: ['new', 'used', 'refurbished'] }).notNull().default('new'),
+  /** Listing title as the seller wrote it (kept for used and marketplace listings). */
+  title: text('title'),
+  /** Price as shown by the seller when it was in another currency; priceMinor holds the converted amount. */
+  origPriceMinor: integer('orig_price_minor'),
+  origCurrency: text('orig_currency'),
   observedAt: timestamp('observed_at', { withTimezone: true }).notNull(),
   /** Flagged offers (anomalous price, contradicting data) are hidden until reviewed. */
   flagged: boolean('flagged').notNull().default(false),
@@ -271,5 +282,7 @@ export const discoveryRuns = pgTable('discovery_runs', {
   market: text('market').notNull(),
   status: text('status', { enum: ['found', 'not_found', 'failed'] }).notNull(),
   productIds: uuid('product_ids').array().notNull().default(sql`'{}'::uuid[]`),
+  /** Of productIds, the ones that are alternatives rather than the item searched for. */
+  similarIds: uuid('similar_ids').array().notNull().default(sql`'{}'::uuid[]`),
   createdAt: createdAt(),
 }, (t) => [index('discovery_key_idx').on(t.key, t.market, t.createdAt), index('discovery_user_idx').on(t.userId, t.createdAt)]);

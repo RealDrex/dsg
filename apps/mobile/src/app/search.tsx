@@ -1,161 +1,183 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, FlatList, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { Alert, ScrollView, TextInput, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { formatAmount, currencySymbol, type ProductSummaryDTO } from '@bestprice/core';
-import { api, ApiError } from '../lib/api';
+import type { ProductSummaryDTO } from '@bestprice/core';
+import { api } from '../lib/api';
+import { MAX_PHOTO_BASE64, mediaTypeOf, takePendingPhoto, type PhotoQuery } from '../lib/photoSearch';
 import { useApp } from '../lib/store';
-import { IconBack, IconScan, IconSearch } from '../ui/icons';
-import { Chevron, Glass, GhostButton, Memoji, ProductThumb, Press, Row, Spinner, Txt, Screen } from '../ui/kit';
+import { useDiscovery } from '../lib/useDiscovery';
+import type { StrKey } from '../lib/i18n';
+import { IconBack, IconGallery, IconScan, IconSearch } from '../ui/icons';
+import { GhostButton, Glass, Press, Row, Screen, Spinner, Txt } from '../ui/kit';
+import { LiveSearchPanel, ProductResult } from '../ui/live';
 import { C } from '../ui/theme';
 
-type Online = { state: 'idle' } | { state: 'searching'; q: string } | { state: 'done'; q: string; found: number } | { state: 'error'; q: string; msg: string };
+const ERRORS: Record<string, StrKey> = { discovery_daily_limit: 'discoverLimit', discovery_busy: 'discoverBusy' };
 
 export default function Search() {
-  const { t, L, lang, rtl, user } = useApp();
+  const { t, rtl, showToast } = useApp();
+  const params = useLocalSearchParams<{ photo?: string }>();
   const insets = useSafeAreaInsets();
   const [q, setQ] = useState('');
-  const [results, setResults] = useState<ProductSummaryDTO[] | null>(null);
-  const [canDiscover, setCanDiscover] = useState(false);
+  const [catalog, setCatalog] = useState<ProductSummaryDTO[] | null>(null);
+  const [canDiscover, setCanDiscover] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
-  const [online, setOnline] = useState<Online>({ state: 'idle' });
+  const [photo, setPhoto] = useState<string | null>(null);
+  const live = useDiscovery();
   const seq = useRef(0);
   const autoTried = useRef(new Set<string>());
+  const v = q.trim();
 
-  const runOnline = async (v: string) => {
-    const n = seq.current;
-    setOnline({ state: 'searching', q: v });
-    try {
-      const r = await api.discover({ q: v });
-      if (n !== seq.current) return;
-      if (r.status === 'found') {
-        // Catalog results first, then what the store search added (deduplicated).
-        setResults((cur) => [...(cur ?? []), ...r.results.filter((p) => !(cur ?? []).some((c) => c.id === p.id))]);
-      }
-      setOnline({ state: 'done', q: v, found: r.status === 'found' ? r.results.length : 0 });
-    } catch (e) {
-      if (n !== seq.current) return;
-      const msg = e instanceof ApiError && e.status === 429 ? t('discoverLimit') : t('errorGeneric');
-      setOnline({ state: 'error', q: v, msg });
-    }
+  const searchWeb = (text: string) => {
+    if (text.length < 2) return;
+    autoTried.current.add(text);
+    setPhoto(null);
+    void live.start(t('liveSearching'), () => api.discover({ q: text }));
   };
 
+  const searchPhoto = (p: PhotoQuery) => {
+    setPhoto(p.uri);
+    void live.start(t('photoSearching'), () => api.discover({ image: { mediaType: p.mediaType, data: p.data }, ...(p.hint ? { q: p.hint } : {}) }));
+  };
+
+  // A photo taken on the camera screen.
   useEffect(() => {
-    const v = q.trim();
+    const p = params.photo ? takePendingPhoto() : null;
+    if (p) searchPhoto(p);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.photo]);
+
+  // Instant catalog matches while typing.
+  useEffect(() => {
     const n = ++seq.current;
-    setOnline({ state: 'idle' });
-    if (v.length < 2) { setResults(null); setLoading(false); return; }
+    if (live.state.phase !== 'idle' && !photo) live.reset(); // a new query makes the previous web results stale
+    if (v.length < 2) { setCatalog(null); setLoading(false); return; }
     setLoading(true);
     const id = setTimeout(async () => {
       try {
         const r = await api.search(v);
         if (n !== seq.current) return;
-        setResults(r.results);
+        setCatalog(r.results);
         setCanDiscover(r.canDiscover);
       } catch {
-        if (n === seq.current) setResults([]);
+        if (n === seq.current) setCatalog([]);
       } finally {
         if (n === seq.current) setLoading(false);
       }
-    }, 350);
+    }, 300);
     return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
-  // Nothing in the catalog: look it up in the stores automatically once the user stops typing.
+  // Nothing in the catalog: search the web once the user stops typing.
   useEffect(() => {
-    const v = q.trim();
-    if (!results || results.length || loading || !canDiscover || online.state !== 'idle' || v.length < 3 || autoTried.current.has(v)) return;
-    const id = setTimeout(() => { autoTried.current.add(v); void runOnline(v); }, 900);
+    if (!catalog || catalog.length || loading || !canDiscover || live.state.phase !== 'idle' || v.length < 3 || autoTried.current.has(v)) return;
+    const id = setTimeout(() => searchWeb(v), 1500);
     return () => clearTimeout(id);
-  }, [results, loading, canDiscover, online.state, q]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalog, loading, canDiscover, live.state.phase, v]);
 
-  const v = q.trim();
-  const emptyCatalog = !!results && results.length === 0 && !loading;
-
-  const footer = () => {
-    if (!results || loading) return null;
-    if (online.state === 'searching') return <Searching avatar={user?.avatar ?? 'm01'} label={t('searchingOnline')} />;
-    if (online.state === 'error') return <Txt center color={C.coral} style={{ marginTop: 18 }}>{online.msg}</Txt>;
-    if (online.state === 'done' && online.found === 0) return <Txt center color={C.textMute} lh={1.7} style={{ marginTop: 18 }}>{t('notFoundOnline')}</Txt>;
-    if (online.state === 'done') return null;
-    if (emptyCatalog && !canDiscover) return <Txt center color={C.textMute} lh={1.7} style={{ marginTop: 30 }}>{t('onlineUnavailable')}</Txt>;
-    if (canDiscover && v.length >= 2) {
-      return (
-        <View style={{ marginTop: 14, gap: 8, alignItems: 'center' }}>
-          {results.length ? <Txt size={12.5} color={C.textMute}>{t('notWhatYouWant')}</Txt> : null}
-          <GhostButton label={`${t('searchOnline')} · «${v}»`} onPress={() => runOnline(v)} />
-        </View>
-      );
-    }
-    return null;
+  const choosePhoto = () => {
+    Alert.alert(t('photoSearch'), t('photoHint'), [
+      { text: t('photoCamera'), onPress: () => router.replace('/scan?mode=photo') },
+      { text: t('photoLibrary'), onPress: () => void pickFromLibrary() },
+      { text: t('close'), style: 'cancel' },
+    ]);
   };
+  const pickFromLibrary = async () => {
+    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.4, base64: true, allowsEditing: true, exif: false }).catch(() => null);
+    const a = r && !r.canceled ? r.assets[0] : null;
+    if (!a?.base64) return;
+    if (a.base64.length > MAX_PHOTO_BASE64) { showToast({ title: t('errorGeneric') }); return; }
+    searchPhoto({ uri: a.uri, mediaType: mediaTypeOf(a.mimeType), data: a.base64, hint: v.length >= 2 ? v : undefined });
+  };
+
+  const s = live.state;
+  const webResults = s.phase === 'done' ? s.job.results : [];
+  const showCta = canDiscover && v.length >= 2 && s.phase === 'idle';
+  const catalogOnly = (catalog ?? []).filter((p) => !webResults.some((w) => w.id === p.id));
 
   return (
     <Screen>
     <View style={{ flex: 1, paddingTop: insets.top + 6 }}>
-      <Row style={{ paddingHorizontal: 16, gap: 10, paddingBottom: 12 }}>
-        <Press onPress={() => router.back()} accessibilityLabel={t('close')} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.glass, alignItems: 'center', justifyContent: 'center' }}>
+      <Row style={{ paddingHorizontal: 16, gap: 8, paddingBottom: 12 }}>
+        <Press onPress={() => router.back()} accessibilityLabel={t('close')} style={roundBtn}>
           <IconBack size={18} width={2} style={{ transform: [{ scaleX: rtl ? 1 : -1 }] }} />
         </Press>
         <Row style={{ flex: 1, height: 46, borderRadius: 14, backgroundColor: 'rgba(255,255,255,.9)', paddingHorizontal: 12, gap: 8 }}>
           <IconSearch size={18} color={C.ink} width={2} />
-          <TextInput autoFocus value={q} onChangeText={setQ} placeholder={t('searchPh')} placeholderTextColor="#5B6672" returnKeyType="search" maxLength={120}
-            onSubmitEditing={() => { if (emptyCatalog && canDiscover && online.state === 'idle' && v.length >= 2) { autoTried.current.add(v); void runOnline(v); } }}
+          <TextInput autoFocus={!params.photo} value={q} onChangeText={setQ} placeholder={t('searchPh')} placeholderTextColor="#5B6672" returnKeyType="search" maxLength={120}
+            onSubmitEditing={() => { if (canDiscover && s.phase !== 'running') searchWeb(v); }}
             style={{ flex: 1, fontSize: 15, color: C.ink2, textAlign: rtl ? 'right' : 'left' }} />
         </Row>
-        <Press onPress={() => router.replace('/scan')} accessibilityLabel={t('scanTitle')} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.glass, alignItems: 'center', justifyContent: 'center' }}>
+        <Press onPress={choosePhoto} accessibilityLabel={t('photoSearch')} style={roundBtn}>
+          <IconGallery size={19} />
+        </Press>
+        <Press onPress={() => router.replace('/scan')} accessibilityLabel={t('scanTitle')} style={roundBtn}>
           <IconScan size={19} />
         </Press>
       </Row>
-      {loading && !results ? <Spinner /> : null}
-      <FlatList
-        data={results ?? []}
-        keyExtractor={(p) => p.id}
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 24, gap: 10 }}
-        ListFooterComponent={footer()}
-        renderItem={({ item: p }) => (
-          <Press onPress={() => router.push(`/product/${p.id}`)}>
-            <Glass style={{ borderRadius: 18, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <ProductThumb uri={p.imageUrl} category={p.category} size={56} />
-              <View style={{ flex: 1, gap: 3 }}>
-                <Txt size={14} weight="600" numberOfLines={2}>{L(p.nameAr ?? p.name, p.name)}</Txt>
-                <Txt size={12} color={C.textMute}>{p.offerCount ? `${p.offerCount} ${t('offersCount')}` : t('noPrice')}</Txt>
+
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 24, gap: 10 }}>
+        {showCta ? (
+          <Press onPress={() => searchWeb(v)}>
+            <Glass style={{ borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderColor: 'rgba(62,224,154,.45)' }}>
+              <Txt size={22}>🌐</Txt>
+              <View style={{ flex: 1, gap: 2 }}>
+                <Txt size={14} weight="700">{`${t('liveSearchCta')} «${v}»`}</Txt>
+                <Txt size={11.5} color={C.textMute}>{t('liveSearchTitle')}</Txt>
               </View>
-              {p.bestPriceMinor !== null ? (
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Txt size={11} color={C.textDim}>{t('from')}</Txt>
-                  <Txt size={15} weight="700">{formatAmount(p.bestPriceMinor, p.currency)} <Txt size={11} color={C.textMute}>{currencySymbol(p.currency, lang)}</Txt></Txt>
-                </View>
-              ) : null}
-              <Chevron />
             </Glass>
           </Press>
-        )}
-      />
+        ) : null}
+
+        {s.phase === 'running' ? <LiveSearchPanel state={s} photoUri={photo} /> : null}
+
+        {s.phase === 'done' && webResults.length ? (
+          <View style={{ gap: 10 }}>
+            <Txt size={13} weight="700" color={C.textMute}>{t('liveFound')}</Txt>
+            {webResults.map((p) => <ProductResult key={p.id} p={p} big />)}
+          </View>
+        ) : null}
+        {s.phase === 'done' && !webResults.length ? (
+          <Txt center color={C.textMute} lh={1.7} style={{ marginTop: 6 }}>{s.job.status === 'unavailable' ? t('onlineNeedsKey') : t('notFoundOnline')}</Txt>
+        ) : null}
+        {s.phase === 'error' ? (
+          <View style={{ alignItems: 'center', gap: 10, marginTop: 6 }}>
+            <Txt center color={C.coral} lh={1.6}>{t(ERRORS[s.code] ?? 'errorGeneric')}</Txt>
+            {s.code !== 'discovery_daily_limit' && !photo ? <GhostButton label={t('retry')} onPress={() => searchWeb(v)} /> : null}
+          </View>
+        ) : null}
+
+        {loading && !catalog ? <Spinner /> : null}
+        {catalogOnly.length ? (
+          <View style={{ gap: 10, marginTop: s.phase === 'idle' ? 0 : 8 }}>
+            <Txt size={13} weight="700" color={C.textMute}>{t('inCatalog')}</Txt>
+            {catalogOnly.map((p) => <ProductResult key={p.id} p={p} />)}
+          </View>
+        ) : null}
+
+        {canDiscover === false && v.length >= 2 && catalog && !loading ? (
+          <View style={{ backgroundColor: C.amberBg, borderRadius: 14, padding: 12, marginTop: 4 }}>
+            <Txt size={12} color={C.amberText} lh={1.6}>{t('onlineNeedsKey')}</Txt>
+          </View>
+        ) : null}
+
+        {v.length < 2 && s.phase === 'idle' ? (
+          <Press onPress={choosePhoto}>
+            <Glass style={{ borderRadius: 18, padding: 16, gap: 6, alignItems: 'center', marginTop: 10 }}>
+              <Txt size={28}>📷</Txt>
+              <Txt size={14} weight="700">{t('photoSearch')}</Txt>
+              <Txt center size={12.5} color={C.textMute} lh={1.6}>{t('photoHint')}</Txt>
+            </Glass>
+          </Press>
+        ) : null}
+      </ScrollView>
     </View>
     </Screen>
   );
 }
 
-/** Memoji "looking around" while the store search runs (it really is working: this waits on the server). */
-function Searching({ avatar, label }: { avatar: string; label: string }) {
-  const sway = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(Animated.sequence([
-      Animated.timing(sway, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      Animated.timing(sway, { toValue: -1, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-    ]));
-    loop.start();
-    return () => loop.stop();
-  }, [sway]);
-  return (
-    <View style={{ alignItems: 'center', marginTop: 24, gap: 10 }}>
-      <Animated.View style={{ transform: [{ rotate: sway.interpolate({ inputRange: [-1, 1], outputRange: ['-6deg', '6deg'] }) }] }}>
-        <Memoji name={`${avatar}_27`} size={96} />
-      </Animated.View>
-      <Txt center size={13.5} color={C.textSoft} lh={1.6}>{label}</Txt>
-      <Spinner />
-    </View>
-  );
-}
+const roundBtn = { width: 40, height: 40, borderRadius: 20, backgroundColor: C.glass, alignItems: 'center' as const, justifyContent: 'center' as const };
