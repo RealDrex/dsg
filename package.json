@@ -1,0 +1,21 @@
+{
+  "name": "bestprice",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Best Price — the smart shopping companion",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "dev:api": "npm run dev -w @bestprice/api",
+    "dev:admin": "npm run dev -w @bestprice/admin",
+    "dev:mobile": "npm run start -w @bestprice/mobile"
+  },
+  "engines": {
+    "node": ">=20.19"
+  }
+}
