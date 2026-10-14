@@ -468,8 +468,8 @@ const COMMANDS = [
     names: ['مسح', 'clear', 'purge'], level: 3,
     desc: 'حذف الرسائل — `مسح <عدد>` أو `مسح @عضو` (كل رسائله) أو `مسح @عضو <عدد>`',
     async run(ctx) {
-      // optional user filter (mention/id) + optional count
-      const uid = mentionId(ctx.words[0]) ? mentionId(ctx.words[0]) : null;
+      // user filter ONLY from a real mention (<@id>), never a bare number (that's a count)
+      const uid = /^<@!?\d+>$/.test(ctx.words[0] || '') ? mentionId(ctx.words[0]) : null;
       let count = parseInt(uid ? ctx.words[1] : ctx.words[0], 10);
       if (uid && (!count || count < 1)) count = 1000; // "all" from this user (capped)
       if (!uid && (!count || count < 1)) return err('حط عدد أو منشن. مثال: `مسح 20` أو `مسح @عضو`');
