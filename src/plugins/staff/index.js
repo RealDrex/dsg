@@ -467,6 +467,8 @@ const COMMANDS = [
   {
     names: ['مسح', 'clear', 'purge'], level: 3,
     desc: 'حذف الرسائل — `مسح <عدد>` أو `مسح @عضو` (كل رسائله) أو `مسح @عضو <عدد>`',
+    // Also usable by the configured purge roles (e.g. Sword) even if below level 3.
+    allow: (member, cfg) => (cfg.purgeRoles || []).some((id) => member.roles.cache.has(id)),
     async run(ctx) {
       // user filter ONLY from a real mention (<@id>), never a bare number (that's a count)
       const uid = /^<@!?\d+>$/.test(ctx.words[0] || '') ? mentionId(ctx.words[0]) : null;
@@ -817,16 +819,18 @@ async function onMessage(message) {
   if (!found) return;
   const { cmd, args, intentful } = found;
 
+  const cfg0 = store.get(message.guildId, ID);
   const level = levelOf(message.member);
-  if (level < cmd.level) {
+  // A command may allow extra roles below its level via cmd.allow(member, cfg).
+  const allowed = level >= cmd.level || cmd.allow?.(message.member, cfg0);
+  if (!allowed) {
     if (!intentful && level === 0) return; // random chatter typing a word — ignore
-    const cfg = store.get(message.guildId, ID);
-    await react(message, false, cfg);
-    await notice(message, 'ما عندك صلاحية لهذا الأمر.', cfg);
+    await react(message, false, cfg0);
+    await notice(message, 'ما عندك صلاحية لهذا الأمر.', cfg0);
     return;
   }
 
-  const cfg = store.get(message.guildId, ID);
+  const cfg = cfg0;
   // Reply support: "اسكات/سجن/…" as a reply on someone's message targets its author.
   // Only when no explicit mention/id is already given (so inline targets still win).
   let finalArgs = args;
@@ -1033,6 +1037,7 @@ module.exports = {
     jailRole: '1548942461148336208',
     blacklistRole: '1548942356948979772',
     liveRole: '', imageRole: '', hereRole: '', soundRole: '',
+    purgeRoles: ['1559430792411877417'], // رتب تقدر تستخدم مسح حتى لو مو ستريشن (Sword)
     okEmoji: '✅', noEmoji: '❌', wipeDelay: 3000, noticeDelay: 6000,
     logs: {
       vmute: '1553538498815074346',
@@ -1089,6 +1094,7 @@ module.exports = {
         { key: 'roles.interactive', type: 'roles', label: 'الرتبة التفاعلية (اسكات + ميوت)', max: 10 },
         { key: 'roles.special', type: 'roles', label: 'الرتبة الخاصة (+ سجن)', max: 10 },
         { key: 'roles.admin', type: 'roles', label: 'رتب الستريشن (كل شي)', max: 10 },
+        { key: 'purgeRoles', type: 'roles', label: 'رتب تقدر تستخدم مسح (إضافة لستريشن)', max: 10 },
       ],
     },
     {
