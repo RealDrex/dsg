@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   assessUrl, buyTiming, classifyScan, formatMoney, isValidGtin, normalizeGtin, priceConfidence, rankOffers, recommend,
-  effectivePriceMarket, type OfferInput,
+  effectivePriceMarket, expandSearchQuery, normalizeSearchText, type OfferInput,
 } from '../src';
 
 describe('barcode', () => {
@@ -139,5 +139,20 @@ describe('markets & money', () => {
     expect(formatMoney(284900, 'SAR', 'ar')).toBe('2,849 ر.س');
     expect(formatMoney(284950, 'SAR', 'en')).toBe('2,849.50 SAR');
     expect(formatMoney(1500, 'KWD', 'en')).toBe('1.500 KWD');
+  });
+});
+
+describe('search text', () => {
+  it('normalises Arabic letter variants, diacritics and digits', () => {
+    expect(normalizeSearchText('إيفُون ١٦')).toBe('ايفون 16');
+    expect(normalizeSearchText('آيفون')).toBe('ايفون');
+    expect(normalizeSearchText('قلاية هوائية')).toBe('قلايه هواييه');
+  });
+  it('expands Arabic spellings to catalog terms', () => {
+    expect(expandSearchQuery('إيفون 16')).toEqual([['ايفون', 'iphone'], ['16']]);
+    expect(expandSearchQuery('الايفون')[0]).toContain('iphone');
+    expect(expandSearchQuery('ماك بوك اير')).toEqual([['ماك بوك', 'macbook'], ['اير', 'air']]);
+    expect(expandSearchQuery('Galaxy A55')).toEqual([['galaxy'], ['a55']]);
+    expect(expandSearchQuery('قلاية هوائية')[0]).toContain('airfryer');
   });
 });

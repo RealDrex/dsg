@@ -9,6 +9,7 @@ import type { CatalogService } from '../catalog';
 import type { UserRow } from '../auth';
 import { AssistantUnavailable, claudeTurn } from './claude';
 import { userContextBlock } from './prompt';
+import type { DiscoveryService } from '../discovery';
 import { RuleAdvisor, type FlowState } from './rules';
 import type { RespondInput, ToolContext } from './tools';
 
@@ -29,7 +30,7 @@ export class AssistantService {
   private client: Anthropic | null;
   private rules: RuleAdvisor;
 
-  constructor(private db: DB, private catalog: CatalogService, private opts: AssistantOptions) {
+  constructor(private db: DB, private catalog: CatalogService, private opts: AssistantOptions, private discovery?: DiscoveryService) {
     this.client = opts.apiKey ? new Anthropic({ apiKey: opts.apiKey, maxRetries: 2, timeout: 60_000 }) : null;
     this.rules = new RuleAdvisor(catalog);
   }
@@ -109,6 +110,7 @@ export class AssistantService {
     const ctx: ToolContext = {
       db: this.db, catalog: this.catalog, userId: user.id, country: user.country, memoryEnabled: user.memoryEnabled,
       watchLimit: user.plan === 'pro' ? this.opts.proWatchLimit : this.opts.freeWatchLimit, loc, effects: [], seen: new Set(ctxProducts.map((p) => p.id)),
+      discover: this.discovery?.available ? async (q) => (await this.discovery!.discover(user, { q }, user.country)).results : undefined,
     };
 
     let answer: RespondInput | null = null;

@@ -17,6 +17,7 @@ import { catalogRoutes } from './routes/catalog';
 import { watchRoutes } from './routes/watch';
 import { assistantRoutes } from './routes/assistant';
 import { adminRoutes } from './routes/admin';
+import { DiscoveryService } from './services/discovery';
 
 export interface Ctx {
   cfg: Config;
@@ -24,6 +25,7 @@ export interface Ctx {
   tokens: TokenService;
   catalog: CatalogService;
   assistant: AssistantService;
+  discovery: DiscoveryService;
 }
 
 declare module 'fastify' {
@@ -49,6 +51,12 @@ export async function buildApp(cfg: Config, db: DB): Promise<{ app: FastifyInsta
 
   const tokens = new TokenService(db, cfg.JWT_SECRET);
   const catalog = new CatalogService(db, cfg.PUBLIC_BASE_URL);
+  const discovery = new DiscoveryService(db, catalog, {
+    apiKey: cfg.ANTHROPIC_API_KEY || undefined,
+    model: cfg.ASSISTANT_MODEL,
+    freeDaily: cfg.FREE_DISCOVERY_DAILY,
+    proDaily: cfg.PRO_DISCOVERY_DAILY,
+  });
   const assistant = new AssistantService(db, catalog, {
     apiKey: cfg.ANTHROPIC_API_KEY || undefined,
     model: cfg.ASSISTANT_MODEL,
@@ -56,8 +64,8 @@ export async function buildApp(cfg: Config, db: DB): Promise<{ app: FastifyInsta
     proDaily: cfg.PRO_ASSISTANT_DAILY,
     freeWatchLimit: cfg.FREE_WATCH_LIMIT,
     proWatchLimit: cfg.PRO_WATCH_LIMIT,
-  });
-  const ctx: Ctx = { cfg, db, tokens, catalog, assistant };
+  }, discovery);
+  const ctx: Ctx = { cfg, db, tokens, catalog, assistant, discovery };
 
   await app.register(helmet, {
     contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },
@@ -106,7 +114,7 @@ export async function buildApp(cfg: Config, db: DB): Promise<{ app: FastifyInsta
 
   app.get('/health', { config: { rateLimit: false } }, async () => {
     await db.execute('select 1');
-    return { ok: true, assistant: assistant.mode };
+    return { ok: true, assistant: assistant.mode, discovery: discovery.available };
   });
 
   await app.register(async (r) => authRoutes(r, ctx), { prefix: '/v1/auth' });

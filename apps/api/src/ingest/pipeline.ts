@@ -45,7 +45,12 @@ export const matchKey = (brand?: string | null, model?: string | null) =>
 const OUTLIER_LOW = 0.6;
 const OUTLIER_HIGH = 1.6;
 
-export async function importListings(db: DB, sourceId: string, input: unknown[]): Promise<ImportReport> {
+/**
+ * `productId` pins every listing to a product the caller already identified
+ * (web discovery creates the product first); otherwise listings are matched
+ * by GTIN, then brand+model.
+ */
+export async function importListings(db: DB, sourceId: string, input: unknown[], opts: { productId?: string } = {}): Promise<ImportReport> {
   const source = await db.query.dataSources.findFirst({ where: eq(dataSources.id, sourceId) });
   if (!source) throw new Error('source_not_found');
   if (!source.storeId) throw new Error('source_has_no_store');
@@ -73,9 +78,9 @@ export async function importListings(db: DB, sourceId: string, input: unknown[])
 
     // 1) Exact match by GTIN. 2) brand+model match key. Otherwise queue for human review —
     // we never guess a match for a "similar" product.
-    let productId: string | null = null;
+    let productId: string | null = opts.productId ?? null;
     const gtin = l.gtin ? normalizeGtin(l.gtin) : null;
-    if (gtin) {
+    if (!productId && gtin) {
       const g = await db.query.productGtins.findFirst({ where: eq(productGtins.gtin, gtin) });
       productId = g?.productId ?? null;
     }

@@ -16,6 +16,8 @@ const Env = z.object({
   TRUST_PROXY: z.string().default('false').transform((v) => v === 'true'),
   FREE_ASSISTANT_DAILY: z.coerce.number().int().default(30),
   PRO_ASSISTANT_DAILY: z.coerce.number().int().default(300),
+  FREE_DISCOVERY_DAILY: z.coerce.number().int().default(15),
+  PRO_DISCOVERY_DAILY: z.coerce.number().int().default(100),
   FREE_WATCH_LIMIT: z.coerce.number().int().default(5),
   PRO_WATCH_LIMIT: z.coerce.number().int().default(100),
 });

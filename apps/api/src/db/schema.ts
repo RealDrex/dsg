@@ -95,7 +95,7 @@ export const productGtins = pgTable('product_gtins', {
 export const dataSources = pgTable('data_sources', {
   id: id(),
   name: text('name').notNull(),
-  type: text('type', { enum: ['official_api', 'partner_catalog', 'affiliate_feed', 'user_report', 'demo'] }).notNull(),
+  type: text('type', { enum: ['official_api', 'partner_catalog', 'affiliate_feed', 'user_report', 'web_search', 'demo'] }).notNull(),
   storeId: uuid('store_id').references(() => stores.id, { onDelete: 'set null' }),
   country: text('country').notNull().default('SA'),
   active: boolean('active').notNull().default(true),
@@ -259,3 +259,17 @@ export const auditLogs = pgTable('audit_logs', {
   data: jsonb('data'),
   createdAt: createdAt(),
 }, (t) => [index('audit_time_idx').on(t.createdAt)]);
+
+/**
+ * Web product discovery runs (Claude + web search). Doubles as a 24 h cache
+ * per query/market and as the per-user daily quota counter.
+ */
+export const discoveryRuns = pgTable('discovery_runs', {
+  id: id(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  key: text('key').notNull(),
+  market: text('market').notNull(),
+  status: text('status', { enum: ['found', 'not_found', 'failed'] }).notNull(),
+  productIds: uuid('product_ids').array().notNull().default(sql`'{}'::uuid[]`),
+  createdAt: createdAt(),
+}, (t) => [index('discovery_key_idx').on(t.key, t.market, t.createdAt), index('discovery_user_idx').on(t.userId, t.createdAt)]);

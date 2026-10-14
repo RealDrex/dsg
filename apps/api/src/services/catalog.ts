@@ -1,6 +1,6 @@
-import { and, desc, eq, gte, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import {
-  effectivePriceMarket, priceConfidence, rankOffers, buyTiming,
+  effectivePriceMarket, expandSearchQuery, priceConfidence, rankOffers, buyTiming,
   type CurrencyCode, type HistoryResponse, type OfferDTO, type OfferInput, type OffersResponse,
   type ProductDTO, type ProductSummaryDTO, type SortMode, type SponsoredDTO, type StoreDTO,
 } from '@bestprice/core';
@@ -157,6 +157,7 @@ export class CatalogService {
     return rows.map((p) => ({
       id: p.id,
       name: p.name,
+      nameAr: p.nameAr,
       brand: p.brand,
       model: p.model,
       category: p.category,
@@ -191,12 +192,18 @@ export class CatalogService {
   }
 
   async search(q: string, country: string, limit: number): Promise<ProductSummaryDTO[]> {
+    const groups = expandSearchQuery(q);
+    if (!groups.length) return [];
+    // Same Arabic letter folding as normalizeSearchText, applied to the catalog side.
+    const hay = sql`translate(lower(concat_ws(' ', ${products.name}, ${products.nameAr}, ${products.brand}, ${products.model}, ${products.category})), 'أإآٱىةؤئ', 'اااايهوي')`;
     // Escape LIKE wildcards in user input.
-    const term = `%${q.replace(/[\\%_]/g, (c) => '\\' + c)}%`;
+    const like = (term: string) => `%${term.replace(/[\\%_]/g, (c) => '\\' + c)}%`;
+    const conds = groups.map((alts) => or(...alts.map((a) => sql`${hay} like ${like(a)}`))!);
     const rows = await this.db
       .select()
       .from(products)
-      .where(and(eq(products.status, 'active'), or(ilike(products.name, term), ilike(products.nameAr, term), ilike(products.brand, term), ilike(products.model, term), ilike(products.category, term))))
+      .where(and(eq(products.status, 'active'), ...conds))
+      .orderBy(desc(products.createdAt))
       .limit(limit);
     return this.summaries(rows, country);
   }

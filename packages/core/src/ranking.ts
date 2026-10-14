@@ -8,7 +8,7 @@
 
 export type Channel = 'local' | 'online';
 export type Stock = 'in_stock' | 'limited' | 'out_of_stock' | 'unknown';
-export type SourceType = 'official_api' | 'partner_catalog' | 'affiliate_feed' | 'user_report' | 'demo';
+export type SourceType = 'official_api' | 'partner_catalog' | 'affiliate_feed' | 'user_report' | 'web_search' | 'demo';
 export type Confidence = 'high' | 'medium' | 'low' | 'stale';
 export type SortMode = 'value' | 'cheapest' | 'nearest' | 'fastest';
 
@@ -62,6 +62,8 @@ const FRESHNESS: Record<SourceType, [number, number, number]> = {
   partner_catalog: [6, 48, 168],
   affiliate_feed: [3, 24, 96],
   user_report: [0, 24, 72],
+  // Found by web search at request time: never "high" until a store feed confirms it.
+  web_search: [0, 6, 48],
   demo: [6, 48, 168],
 };
 

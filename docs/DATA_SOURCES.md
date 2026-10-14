@@ -10,6 +10,7 @@ Best Price only shows prices from sources it is allowed to use. The AI model nev
 | `partner_catalog` | Direct feed agreed with a store (CSV/JSON/SFTP) | Signed data-sharing agreement. |
 | `affiliate_feed` | Affiliate network product feeds (e.g. Amazon Associates / PA-API, regional networks) | Use the feed's own price/freshness rules and required disclosures. |
 | `user_report` | Price-tag photos / reports from users | Must be verified (e.g. multiple reports or moderator review) before publishing; lower confidence window. |
+| `web_search` | Prices found by the online product lookup (Claude web search) on a known store's page, at the moment a user searched | Created automatically. Shown as unverified with the store link and age; confidence at most "medium" for 6 h, "low" up to 48 h, then stale. Replace with an official feed for stores you cover regularly. |
 | `demo` | Seed data | Development only; always labelled "demo data" in the apps. |
 
 **Not allowed:** scraping sites whose terms forbid it, bypassing bot protection, or using prices without the right to display them.

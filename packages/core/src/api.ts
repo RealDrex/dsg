@@ -43,6 +43,12 @@ export const SearchQuery = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
+/** Look a product up on the web when it is not in the catalog: free text or a scanned barcode. */
+export const DiscoverBody = z.object({
+  q: z.string().trim().min(2).max(120).optional(),
+  gtin: z.string().regex(/^\d{8,14}$/).optional(),
+}).refine((b) => !!b.q !== !!b.gtin, { message: 'exactly one of q or gtin' });
+
 export const OffersQuery = z.object({
   sort: SortModeSchema.default('value'),
   lat: z.coerce.number().min(-90).max(90).optional(),
@@ -107,6 +113,8 @@ export interface StoreDTO {
 export interface ProductSummaryDTO {
   id: string;
   name: string;
+  /** Arabic display name when the catalog has one. */
+  nameAr: string | null;
   brand: string | null;
   model: string | null;
   category: string;
@@ -114,6 +122,17 @@ export interface ProductSummaryDTO {
   bestPriceMinor: number | null;
   currency: CurrencyCode;
   offerCount: number;
+}
+
+export interface SearchResponse {
+  results: ProductSummaryDTO[];
+  /** The server can look products up online (AI web search is configured). */
+  canDiscover: boolean;
+}
+
+export interface DiscoverResponse {
+  status: 'found' | 'not_found' | 'unavailable';
+  results: ProductSummaryDTO[];
 }
 
 export interface ProductDTO extends ProductSummaryDTO {
@@ -208,6 +227,9 @@ export interface ScanResponse {
   candidates: ProductSummaryDTO[];
   url?: { url: string; host: string; risk: 'safe' | 'caution' | 'blocked'; reasons: string[] };
   text?: string;
+  /** Normalised barcode when the scan was one; lets the app look it up online. */
+  gtin?: string;
+  canDiscover: boolean;
 }
 
 export interface RecCardDTO {

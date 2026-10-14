@@ -6,3 +6,4 @@ export * from './ranking';
 export * from './history';
 export * from './recommend';
 export * from './api';
+export * from './search';

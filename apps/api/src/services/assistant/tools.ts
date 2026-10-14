@@ -1,6 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import { CURRENCIES, effectivePriceMarket, recommend, type Candidate, type SortMode } from '@bestprice/core';
+import { CURRENCIES, effectivePriceMarket, recommend, type Candidate, type ProductSummaryDTO, type SortMode } from '@bestprice/core';
 import { and, eq } from 'drizzle-orm';
 import type { DB } from '../../db/client';
 import { preferences, products, watches } from '../../db/schema';
@@ -20,11 +20,16 @@ export const TOOL_DEFS: Anthropic.Beta.BetaTool[] = [
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Search text, e.g. "laptop", "iPhone 16", "coffee grinder"' },
-        category: { type: 'string', enum: ['laptop', 'phone', 'headphones', 'tablet', 'coffee', 'home', 'any'], description: 'Optional category filter' },
+        category: { type: 'string', enum: ['laptop', 'phone', 'headphones', 'tablet', 'watch', 'tv', 'gaming', 'coffee', 'home', 'any'], description: 'Optional category filter' },
         max_price: { type: 'number', description: 'Optional maximum price in major currency units (e.g. 3000 for 3,000 SAR)' },
       },
       required: ['query'],
     },
+  },
+  {
+    name: 'find_product_online',
+    description: 'Look a product up on the web when search_products finds nothing for it. Adds it to the catalog with its specs and any store prices found in web search (marked as unverified web prices with their store link). Slow (up to a minute) and rate-limited: use only after search_products came back empty for a specific product.',
+    input_schema: { type: 'object', properties: { query: { type: 'string', description: 'Specific product name, e.g. "Dyson V15 Detect"' } }, required: ['query'] },
   },
   {
     name: 'get_product',
@@ -147,6 +152,8 @@ export interface ToolContext {
   effects: { type: 'watch_added' | 'preference_saved'; id: string }[];
   /** Product ids the model has seen via tools this turn; recommendations are limited to these. */
   seen: Set<string>;
+  /** Web discovery, when configured. */
+  discover?: (query: string) => Promise<ProductSummaryDTO[]>;
 }
 
 const major = (minor: number | null, digits = 2) => (minor === null ? null : minor / 10 ** digits);
@@ -170,6 +177,17 @@ export async function runTool(name: string, rawInput: unknown, ctx: ToolContext)
       return {
         currency: cur,
         market: market.code,
+        results: list.map((p) => ({ product_id: p.id, name: p.name, brand: p.brand, category: p.category, lowest_price: M(p.bestPriceMinor), store_offers: p.offerCount })),
+      };
+    }
+    case 'find_product_online': {
+      const i = z.object({ query: z.string().trim().min(2).max(120) }).parse(rawInput);
+      if (!ctx.discover) return { error: 'online lookup is not available' };
+      const list = await ctx.discover(i.query);
+      list.forEach((p) => ctx.seen.add(p.id));
+      return {
+        currency: cur,
+        note: 'Prices here come from web search results (source_type web_search): mention they are unverified and may have changed.',
         results: list.map((p) => ({ product_id: p.id, name: p.name, brand: p.brand, category: p.category, lowest_price: M(p.bestPriceMinor), store_offers: p.offerCount })),
       };
     }

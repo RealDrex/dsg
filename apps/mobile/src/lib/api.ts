@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import type {
   AuthResponse, ChatResponse, HistoryResponse, HomeResponse, NotificationDTO, OffersResponse, ProductDTO, ProductSummaryDTO,
-  ScanResponse, SortMode, UserDTO, WatchItemDTO, AssistantMessageDTO,
+  ScanResponse, SortMode, UserDTO, WatchItemDTO, AssistantMessageDTO, SearchResponse, DiscoverResponse,
 } from '@bestprice/core';
 import { getSecret, setSecret } from './storage';
 
@@ -68,9 +68,9 @@ class Client {
     return this.refreshing;
   }
 
-  private async raw<T>(method: string, path: string, body: unknown, auth: boolean): Promise<T> {
+  private async raw<T>(method: string, path: string, body: unknown, auth: boolean, timeoutMs = 30_000): Promise<T> {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 30_000);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       const res = await fetch(API_URL + path, {
         method,
@@ -96,14 +96,14 @@ class Client {
     }
   }
 
-  async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  async request<T>(method: string, path: string, body?: unknown, timeoutMs?: number): Promise<T> {
     try {
-      return await this.raw<T>(method, path, body, true);
+      return await this.raw<T>(method, path, body, true, timeoutMs);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401 && e.code !== 'invalid_credentials') {
-        if (await this.tryRefresh()) return this.raw<T>(method, path, body, true);
+        if (await this.tryRefresh()) return this.raw<T>(method, path, body, true, timeoutMs);
         await this.boot();
-        return this.raw<T>(method, path, body, true);
+        return this.raw<T>(method, path, body, true, timeoutMs);
       }
       throw e;
     }
@@ -141,7 +141,9 @@ class Client {
   me = () => this.get<UserDTO>('/v1/me');
   updateMe = (p: Partial<UserDTO>) => this.patch<UserDTO>('/v1/me', p);
   home = () => this.get<HomeResponse>('/v1/home');
-  search = (q: string) => this.get<{ results: ProductSummaryDTO[] }>(`/v1/products/search?q=${encodeURIComponent(q)}`);
+  search = (q: string) => this.get<SearchResponse>(`/v1/products/search?q=${encodeURIComponent(q)}`);
+  /** Web lookup for products not in the catalog; slow (web search), so a longer timeout. */
+  discover = (b: { q: string } | { gtin: string }) => this.request<DiscoverResponse>('POST', '/v1/products/discover', b, 150_000);
   product = (id: string) => this.get<ProductDTO>(`/v1/products/${id}`);
   offers = (id: string, sort: SortMode, loc?: { lat: number; lng: number } | null) =>
     this.get<OffersResponse>(`/v1/products/${id}/offers?sort=${sort}${loc ? `&lat=${loc.lat.toFixed(3)}&lng=${loc.lng.toFixed(3)}` : ''}`);

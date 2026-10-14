@@ -7,11 +7,11 @@ import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatAmount, currencySymbol, type ScanResponse } from '@bestprice/core';
-import { api } from '../lib/api';
+import { api, ApiError } from '../lib/api';
 import { useApp } from '../lib/store';
 import type { StrKey } from '../lib/i18n';
 import { IconFlash, IconGallery, IconSearch } from '../ui/icons';
-import { Glass, GhostButton, GradientButton, PhotoPlaceholder, Press, Row, Txt } from '../ui/kit';
+import { Glass, GhostButton, GradientButton, ProductThumb, Press, Row, Txt } from '../ui/kit';
 import { C } from '../ui/theme';
 
 type Mode = 'barcode' | 'photo' | 'tag' | 'gallery';
@@ -24,7 +24,7 @@ const MODES: { k: Mode; label: StrKey; hint: StrKey }[] = [
 
 export default function Scan() {
   const params = useLocalSearchParams<{ mode?: Mode }>();
-  const { t, lang, startProductChat } = useApp();
+  const { t, L, lang, startProductChat, showToast } = useApp();
   const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<Mode>(params.mode ?? 'barcode');
   const [perm, requestPerm] = useCameraPermissions();
@@ -34,6 +34,21 @@ export default function Scan() {
   const [manual, setManual] = useState(false);
   const [code, setCode] = useState('');
   const [note, setNote] = useState<string | null>(null);
+  const [webLookup, setWebLookup] = useState<'idle' | 'busy' | 'none'>('idle');
+  /** Unknown barcode: look it up in stores online (slow; the server caches results). */
+  const lookupOnline = async (gtin: string) => {
+    setWebLookup('busy');
+    try {
+      const d = await api.discover({ gtin });
+      if (d.status === 'found' && d.results[0]) {
+        setWebLookup('idle');
+        router.replace(`/product/${d.results[0].id}`);
+      } else setWebLookup('none');
+    } catch (e) {
+      setWebLookup('idle');
+      showToast({ title: e instanceof ApiError && e.status === 429 ? t('discoverLimit') : t('errorGeneric') });
+    }
+  };
   const locked = useRef(false);
 
   const line = useRef(new Animated.Value(0)).current;
@@ -62,7 +77,7 @@ export default function Scan() {
     }
   };
   const onBarcode = (e: BarcodeScanningResult) => { if (mode === 'barcode' && !result) void lookup(e.data); };
-  const rescan = () => { setResult(null); setNote(null); locked.current = false; };
+  const rescan = () => { setResult(null); setNote(null); setWebLookup('idle'); locked.current = false; };
 
   const capture = async () => {
     if (mode === 'barcode') { setManual(true); return; }
@@ -166,9 +181,9 @@ export default function Scan() {
             <Txt size={12} weight="600" color={C.green}>{t('identified')}</Txt>
           </Row>
           <Row style={{ gap: 12 }}>
-            <PhotoPlaceholder size={60} radius={16} />
+            <ProductThumb uri={p.imageUrl} category={p.category} size={60} radius={16} />
             <View style={{ flex: 1, gap: 3 }}>
-              <Txt size={15} weight="600">{p.name}</Txt>
+              <Txt size={15} weight="600">{L(p.nameAr ?? p.name, p.name)}</Txt>
               <Txt size={11.5} color={C.textMute} ltr>{[p.brand, p.model].filter(Boolean).join(' · ')}</Txt>
               {p.bestPriceMinor !== null ? (
                 <Txt size={12.5} color={C.textSoft}>{`${t('from')} `}<Txt size={12.5} weight="600">{formatAmount(p.bestPriceMinor, p.currency)}</Txt>{` ${currencySymbol(p.currency, lang)} ${t('atStores')} ${p.offerCount} ${t('storesWord')}`}</Txt>
@@ -200,7 +215,12 @@ export default function Scan() {
     }
     return (
       <Glass blur style={box}>
-        <Txt size={13.5} lh={1.6}>{r.kind === 'gtin' ? t('notFoundBarcode') : t('qrOther')}</Txt>
+        <Txt size={13.5} lh={1.6}>{r.kind === 'gtin' ? (webLookup === 'none' ? t('notFoundOnline') : t('notFoundBarcode')) : t('qrOther')}</Txt>
+        {r.gtin && r.canDiscover && webLookup !== 'none' ? (
+          webLookup === 'busy'
+            ? <Txt size={12.5} color={C.textSoft}>{t('searchingOnline')}</Txt>
+            : <GradientButton label={t('searchOnline')} onPress={() => lookupOnline(r.gtin!)} />
+        ) : null}
         {r.candidates.map((c) => (
           <Press key={c.id} onPress={() => router.replace(`/product/${c.id}`)}><Txt size={13} color={C.greenSoft}>{c.name}</Txt></Press>
         ))}

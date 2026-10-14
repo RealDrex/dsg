@@ -7,7 +7,7 @@ import { formatAmount, currencySymbol, type AssistantMessageDTO, type RecCardDTO
 import { useApp } from '../../lib/store';
 import { STARTERS } from '../../lib/i18n';
 import { IconScan, IconSend } from '../../ui/icons';
-import { Badge, Glass, Hero, Memoji, PhotoPlaceholder, Press, Row, SuggestChip, Txt, Screen } from '../../ui/kit';
+import { Badge, Glass, Hero, Memoji, ProductThumb, Press, Row, SuggestChip, Txt, Screen } from '../../ui/kit';
 import { C, CTA } from '../../ui/theme';
 
 const MOOD_FACE: Record<AssistantMessageDTO['mood'], number> = { hello: 22, recommending: 7, opinion: 19, done: 10, explaining: 0, neutral: 0 };
@@ -80,7 +80,7 @@ export default function Assistant() {
 
         {chat.product ? (
           <Row style={{ marginHorizontal: 20, marginTop: 10, padding: 8, paddingHorizontal: 10, borderRadius: 14, backgroundColor: 'rgba(62,224,154,.12)', gap: 10 }}>
-            <PhotoPlaceholder size={32} radius={9} />
+            <ProductThumb size={32} radius={9} />
             <Press style={{ flex: 1 }} onPress={() => router.push(`/product/${chat.product!.id}`)}>
               <Txt size={11} weight="600" color={C.green}>{t('chattingAbout')}</Txt>
               <Txt size={13} weight="600" numberOfLines={1}>{chat.product.name}</Txt>
@@ -188,7 +188,7 @@ export default function Assistant() {
       <Press key={r.productId} onPress={() => router.push(`/product/${r.productId}`)}>
         <Glass style={{ borderRadius: 18, padding: 12, gap: 10, borderColor: r.label === 'best_value' ? 'rgba(62,224,154,.45)' : C.line }}>
           <Row style={{ gap: 10 }}>
-            <PhotoPlaceholder size={46} />
+            <ProductThumb size={46} />
             <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
               <Badge label={tag.l} bg={tag.bg} fg={tag.fg} />
               <Txt size={13.5} weight="600" numberOfLines={1}>{r.name}</Txt>

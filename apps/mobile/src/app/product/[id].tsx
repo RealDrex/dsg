@@ -12,7 +12,7 @@ import { ago, type StrKey } from '../../lib/i18n';
 import { registerForPush } from '../../lib/push';
 import { useApp } from '../../lib/store';
 import { IconBack, IconBookmark, Sparkle } from '../../ui/icons';
-import { Glass, GradientButton, Press, Row, Segmented, Spinner, StoreMark, Txt, Screen } from '../../ui/kit';
+import { Glass, GradientButton, ProductThumb, Press, Row, Segmented, Spinner, StoreMark, Txt, Screen } from '../../ui/kit';
 import { C, CTA } from '../../ui/theme';
 
 const SORT_WHY: Record<SortMode, StrKey> = { value: 'whyValue', cheapest: 'whyCheap', nearest: 'whyNear', fastest: 'whyFast' };
@@ -130,6 +130,7 @@ export default function Product() {
   }
 
   const isDemo = !!offers?.offers.some((o) => o.isDemo);
+  const hasWebPrices = !!offers?.offers.some((o) => o.sourceType === 'web_search');
   const chart = history ? buildChart(history) : null;
 
   return (
@@ -150,8 +151,11 @@ export default function Product() {
           <View style={{ height: 300, borderRadius: 32, overflow: 'hidden', backgroundColor: '#111419', borderWidth: 1, borderColor: C.line, justifyContent: 'flex-end' }}>
             <LinearGradient colors={['rgba(62,224,154,.38)', 'transparent']} start={{ x: 0.5, y: 0.25 }} end={{ x: 0.5, y: 0.8 }} style={{ position: 'absolute', inset: 0 }} />
             <LinearGradient colors={['transparent', 'rgba(139,92,246,.34)']} start={{ x: 0.3, y: 0.6 }} end={{ x: 0.9, y: 1 }} style={{ position: 'absolute', inset: 0 }} />
+            <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' }}>
+              <ProductThumb uri={product.imageUrl} category={product.category} size={product.imageUrl ? 220 : 150} radius={28} />
+            </View>
             <Row style={{ justifyContent: 'space-between', padding: 14 }}>
-              <Txt size={11} color={C.textDim} ltr>{t('productPhoto')}</Txt>
+              <View />
               {product.gtins.length ? (
                 <View style={{ paddingVertical: 4, paddingHorizontal: 9, borderRadius: 9, backgroundColor: C.glass }}>
                   <Txt size={11} weight="600" color={C.green}>{t('confirmedMatch')}</Txt>
@@ -162,7 +166,7 @@ export default function Product() {
 
           <View style={{ gap: 6 }}>
             <Txt size={12} color={C.textMute} ltr>{[product.brand, product.model].filter(Boolean).join(' · ')}{product.gtins[0] ? `  ·  EAN ${displayGtin(product.gtins[0])}` : ''}</Txt>
-            <Txt size={27} weight="800" display style={{ lineHeight: 33 }}>{product.name}</Txt>
+            <Txt size={27} weight="800" display style={{ lineHeight: 33 }}>{L(product.nameAr ?? product.name, product.name)}</Txt>
             <Row style={{ flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
               {product.specs.map((s) => (
                 <View key={s.key} style={{ paddingVertical: 5, paddingHorizontal: 10, borderRadius: 10, backgroundColor: C.glass, borderWidth: 1, borderColor: C.line }}>
@@ -172,6 +176,12 @@ export default function Product() {
             </Row>
             {product.specSource ? <Txt size={11} color={C.textDim}>{`${t('specSource')}: ${product.specSource.label}`}</Txt> : null}
           </View>
+
+          {hasWebPrices ? (
+            <View style={{ backgroundColor: C.amberBg, borderRadius: 14, padding: 12 }}>
+              <Txt size={12} color={C.amberText} lh={1.6}>{t('webBanner')}</Txt>
+            </View>
+          ) : null}
 
           {isDemo ? (
             <View style={{ backgroundColor: C.amberBg, borderRadius: 14, padding: 12 }}>
@@ -287,7 +297,7 @@ export default function Product() {
     return (
       <Glass key={o.id} style={{ borderRadius: 18, borderWidth: 1.5, borderColor: top ? C.green : C.line, padding: 14, gap: 10 }}>
         <Row style={{ gap: 12 }}>
-          <StoreMark name={L(o.store.nameAr, o.store.name)} color={o.store.brandColor} />
+          <StoreMark store={o.store} />
           <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
             <Row style={{ gap: 6 }}>
               <Txt size={14} weight="600">{L(o.store.nameAr, o.store.name)}</Txt>
@@ -311,7 +321,7 @@ export default function Product() {
         <Row style={{ justifyContent: 'space-between', gap: 8, borderTopWidth: 1, borderTopColor: C.lineFaint, paddingTop: 10 }}>
           <Row style={{ gap: 6, flex: 1 }}>
             <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: conf[1] }} />
-            <Txt size={11} color={C.textDim} numberOfLines={1} style={{ flexShrink: 1 }}>{`${ago(lang, o.observedAt)} ${t('reliability')} ${conf[0]}${o.isDemo ? ' · ' + t('demoData') : ''}`}</Txt>
+            <Txt size={11} color={C.textDim} numberOfLines={1} style={{ flexShrink: 1 }}>{`${ago(lang, o.observedAt)} ${t('reliability')} ${conf[0]}${o.isDemo ? ' · ' + t('demoData') : ''}${o.sourceType === 'web_search' ? ' · ' + t('webPrice') : ''}`}</Txt>
           </Row>
           <Press onPress={() => bought(o)} style={{ paddingHorizontal: 6 }}><Txt size={11} color={C.textMute}>{t('markBought')}</Txt></Press>
           {(local && o.branch) || o.buyUrl ? (

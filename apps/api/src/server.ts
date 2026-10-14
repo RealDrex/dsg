@@ -2,11 +2,14 @@ import { buildApp } from './app';
 import { loadConfig } from './config';
 import { createDb } from './db/client';
 import { runMigrations } from './db/migrate';
+import { seed } from './db/seed';
 import { checkWatches } from './services/alerts';
 
 const cfg = loadConfig();
 const db = createDb(cfg.DATABASE_URL);
 await runMigrations(db);
+// Development: pick up store/catalog additions automatically (idempotent; production seeds explicitly).
+if (cfg.NODE_ENV !== 'production') await seed(db, { demo: cfg.SEED_DEMO_DATA, log: (m) => console.log(`[seed] ${m}`) });
 const { app, ctx } = await buildApp(cfg, db);
 
 // In single-process deployments the API also runs the alert loop; set

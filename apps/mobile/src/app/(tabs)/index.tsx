@@ -196,7 +196,7 @@ export default function Home() {
                 <Press key={d.offer.id} onPress={() => router.push(`/product/${d.product.id}`)} style={{ flex: 1 }}>
                   <Glass style={{ borderRadius: 20, padding: 12, gap: 10, flex: 1 }}>
                     <Row style={{ justifyContent: 'space-between' }}>
-                      <StoreMark name={L(d.offer.store.nameAr, d.offer.store.name)} color={d.offer.store.brandColor} size={34} />
+                      <StoreMark store={d.offer.store} size={34} />
                       <Txt size={15} weight="700">{formatAmount(d.offer.finalMinor, d.offer.currency)}</Txt>
                     </Row>
                     <View style={{ gap: 2 }}>

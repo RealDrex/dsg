@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { classifyScan, effectivePriceMarket, OffersQuery, PurchaseBody, ScanBody, SearchQuery, type ScanResponse } from '@bestprice/core';
+import { classifyScan, DiscoverBody, effectivePriceMarket, OffersQuery, PurchaseBody, ScanBody, SearchQuery, type DiscoverResponse, type ScanResponse, type SearchResponse } from '@bestprice/core';
 import { parse, requireUser, type Ctx } from '../app';
 import { clickEvents, offers, purchases, searchHistory, sponsoredPlacements, stores } from '../db/schema';
 import { notFound } from '../lib/errors';
@@ -10,14 +10,25 @@ import { safeOutboundUrl } from '../lib/net';
 const IdParam = z.object({ id: z.string().uuid() });
 
 export async function catalogRoutes(app: FastifyInstance, ctx: Ctx) {
-  const { db, catalog } = ctx;
+  const { db, catalog, discovery } = ctx;
   const countryOf = (req: { user: { country: string } | null }, q?: string) => q ?? req.user?.country ?? 'SA';
 
-  app.get('/v1/products/search', async (req) => {
+  app.get('/v1/products/search', async (req): Promise<SearchResponse> => {
     const q = parse(SearchQuery, req.query);
     const results = await catalog.search(q.q, countryOf(req, q.country), q.limit);
     if (req.user) await db.insert(searchHistory).values({ userId: req.user.id, query: q.q.slice(0, 120) });
-    return { results };
+    return { results, canDiscover: discovery.available };
+  });
+
+  /**
+   * Looks a product up on the web (AI + web search) when the catalog has no
+   * match. Costs money per call, so it needs a session, is rate limited and
+   * has a daily quota; results are cached per query.
+   */
+  app.post('/v1/products/discover', { config: { rateLimit: { max: 6, timeWindow: '1 minute' } } }, async (req): Promise<DiscoverResponse> => {
+    const user = requireUser(req);
+    const body = parse(DiscoverBody, req.body);
+    return discovery.discover(user, body, countryOf(req));
   });
 
   app.get('/v1/products/:id', async (req) => {
@@ -64,7 +75,7 @@ export async function catalogRoutes(app: FastifyInstance, ctx: Ctx) {
         if (req.user) await db.insert(searchHistory).values({ userId: req.user.id, productId: p.id });
       }
     }
-    const out: ScanResponse = { kind: c.kind, match, candidates: [] };
+    const out: ScanResponse = { kind: c.kind, match, candidates: [], canDiscover: discovery.available, ...(gtin ? { gtin } : {}) };
     if (c.kind === 'url') out.url = { url: c.assessment.url, host: c.assessment.host, risk: c.assessment.risk, reasons: c.assessment.reasons };
     if (c.kind === 'text') {
       out.text = c.raw.slice(0, 500);

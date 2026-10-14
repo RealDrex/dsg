@@ -264,13 +264,55 @@ export function Wordmark({ size = 22 }: { size?: number }) {
   );
 }
 
-/** Store logo tile: brand colour with initial (no third-party logo requests). */
-export function StoreMark({ name, color, size = 42 }: { name: string; color: string | null; size?: number }) {
-  const bg = color ?? '#333';
-  const light = /^#(fe|ff|f[0-9a-f])[e-f]/i.test(bg);
+/**
+ * Store mark: the store's logo when the catalog has a licensed one (logoUrl),
+ * otherwise its wordmark set in the brand colour. No third-party requests
+ * unless a logo URL was configured by an admin.
+ */
+export function StoreMark({ store, size = 42 }: { store: { name: string; logoUrl?: string | null; brandColor: string | null }; size?: number }) {
+  const bg = store.brandColor ?? '#333';
+  const light = isLightColor(bg);
+  const radius = size * 0.29;
+  if (store.logoUrl) {
+    return <Image source={{ uri: store.logoUrl }} style={{ width: size, height: size, borderRadius: radius, backgroundColor: '#fff' }} contentFit="contain" accessibilityLabel={store.name} />;
+  }
+  const word = store.name.split(' ')[0]!;
   return (
-    <View style={{ width: size, height: size, borderRadius: size * 0.29, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color: light ? '#1A1A1A' : '#fff', fontWeight: '800', fontSize: size * 0.4 }}>{name.slice(0, 1)}</Text>
+    <View accessibilityLabel={store.name} style={{ width: size, height: size, borderRadius: radius, backgroundColor: bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: size * 0.05 }}>
+      <Text numberOfLines={1}
+        style={{ color: light ? '#1A1A1A' : '#fff', fontWeight: '800', letterSpacing: -0.3, fontSize: Math.min(size * 0.34, (size * 0.84) / (word.length * 0.68)), writingDirection: 'ltr' }}>
+        {word}
+      </Text>
+    </View>
+  );
+}
+
+function isLightColor(hex: string): boolean {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return false;
+  const n = parseInt(m[1]!, 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  return 0.299 * r + 0.587 * g + 0.114 * b > 186;
+}
+
+const CATEGORY_GLYPH: Record<string, string> = {
+  laptop: '💻', phone: '📱', tablet: '📲', headphones: '🎧', watch: '⌚', tv: '📺', camera: '📷', gaming: '🎮',
+  coffee: '☕', home: '🏠', beauty: '🧴', grocery: '🛒',
+};
+
+/** Product photo when we have one, otherwise a category glyph tile. */
+export function ProductThumb({ uri, category, size, radius = 12 }: { uri?: string | null; category?: string | null; size: number; radius?: number }) {
+  if (uri) {
+    return (
+      <View style={{ width: size, height: size, borderRadius: radius, overflow: 'hidden', backgroundColor: '#fff' }}>
+        <Image source={{ uri }} style={{ width: '100%', height: '100%' }} contentFit="contain" transition={150} recyclingKey={uri} />
+      </View>
+    );
+  }
+  return (
+    <View style={{ width: size, height: size, borderRadius: radius, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+      <LinearGradient colors={['rgba(62,224,154,.16)', 'rgba(139,92,246,.18)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      <Text style={{ fontSize: size * 0.46 }}>{CATEGORY_GLYPH[category ?? ''] ?? '📦'}</Text>
     </View>
   );
 }

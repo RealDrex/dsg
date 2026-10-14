@@ -38,6 +38,12 @@ This document lists the controls implemented in the codebase and what must be co
 - Side-effecting tools are limited to adding a watch (user's own account, plan limit enforced) and saving a preference (only if the user enabled memory; capped).
 - Refusals return a polite message; API failures fall back to the rule-based advisor.
 
+### Online product lookup (web discovery)
+- Runs only for a signed-in session (guest included), rate limited (6/min) with a daily per-user quota; results are cached per query and market (24 h found, 1 h miss) so repeated searches cost nothing.
+- A price is kept only if its page URL was returned by web search in that same run **and** belongs to a store in the store directory (`allowed_domains`); anything else the model reports is dropped (tested). Kept prices go through the normal import pipeline (currency check, outlier flagging) as `web_search` offers, which never reach "high" confidence and are labelled in the app with a "check on the store page" notice.
+- Spec source links must be pages the search returned. Product photos are accepted only from store domains, known store image CDNs, or the spec-source site; other hosts are dropped (tested).
+- The model's structured output is schema-validated (strict tool + Zod); web page text is treated as data, never as instructions.
+
 ### Privacy
 - Guest use without email. Location is sent per request only for distance and never stored. Country comes from settings, not geolocation.
 - Turning assistant memory off deletes saved preferences. Users can view/delete each preference, clear search & chat history, export all their data (JSON) and permanently delete their account (cascading delete).
