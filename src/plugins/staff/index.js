@@ -465,12 +465,40 @@ const COMMANDS = [
     run: (ctx) => channelPerm(ctx, { ViewChannel: null }, `${I.show} تم إظهار`),
   },
   {
-    names: ['مسح', 'clear', 'purge'], level: 3, desc: 'حذف عدد من آخر الرسائل',
+    names: ['مسح', 'clear', 'purge'], level: 3,
+    desc: 'حذف الرسائل — `مسح <عدد>` أو `مسح @عضو` (كل رسائله) أو `مسح @عضو <عدد>`',
     async run(ctx) {
-      const n = parseInt(ctx.words[0], 10);
-      if (!n || n < 1 || n > 100) return err('حط عدد بين 1 و 100. مثال: `مسح 20`');
-      const deleted = await ctx.channel.bulkDelete(n + 1, true).catch(() => null); // +1 = أمر المسح نفسه
-      if (!deleted) return err('ما قدرت أمسح (الرسائل أقدم من 14 يوم؟).');
+      // optional user filter (mention/id) + optional count
+      const uid = mentionId(ctx.words[0]) ? mentionId(ctx.words[0]) : null;
+      let count = parseInt(uid ? ctx.words[1] : ctx.words[0], 10);
+      if (uid && (!count || count < 1)) count = 1000; // "all" from this user (capped)
+      if (!uid && (!count || count < 1)) return err('حط عدد أو منشن. مثال: `مسح 20` أو `مسح @عضو`');
+      count = Math.min(count, 1000);
+
+      await ctx.message.delete().catch(() => null);
+      const FRESH = 14 * 24 * 60 * 60 * 1000;
+      let remaining = count; let deleted = 0; let scanned = 0; let before;
+      while (remaining > 0 && scanned < 3000) {
+        const batch = await ctx.channel.messages.fetch({ limit: 100, before }).catch(() => null);
+        if (!batch || !batch.size) break;
+        before = batch.last().id;
+        scanned += batch.size;
+        let msgs = [...batch.values()];
+        if (uid) msgs = msgs.filter((m) => m.author.id === uid);
+        msgs = msgs.filter((m) => Date.now() - m.createdTimestamp < FRESH).slice(0, remaining);
+        if (msgs.length) {
+          const res = await ctx.channel.bulkDelete(msgs, true).catch(() => null);
+          const d = res ? res.size : 0;
+          deleted += d;
+          remaining -= d;
+        }
+        if (batch.size < 100) break;
+      }
+      const note = await ctx.channel.send({
+        content: `تم مسح **${deleted}** رسالة${uid ? ` من <@${uid}>` : ''}.`,
+        allowedMentions: { parse: [] },
+      }).catch(() => null);
+      if (note) setTimeout(() => note.delete().catch(() => null), 5000);
       return { noReact: true };
     },
   },
