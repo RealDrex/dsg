@@ -1,0 +1,41 @@
+# Local full stack: database, API (with alerts worker) and admin panel.
+#   cp apps/api/.env.example .env.docker   # then set JWT_SECRET, ADMIN_PASSWORD, optional ANTHROPIC_API_KEY
+#   docker compose --env-file .env.docker up --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bestprice
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bestprice}
+      POSTGRES_DB: bestprice
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bestprice"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://bestprice:${POSTGRES_PASSWORD:-bestprice}@db:5432/bestprice
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:4000}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@bestprice.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+    ports: ["4000:4000"]
+    command: sh -c "node dist/db/seed.js && node dist/server.js"
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+      args: { VITE_API_URL: "${PUBLIC_BASE_URL:-http://localhost:4000}" }
+    ports: ["8080:80"]
+
+volumes:
+  pgdata:

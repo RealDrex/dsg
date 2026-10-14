@@ -116,7 +116,19 @@ class Client {
 
   // ---- auth
   async login(email: string, password: string) { return this.adopt(await this.raw<AuthResponse>('POST', '/v1/auth/login', { email, password }, false)); }
-  async register(email: string, password: string, name?: string) { return this.adopt(await this.raw<AuthResponse>('POST', '/v1/auth/register', { email, password, name }, true)); }
+  /** Upgrades the current guest account in place (keeps watchlist and chats). */
+  async register(email: string, password: string, name?: string) {
+    const body = { email, password, name };
+    try {
+      return this.adopt(await this.raw<AuthResponse>('POST', '/v1/auth/register', body, true));
+    } catch (e) {
+      // An expired access token must not turn the upgrade into a separate new account.
+      if (e instanceof ApiError && e.status === 401 && (await this.tryRefresh())) {
+        return this.adopt(await this.raw<AuthResponse>('POST', '/v1/auth/register', body, true));
+      }
+      throw e;
+    }
+  }
   async logout() {
     const token = await getSecret(REFRESH_KEY);
     if (token) await this.raw('POST', '/v1/auth/logout', { refreshToken: token }, false).catch(() => {});
