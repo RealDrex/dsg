@@ -65,6 +65,7 @@ npm run dev:mobile                           # امسح رمز Expo، أو اض�
 
 ## الوثائق
 
+- [`docs/IOS_GUIDE_AR.md`](docs/IOS_GUIDE_AR.md) — **ابدأ من هنا:** تشغيل التطبيق على Xcode والنشر في App Store خطوة بخطوة.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — البنية ونموذج البيانات وتدفق الطلبات.
 - [`docs/SECURITY.md`](docs/SECURITY.md) — الحماية المطبّقة وقائمة التحقق قبل الإطلاق.
 - [`docs/DATA_SOURCES.md`](docs/DATA_SOURCES.md) — مصادر البيانات القانونية، صيغة الاستيراد، المطابقة وجودة البيانات.

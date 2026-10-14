@@ -1,0 +1,8 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Best Price",
+    "NSCameraUsageDescription": "يستخدم Best Price الكاميرا لمسح الباركود ورموز QR للمنتجات. لا نحفظ أي صور.",
+    "NSLocationWhenInUseUsageDescription": "يستخدم Best Price موقعك أثناء البحث فقط لعرض المسافة إلى أقرب فرع. لا نحفظ موقعك.",
+    "NSPhotoLibraryUsageDescription": "يتيح لك Best Price اختيار صورة منتج للبحث عن منتجات مشابهة."
+  }
+}

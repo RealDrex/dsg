@@ -12,7 +12,12 @@
       "supportsTablet": false,
       "bundleIdentifier": "app.bestprice.mobile",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDevelopmentRegion": "ar",
+        "CFBundleLocalizations": [
+          "ar",
+          "en"
+        ]
       }
     },
     "android": {
@@ -24,7 +29,10 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "blockedPermissions": ["android.permission.RECORD_AUDIO", "android.permission.ACCESS_BACKGROUND_LOCATION"]
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_BACKGROUND_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -33,29 +41,71 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "expo-image",
       "expo-web-browser",
-      ["expo-localization", { "supportsRTL": false }],
-      ["expo-camera", {
-        "cameraPermission": "Best Price uses the camera to scan product barcodes and QR codes. No images are stored.",
-        "recordAudioAndroid": false
-      }],
-      ["expo-location", {
-        "locationWhenInUsePermission": "Best Price uses your location only while searching, to show distance to nearby stores. It is never stored."
-      }],
-      ["expo-image-picker", {
-        "photosPermission": "Best Price lets you pick a product photo to search for similar products.",
-        "cameraPermission": false,
-        "microphonePermission": false
-      }],
-      ["expo-notifications", { "color": "#3EE09A" }]
+      [
+        "expo-localization",
+        {
+          "supportsRTL": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Best Price uses the camera to scan product barcodes and QR codes. No images are stored.",
+          "recordAudioAndroid": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Best Price uses your location only while searching, to show distance to nearby stores. It is never stored.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "motionUsagePermission": false,
+          "isIosBackgroundLocationEnabled": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Best Price lets you pick a product photo to search for similar products.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#3EE09A"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#000000"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false
     },
     "extra": {
       "apiUrl": "http://localhost:4000"
+    },
+    "locales": {
+      "ar": "./locales/ar.json",
+      "en": "./locales/en.json"
     }
   }
 }
