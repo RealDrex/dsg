@@ -124,20 +124,30 @@ const memberRoleId = (cfg) => cfg.memberRole || '1559430792411877417';
 // The log room id (config, falling back to the fixed id even if saved as null).
 const logChannelId = (cfg) => cfg.logChannelId || '1559549676640800889';
 
+// Members mid-activation: the sticky/quarantine watchers skip them so our own
+// role changes don't fight each other.
+const activating = new Set();
+
 async function activateMember(guild, target, cfg) {
   if (!cfg.sowrdRole || !guild.roles.cache.get(cfg.sowrdRole)) throw new Error('SOWRD role is not set or missing.');
   const mId = memberRoleId(cfg);
   const held = data.holdGet(guild.id, target.id);
   const hadSowrd = target.roles.cache.has(cfg.sowrdRole);
   if (!hadSowrd && !held.length && target.roles.cache.has(mId)) return { already: true };
-  data.holdClear(guild.id, target.id);
-  // 1) drop the gate role FIRST so the quarantine watcher won't re-strip what we add next
-  if (hadSowrd) await target.roles.remove(cfg.sowrdRole, 'تفعيل العضو').catch(() => null);
-  // 2) restore any held roles + give the activated "Sword" member role, in one update
-  const add = held.filter((id) => guild.roles.cache.get(id)
-    && guild.roles.cache.get(id).position < guild.members.me.roles.highest.position);
-  if (guild.roles.cache.get(mId)) add.push(mId);
-  if (add.length) await target.roles.add([...new Set(add)], 'تفعيل العضو: الرتب').catch(() => null);
+  const key = `${guild.id}:${target.id}`;
+  activating.add(key);
+  try {
+    data.holdClear(guild.id, target.id);
+    // 1) drop the gate role FIRST so the quarantine watcher won't re-strip what we add next
+    if (hadSowrd) await target.roles.remove(cfg.sowrdRole, 'تفعيل العضو').catch(() => null);
+    // 2) restore any held roles + give the activated "Sword" member role, in one update
+    const add = held.filter((id) => guild.roles.cache.get(id)
+      && guild.roles.cache.get(id).position < guild.members.me.roles.highest.position);
+    if (guild.roles.cache.get(mId)) add.push(mId);
+    if (add.length) await target.roles.add([...new Set(add)], 'تفعيل العضو: الرتب').catch(() => null);
+  } finally {
+    setTimeout(() => activating.delete(key), 4000); // let the role-change events flush
+  }
   const log = guild.channels.cache.get(logChannelId(cfg)) || await guild.channels.fetch(logChannelId(cfg)).catch(() => null);
   if (log) log.send({ content: `تم تفعيل ${target} \`${target.id}\``, allowedMentions: { parse: [] } }).catch(() => null);
   return { ok: true };
@@ -336,12 +346,20 @@ async function onJoin(member) {
 }
 
 // Keep the gate airtight: if a SOWRD holder gains any strong role, pull it back.
-async function onMemberUpdate(_oldM, newM) {
+async function onMemberUpdate(oldM, newM) {
   const cfg = cfgOf(newM.guild.id);
-  if (newM.user.bot || !cfg.sowrdRole || !newM.roles.cache.has(cfg.sowrdRole)) return;
-  // Activated members are never gated, even if they briefly hold SOWRD.
+  if (newM.user.bot || newM.id === newM.guild.ownerId || !cfg.sowrdRole) return;
+  if (activating.has(`${newM.guild.id}:${newM.id}`)) return;
+  // Activated members are left alone.
   if (newM.roles.cache.has(memberRoleId(cfg))) return;
-  if (removableRoles(newM, cfg).size) await quarantine(newM, cfg);
+  // Sticky OP: if an unactivated member had the gate role removed by hand, put it back.
+  if (oldM.roles.cache.has(cfg.sowrdRole) && !newM.roles.cache.has(cfg.sowrdRole)
+      && newM.guild.roles.cache.get(cfg.sowrdRole)) {
+    await newM.roles.add(cfg.sowrdRole, 'نظام التفعيل: إعادة رتبة OP تلقائياً').catch(() => null);
+    return;
+  }
+  // Quarantine: a gated member with strong roles gets them stripped.
+  if (newM.roles.cache.has(cfg.sowrdRole) && removableRoles(newM, cfg).size) await quarantine(newM, cfg);
 }
 
 // ── add/remove member to a ticket (via modal) ────────────────────────
