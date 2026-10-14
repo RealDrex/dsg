@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "Best Price",
+    "slug": "best-price",
+    "scheme": "bestprice",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#000000",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.bestprice.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "app.bestprice.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "blockedPermissions": ["android.permission.RECORD_AUDIO", "android.permission.ACCESS_BACKGROUND_LOCATION"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-image",
+      "expo-web-browser",
+      ["expo-localization", { "supportsRTL": false }],
+      ["expo-camera", {
+        "cameraPermission": "Best Price uses the camera to scan product barcodes and QR codes. No images are stored.",
+        "recordAudioAndroid": false
+      }],
+      ["expo-location", {
+        "locationWhenInUsePermission": "Best Price uses your location only while searching, to show distance to nearby stores. It is never stored."
+      }],
+      ["expo-image-picker", {
+        "photosPermission": "Best Price lets you pick a product photo to search for similar products.",
+        "cameraPermission": false,
+        "microphonePermission": false
+      }],
+      ["expo-notifications", { "color": "#3EE09A" }]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "apiUrl": "http://localhost:4000"
+    }
+  }
+}
