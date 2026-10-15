@@ -77,7 +77,7 @@ export function ProductResult({ p, big }: { p: ProductSummaryDTO | DiscoveredDTO
             <Txt size={12.5} color={C.textMute}>
               {`${t('from')} `}
               <Txt size={big ? 16 : 14} weight="700" color={C.text}>{formatAmount(p.bestPriceMinor, p.currency)}</Txt>
-              {` ${currencySymbol(p.currency, lang)} · ${p.offerCount} ${t('sellers')}`}
+              {` ${currencySymbol(p.currency, lang)} · ${p.offerCount === 1 ? t('oneSeller') : `${p.offerCount} ${t('sellers')}`}`}
             </Txt>
           ) : <Txt size={12} color={C.textMute}>{t('noPrice')}</Txt>}
         </View>

@@ -228,6 +228,7 @@ const S = {
   liveFound: ['من الإنترنت', 'From the web'],
   inCatalog: ['في كتالوجنا', 'In our catalog'],
   sellers: ['بائعين', 'sellers'],
+  oneSeller: ['بائع واحد', '1 seller'],
   similarItem: ['بديل مشابه', 'Similar alternative'],
   photoSearch: ['ابحث بالصورة', 'Search by photo'],
   photoCamera: ['صوّر المنتج', 'Take a photo'],
