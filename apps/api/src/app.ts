@@ -73,7 +73,7 @@ export async function buildApp(cfg: Config, db: DB): Promise<{ app: FastifyInsta
     proWatchLimit: cfg.PRO_WATCH_LIMIT,
   }, discovery);
   const jobs = new DiscoveryJobs(2, 400, (e) => app.log.error({ err: e }, 'online search failed'));
-  const ctx: Ctx = { cfg, db, tokens, catalog, assistant, discovery, jobs, media, logos: new LogoService(undefined, { logoDevToken: cfg.LOGO_DEV_TOKEN || undefined }) };
+  const ctx: Ctx = { cfg, db, tokens, catalog, assistant, discovery, jobs, media, logos: new LogoService(undefined, { logoDevToken: cfg.LOGO_DEV_TOKEN || undefined, dir: cfg.NODE_ENV === 'test' ? undefined : cfg.LOGO_CACHE_DIR }) };
 
   await app.register(helmet, {
     contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },

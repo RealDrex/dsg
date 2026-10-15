@@ -4,6 +4,7 @@ import { createDb } from './db/client';
 import { runMigrations } from './db/migrate';
 import { seed } from './db/seed';
 import { checkWatches } from './services/alerts';
+import { warmUp } from './services/warmup';
 
 const cfg = loadConfig();
 const db = createDb(cfg.DATABASE_URL);
@@ -32,3 +33,5 @@ process.on('SIGINT', shutdown);
 
 await app.listen({ port: cfg.PORT, host: cfg.HOST });
 app.log.info(`assistant mode: ${ctx.assistant.mode}`);
+// Real logos and product photos from the first screen (background; never blocks requests).
+void warmUp(db, ctx.logos, ctx.media, (m) => app.log.info(m)).catch((e) => app.log.warn({ err: e }, 'warm-up failed'));

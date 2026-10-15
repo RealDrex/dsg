@@ -8,6 +8,7 @@ import { useApp } from '../lib/store';
 import { AVATAR_GLOW, C, CTA, HERO, HERO_LOC, R } from './theme';
 import { MEMOJI } from './memoji';
 import { IconChevron } from './icons';
+import { brandMarkFor, storeMarkFor, type BrandMark } from './brandMarks';
 
 /* --------------------------------- Text --------------------------------- */
 
@@ -269,10 +270,30 @@ export function Wordmark({ size = 22 }: { size?: number }) {
  * tile. If there is no logo or it fails to load, the store's wordmark in its
  * brand colour — so a mark always shows something recognisable.
  */
-export function StoreMark({ store, size = 42 }: { store: { name: string; logoUrl?: string | null; brandColor: string | null }; size?: number }) {
+/** An official brand mark drawn from its vector path (bundled, works offline). */
+export function MarkIcon({ mark, size }: { mark: BrandMark; size: number }) {
+  const fill = isLightColor(mark.hex) ? '#111' : mark.hex;
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" accessibilityLabel={mark.title}>
+      <Path d={mark.path} fill={fill} />
+    </Svg>
+  );
+}
+
+export function StoreMark({ store, size = 42 }: { store: { name: string; logoUrl?: string | null; brandColor: string | null; domain?: string | null }; size?: number }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [store.logoUrl]);
   const radius = size * 0.29;
+  // A logo an admin set wins; then the bundled official mark; then the site's icon from our server.
+  const custom = !!store.logoUrl && !store.logoUrl.includes('/v1/logo/');
+  const mark = custom ? null : storeMarkFor(store.domain);
+  if (mark) {
+    return (
+      <View accessibilityLabel={store.name} style={{ width: size, height: size, borderRadius: radius, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+        <MarkIcon mark={mark} size={size * 0.62} />
+      </View>
+    );
+  }
   if (store.logoUrl && !failed) {
     return (
       <View accessibilityLabel={store.name} style={{ width: size, height: size, borderRadius: radius, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
@@ -298,9 +319,14 @@ export function StoreMark({ store, size = 42 }: { store: { name: string; logoUrl
 export function BrandLine({ brand, logoUrl, size = 18 }: { brand: string | null; logoUrl: string | null; size?: number }) {
   const [failed, setFailed] = useState(false);
   if (!brand) return null;
+  const mark = brandMarkFor(brand);
   return (
     <Row style={{ gap: 6 }}>
-      {logoUrl && !failed ? (
+      {mark ? (
+        <View style={{ width: size, height: size, borderRadius: size * 0.28, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+          <MarkIcon mark={mark} size={size * 0.74} />
+        </View>
+      ) : logoUrl && !failed ? (
         <View style={{ width: size, height: size, borderRadius: size * 0.28, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
           <Image source={{ uri: logoUrl }} style={{ width: size * 0.78, height: size * 0.78 }} contentFit="contain" onError={() => setFailed(true)} />
         </View>

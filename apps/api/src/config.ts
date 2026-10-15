@@ -17,6 +17,8 @@ const Env = z.object({
   BRAVE_SEARCH_API_KEY: z.string().optional(),
   /** Optional: sharper brand/store logos from logo.dev. Without it, each site's own icon is used. */
   LOGO_DEV_TOKEN: z.string().optional(),
+  /** Where logos found are kept between restarts. */
+  LOGO_CACHE_DIR: z.string().default('.cache/logos'),
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD: z.string().optional(),
   SEED_DEMO_DATA: z.string().default('true').transform((v) => v === 'true'),

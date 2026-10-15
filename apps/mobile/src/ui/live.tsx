@@ -50,7 +50,7 @@ export function LiveSearchPanel({ state, photoUri }: { state: Extract<DiscoveryS
       </Row>
       {sites.length ? (
         <Row style={{ flexWrap: 'wrap', gap: 6 }}>
-          {sites.slice(0, 18).map((d) => <StoreMark key={d} size={28} store={{ name: d, logoUrl: `${API_URL}/v1/logo/${d}`, brandColor: null }} />)}
+          {sites.slice(0, 18).map((d) => <StoreMark key={d} size={28} store={{ name: d, domain: d, logoUrl: `${API_URL}/v1/logo/${d}`, brandColor: null }} />)}
         </Row>
       ) : null}
       <View style={{ height: 3, borderRadius: 2, backgroundColor: C.fill, overflow: 'hidden' }}>

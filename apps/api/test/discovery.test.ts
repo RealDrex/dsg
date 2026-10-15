@@ -8,6 +8,10 @@ import { LogoService } from '../src/lib/logo';
 import { imageWidth } from '../src/lib/imagesize';
 import { extractPageFacts } from '../src/lib/page';
 import { safeGet } from '../src/lib/http';
+import { warmUp } from '../src/services/warmup';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { guest, setup } from './helpers';
 
 let app: FastifyInstance;
@@ -315,6 +319,29 @@ describe('product photos', () => {
     expect(sentKey).toEqual(['brave-key']);
     expect(p.imageUrl).toBe('https://imgs.search.brave.com/b');
     (ctx.media as any).opts.braveKey = undefined;
+  });
+});
+
+describe('warm-up', () => {
+  it('fetches store logos (kept on disk across restarts) and missing product photos at startup', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'logos-'));
+    let calls = 0;
+    const fetcher = async (url: string, kind: string) => { calls++; return kind === 'html' ? res(url, 404, 'text/html', '') : res(url, 200, 'image/png', png(128)); };
+    const lines: string[] = [];
+    const photo = (await db.query.products.findFirst({ where: eq(products.name, 'AirPods 4') }))!;
+    await db.update(products).set({ imageUrl: null }).where(eq(products.id, photo.id));
+    (ctx.media as any).tried.clear();
+    (ctx.media as any).opts.fetcher = async (url: string) => url.startsWith('https://en.wikipedia.org/')
+      ? res(url, 200, 'application/json', JSON.stringify({ query: { pages: [{ title: 'AirPods 4', index: 1, thumbnail: { source: 'https://upload.wikimedia.org/airpods4.jpg' } }] } }))
+      : url === 'https://upload.wikimedia.org/airpods4.jpg' ? res(url, 200, 'image/png', png(800)) : res(url, 404, 'text/plain', '');
+    await warmUp(db, new LogoService(fetcher, { dir }), ctx.media, (m) => lines.push(m));
+    expect(lines[0]).toMatch(/^warm-up: (\d+)\/\1 store logos, \d+\/\d+ product photos found$/);
+    expect((await db.query.products.findFirst({ where: eq(products.id, photo.id) }))!.imageUrl).toBe('https://upload.wikimedia.org/airpods4.jpg');
+    // a "restarted" server reads logos from disk instead of fetching again
+    const before = calls;
+    const again = new LogoService(fetcher, { dir });
+    expect(imageWidth((await again.get('jarir.com'))!.body)).toBe(128);
+    expect(calls).toBe(before);
   });
 });
 

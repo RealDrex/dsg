@@ -1,3 +1,5 @@
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { siteDomain } from '@bestprice/core';
 import { safeGet, type SafeResponse } from './http';
 import { imageWidth } from './imagesize';
@@ -31,7 +33,31 @@ export class LogoService {
   private cache = new Map<string, Entry>();
   private inflight = new Map<string, Promise<Img | null>>();
 
-  constructor(private fetcher: Fetcher = defaultFetcher, private opts: { logoDevToken?: string } = {}, private max = 2_000) {}
+  /** `dir`: logos found are also kept on disk, so a restart doesn't fetch them again. */
+  constructor(private fetcher: Fetcher = defaultFetcher, private opts: { logoDevToken?: string; dir?: string } = {}, private max = 2_000) {}
+
+  private file(domain: string) {
+    return path.join(this.opts.dir!, `${domain}.logo`);
+  }
+
+  private async fromDisk(domain: string): Promise<Img | null> {
+    if (!this.opts.dir) return null;
+    try {
+      const raw = await readFile(this.file(domain));
+      const nl = raw.indexOf(10); // "<content-type>\n<bytes>"
+      return nl > 0 ? { type: raw.subarray(0, nl).toString('ascii'), body: raw.subarray(nl + 1) } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async toDisk(domain: string, img: Img) {
+    if (!this.opts.dir) return;
+    try {
+      await mkdir(this.opts.dir, { recursive: true });
+      await writeFile(this.file(domain), Buffer.concat([Buffer.from(`${img.type}\n`, 'ascii'), img.body]));
+    } catch { /* cache only */ }
+  }
 
   async get(rawDomain: string): Promise<Img | null> {
     const domain = siteDomain(rawDomain);
@@ -62,6 +88,11 @@ export class LogoService {
   }
 
   private async load(domain: string): Promise<Img | null> {
+    const saved = await this.fromDisk(domain);
+    if (saved) {
+      this.cache.set(domain, { at: Date.now(), img: saved });
+      return saved;
+    }
     let fallback: (Img & { width: number }) | null = null;
     const consider = (img: (Img & { width: number }) | null) => {
       if (!img) return false;
@@ -96,6 +127,7 @@ export class LogoService {
     img ??= best;
     if (img) img = { type: img.type, body: img.body };
     this.cache.set(domain, { at: Date.now(), img });
+    if (img) await this.toDisk(domain, img);
     while (this.cache.size > this.max) this.cache.delete(this.cache.keys().next().value!);
     return img;
   }
