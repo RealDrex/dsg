@@ -61,6 +61,13 @@ export default function Search() {
         if (n !== seq.current) return;
         setCatalog(r.results);
         setCanDiscover(r.canDiscover);
+        // The server looks up missing photos in the background: pick them up a moment later.
+        if (r.results.some((p) => !p.imageUrl)) {
+          setTimeout(() => {
+            if (n !== seq.current) return;
+            api.search(v).then((again) => { if (n === seq.current) setCatalog(again.results); }).catch(() => {});
+          }, 4000);
+        }
       } catch {
         if (n === seq.current) setCatalog([]);
       } finally {

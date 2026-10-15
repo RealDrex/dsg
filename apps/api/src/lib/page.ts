@@ -88,3 +88,31 @@ export function extractPageFacts(html: string, pageUrl: string): PageFacts {
   }
   return facts;
 }
+
+/**
+ * Icon candidates a site declares (<link rel="apple-touch-icon" | "icon">),
+ * biggest first, plus the conventional /apple-touch-icon.png.
+ */
+export function extractIcons(html: string, pageUrl: string): string[] {
+  const found: { url: string; size: number }[] = [];
+  for (const m of html.matchAll(/<link\b[^>]*>/gi)) {
+    const a = attrs(m[0]);
+    const rel = (a.rel ?? '').toLowerCase();
+    if (!/(^|\s)(apple-touch-icon(-precomposed)?|icon|shortcut icon|mask-icon)(\s|$)/.test(rel) || rel.includes('mask-icon')) continue;
+    if (/svg/.test(a.type ?? '') || /\.svg(\?|$)/i.test(a.href ?? '')) continue; // SVG icons are skipped (not served by us)
+    const url = absoluteImage(a.href, pageUrl);
+    if (!url) continue;
+    const sizes = (a.sizes ?? '').split(/\s+/).map((s) => Number(s.split('x')[0])).filter(Number.isFinite);
+    const size = sizes.length ? Math.max(...sizes) : rel.includes('apple-touch-icon') ? 180 : 32;
+    found.push({ url, size });
+  }
+  for (const m of html.matchAll(/<meta\b[^>]*>/gi)) {
+    const a = attrs(m[0]);
+    if ((a.name ?? '').toLowerCase() === 'msapplication-tileimage') { const url = absoluteImage(a.content, pageUrl); if (url) found.push({ url, size: 144 }); }
+  }
+  found.sort((x, y) => y.size - x.size);
+  const out = [...new Set(found.map((f) => f.url))];
+  const touch = absoluteImage('/apple-touch-icon.png', pageUrl);
+  if (touch && !out.includes(touch)) out.push(touch);
+  return out;
+}

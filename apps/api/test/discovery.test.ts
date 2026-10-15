@@ -5,6 +5,7 @@ import type { Ctx } from '../src/app';
 import type { DB } from '../src/db/client';
 import { dataSources, offers, products, stores } from '../src/db/schema';
 import { LogoService } from '../src/lib/logo';
+import { imageWidth } from '../src/lib/imagesize';
 import { extractPageFacts } from '../src/lib/page';
 import { safeGet } from '../src/lib/http';
 import { guest, setup } from './helpers';
@@ -122,6 +123,9 @@ describe('online discovery (scripted model)', () => {
       },
     ]);
     (ctx.discovery as any).client = fake;
+    (ctx.media as any).opts.fetcher = async (url: string) => url.startsWith('https://m.media-amazon.com/')
+      ? { status: 200, url, contentType: 'image/jpeg', body: Buffer.from([0xff, 0xd8, 0xff, 0xe0, ...Array(40).fill(0)]) }
+      : { status: 404, url, contentType: 'text/plain', body: Buffer.alloc(0) };
     (ctx.discovery as any).fetchPage = async (url: string) => url.includes('amazon.sa')
       ? { image: 'https://m.media-amazon.com/images/I/v15.jpg', title: 'Dyson V15', price: { amount: 2749, currency: 'SAR' }, inStock: true }
       : null;
@@ -221,25 +225,96 @@ describe('online discovery (scripted model)', () => {
   });
 });
 
+const png = (w: number) => { const b = Buffer.alloc(40); b.writeUInt32BE(0x89504e47, 0); b.writeUInt32BE(w, 16); return b; };
+const res = (url: string, status: number, contentType: string, body: Buffer | string) => ({ status, url, contentType, body: Buffer.isBuffer(body) ? body : Buffer.from(body) });
+
 describe('logos', () => {
-  const png = (w: number) => { const b = Buffer.alloc(40); b.writeUInt32BE(0x89504e47, 0); b.writeUInt32BE(w, 16); return b; };
-  it('serves cached site icons and refuses tiny or invalid ones', async () => {
+  it('uses the icon the site declares, caches it, and refuses tiny or invalid ones', async () => {
     const asked: string[] = [];
-    ctx.logos = new LogoService(async (url) => {
+    ctx.logos = new LogoService(async (url, kind) => {
       asked.push(url);
-      return { status: 200, url, contentType: 'image/png', body: url.includes('tiny.example') ? png(16) : png(128) };
+      if (kind === 'html') return url === 'https://jarir.com/' ? res(url, 200, 'text/html', '<link rel="icon" href="/fav.ico"><link rel="apple-touch-icon" sizes="180x180" href="/touch.png">') : res(url, 403, 'text/html', '');
+      if (url === 'https://jarir.com/touch.png') return res(url, 200, 'image/png', png(180));
+      if (url.includes('google.com') && url.includes('noon.com')) return res(url, 200, 'image/png', png(256));
+      if (url.includes('google.com') && url.includes('small.example')) return res(url, 200, 'image/png', png(32));
+      return res(url, 200, 'image/png', png(16));
     });
     const r = await app.inject({ method: 'GET', url: '/v1/logo/jarir.com' });
     expect(r.statusCode).toBe(200);
     expect(r.headers['content-type']).toBe('image/png');
     expect(r.headers['cache-control']).toContain('max-age');
     expect(r.headers['cross-origin-resource-policy']).toBe('cross-origin');
+    expect(imageWidth(r.rawPayload)).toBe(180);
+    const n = asked.length;
     await app.inject({ method: 'GET', url: '/v1/logo/jarir.com' });
-    expect(asked).toEqual(['https://www.google.com/s2/favicons?domain=jarir.com&sz=128']); // cached
+    expect(asked.length).toBe(n); // cached
+    // site blocks bots → icon services
+    expect(imageWidth((await app.inject({ method: 'GET', url: '/v1/logo/noon.com' })).rawPayload)).toBe(256);
+    // only a 32 px icon anywhere → still better than nothing
+    expect(imageWidth((await app.inject({ method: 'GET', url: '/v1/logo/small.example' })).rawPayload)).toBe(32);
+    // 16 px everywhere → no logo (the app shows the wordmark)
     expect((await app.inject({ method: 'GET', url: '/v1/logo/tiny.example' })).statusCode).toBe(404);
+    const before = asked.length;
     expect((await app.inject({ method: 'GET', url: '/v1/logo/127.0.0.1' })).statusCode).toBe(404);
     expect((await app.inject({ method: 'GET', url: '/v1/logo/localhost' })).statusCode).toBe(404);
-    expect(asked).toHaveLength(2);
+    expect(asked.length).toBe(before);
+  });
+  it('prefers logo.dev when a token is configured', async () => {
+    ctx.logos = new LogoService(async (url) => url.startsWith('https://img.logo.dev/apple.com?token=t0k') ? res(url, 200, 'image/png', png(200)) : res(url, 404, 'text/plain', ''), { logoDevToken: 't0k' });
+    expect(imageWidth((await app.inject({ method: 'GET', url: '/v1/logo/apple.com' })).rawPayload)).toBe(200);
+  });
+  it('reads image widths', () => {
+    expect(imageWidth(png(64))).toBe(64);
+    const ico = Buffer.alloc(40); ico.writeUInt16LE(1, 2); ico.writeUInt16LE(2, 4); ico[6] = 16; ico[22] = 0; // 16 px and 256 px entries
+    expect(imageWidth(ico)).toBe(256);
+    const gif = Buffer.alloc(30); gif.write('GIF89a'); gif.writeUInt16LE(120, 6);
+    expect(imageWidth(gif)).toBe(120);
+    expect(imageWidth(Buffer.from('not an image at all, really'))).toBeNull();
+  });
+});
+
+describe('product photos', () => {
+  it('finds a missing photo on Wikipedia (only a matching article) and fills it in on first view', async () => {
+    const ideapad = (await db.query.products.findFirst({ where: eq(products.model, '83HW0021AX') }))!;
+    await db.update(products).set({ imageUrl: null }).where(eq(products.id, ideapad.id));
+    (ctx.media as any).tried.clear();
+    (ctx.media as any).opts.fetcher = async (url: string) => {
+      if (url.startsWith('https://en.wikipedia.org/')) {
+        expect(decodeURIComponent(url)).toContain('gsrsearch=Lenovo IdeaPad Slim 5');
+        return res(url, 200, 'application/json', JSON.stringify({ query: { pages: [
+          { title: 'Slim (film)', index: 1, thumbnail: { source: 'https://upload.wikimedia.org/film.jpg' } },
+          { title: 'IdeaPad', index: 2, thumbnail: { source: 'https://upload.wikimedia.org/ideapad.jpg' } },
+        ] } }));
+      }
+      if (url === 'https://upload.wikimedia.org/ideapad.jpg') return res(url, 200, 'image/png', png(800));
+      return res(url, 404, 'text/plain', '');
+    };
+    const p = (await app.inject({ method: 'GET', url: `/v1/products/${ideapad.id}` })).json();
+    expect(p.imageUrl).toBe('https://upload.wikimedia.org/ideapad.jpg');
+    expect((await db.query.products.findFirst({ where: eq(products.id, ideapad.id) }))!.imageUrl).toBe('https://upload.wikimedia.org/ideapad.jpg');
+  });
+  it('uses image search when configured, preferring store hosts, and skips broken or tiny images', async () => {
+    const iphone = (await db.query.products.findFirst({ where: eq(products.name, 'iPhone 16 · 128GB') }))!;
+    await db.update(products).set({ imageUrl: null }).where(eq(products.id, iphone.id));
+    (ctx.media as any).tried.clear();
+    (ctx.media as any).opts.braveKey = 'brave-key';
+    const sentKey: string[] = [];
+    (ctx.media as any).opts.fetcher = async (url: string, o: { headers?: Record<string, string> }) => {
+      if (url.startsWith('https://api.search.brave.com/')) {
+        sentKey.push(o.headers?.['x-subscription-token'] ?? '');
+        return res(url, 200, 'application/json', JSON.stringify({ results: [
+          { properties: { url: 'https://random.example/iphone.jpg' }, thumbnail: { src: 'https://imgs.search.brave.com/a' } },
+          { properties: { url: 'https://www.jarir.com/media/iphone16.jpg' }, thumbnail: { src: 'https://imgs.search.brave.com/b' } },
+        ] }));
+      }
+      if (url === 'https://www.jarir.com/media/iphone16.jpg') return res(url, 200, 'image/png', png(40)); // too small
+      if (url === 'https://imgs.search.brave.com/b') return res(url, 200, 'image/jpeg', Buffer.from([0xff, 0xd8, ...Array(30).fill(0)]));
+      return res(url, 404, 'text/plain', '');
+    };
+    const p = (await app.inject({ method: 'GET', url: `/v1/products/${iphone.id}` })).json();
+    expect(sentKey).toEqual(['brave-key']);
+    expect(p.imageUrl).toBe('https://imgs.search.brave.com/b');
+    (ctx.media as any).opts.braveKey = undefined;
   });
 });
 

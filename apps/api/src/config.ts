@@ -13,6 +13,10 @@ const Env = z.object({
   /** Online product search: a faster model answers sooner; claude-opus-5-5 searches deeper. */
   DISCOVERY_MODEL: z.string().default('claude-sonnet-5-5'),
   DISCOVERY_EFFORT: z.enum(['low', 'medium', 'high']).default('low'),
+  /** Optional: image search for product photos (Brave Search API). Without it, photos come from store pages and Wikipedia. */
+  BRAVE_SEARCH_API_KEY: z.string().optional(),
+  /** Optional: sharper brand/store logos from logo.dev. Without it, each site's own icon is used. */
+  LOGO_DEV_TOKEN: z.string().optional(),
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD: z.string().optional(),
   SEED_DEMO_DATA: z.string().default('true').transform((v) => v === 'true'),

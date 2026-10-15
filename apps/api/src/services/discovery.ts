@@ -14,6 +14,7 @@ import { safeGet } from '../lib/http';
 import { hostAllowed } from '../lib/net';
 import { extractPageFacts, type PageFacts } from '../lib/page';
 import type { CatalogService } from './catalog';
+import type { MediaService } from './media';
 
 /**
  * Finds products and their sellers on the web, the way a shopper would with
@@ -194,7 +195,7 @@ export class DiscoveryService {
   private client: Anthropic | null;
   private fetchPage: (url: string) => Promise<PageFacts | null>;
 
-  constructor(private db: DB, private catalog: CatalogService, private opts: DiscoveryOptions) {
+  constructor(private db: DB, private catalog: CatalogService, private opts: DiscoveryOptions, private media?: MediaService) {
     this.client = opts.apiKey ? new Anthropic({ apiKey: opts.apiKey, maxRetries: 1, timeout: 150_000 }) : null;
     this.fetchPage = opts.fetchPage ?? defaultFetchPage;
   }
@@ -271,8 +272,10 @@ export class DiscoveryService {
     const ids: string[] = [];
     const similar: string[] = [];
     const pages = await this.readPages(items, seen);
-    for (const p of items) {
-      const id = await this.persist(p, subject, market, storeRows, seen, pages);
+    // Photos for all products in parallel: page photos (checked), else image search.
+    const images = await Promise.all(items.map((p) => this.chooseImage(p, seen, pages, storeRows)));
+    for (const [i, p] of items.entries()) {
+      const id = await this.persist(p, subject, market, storeRows, seen, images[i] ?? null, pages);
       if (!id || ids.includes(id)) continue;
       ids.push(id);
       if (p.match === 'similar') similar.push(id);
@@ -377,7 +380,7 @@ export class DiscoveryService {
 
   /** Reads the listed pages (in parallel, time-boxed) for their photo and published price. */
   private async readPages(items: Submitted[], seen: Map<string, string>): Promise<Map<string, PageFacts>> {
-    const urls = [...new Set(items.flatMap((p) => p.listings.map((l) => seen.get(urlKey(l.url) ?? '')).filter((u): u is string => !!u && assessUrl(u).risk === 'safe')))].slice(0, 24);
+    const urls = [...new Set(items.flatMap((p) => [...p.listings.map((l) => l.url), p.spec_source_url ?? ''].map((u) => seen.get(urlKey(u) ?? '')).filter((u): u is string => !!u && assessUrl(u).risk === 'safe')))].slice(0, 28);
     const out = new Map<string, PageFacts>();
     const deadline = Date.now() + 7_000;
     let next = 0;
@@ -395,7 +398,33 @@ export class DiscoveryService {
   }
 
   /** Finds or creates the catalog product, then imports the listings that pass the trust rules. */
-  private async persist(p: Submitted, subject: Subject, market: Market, storeRows: StoreRow[], seen: Map<string, string>, pages: Map<string, PageFacts>): Promise<string | null> {
+  /**
+   * Product photo: from the listing pages (known stores first), the spec
+   * page, or a trusted image the search showed — each checked to really be
+   * an image — and otherwise an image search for the product.
+   */
+  private async chooseImage(p: Submitted, seen: Map<string, string>, pages: Map<string, PageFacts>, storeRows: StoreRow[]): Promise<string | null> {
+    const listed = p.listings.map((l) => seen.get(urlKey(l.url) ?? '')).filter((u): u is string => !!u && assessUrl(u).risk === 'safe');
+    const specSource = p.spec_source_url ? seen.get(urlKey(p.spec_source_url) ?? '') ?? null : null;
+    const brandSite = siteDomain(p.brand_website);
+    const knownHosts = storeRows.filter((s) => s.known).flatMap((s) => s.allowedDomains);
+    const isKnown = (url: string) => hostAllowed(new URL(url).hostname, knownHosts);
+    const candidates = [...listed].sort((a, b) => Number(isKnown(b)) - Number(isKnown(a))).map((u) => pages.get(u)?.image);
+    if (specSource) candidates.push(pages.get(specSource)?.image);
+    if (p.image_url) {
+      try {
+        const u = new URL(p.image_url);
+        const trusted = [...knownHosts, ...IMAGE_CDNS, ...listed.map((x) => new URL(x).hostname.replace(/^www\./, '')), ...(specSource ? [new URL(specSource).hostname.replace(/^www\./, '')] : []), ...(brandSite ? [brandSite] : [])];
+        if (u.protocol === 'https:' && !u.username && !u.password && hostAllowed(u.hostname, trusted)) candidates.push(u.toString());
+      } catch { /* ignore invalid image URL */ }
+    }
+    if (!this.media) return candidates.find((c): c is string => !!c) ?? null;
+    const work = (async () => (await this.media!.firstImage(candidates, 3))
+      ?? (await this.media!.find({ name: p.name, brand: p.brand, preferHosts: [...knownHosts, ...(brandSite ? [brandSite] : [])] })))();
+    return Promise.race([work, new Promise<null>((r) => setTimeout(() => r(null), 10_000))]).catch(() => null);
+  }
+
+  private async persist(p: Submitted, subject: Subject, market: Market, storeRows: StoreRow[], seen: Map<string, string>, imageUrl: string | null, pages: Map<string, PageFacts>): Promise<string | null> {
     // Listings first: only pages web search returned in this run, never blocked or odd URLs.
     const listings: { l: Listing; url: string; page: PageFacts | undefined }[] = [];
     for (const l of p.listings) {
@@ -417,23 +446,8 @@ export class DiscoveryService {
       productId = byName[0]?.id ?? null;
     }
 
-    // Photo: from a known store's page first, then any listing page, then what search showed (trusted hosts only).
     const specSource = p.spec_source_url ? seen.get(urlKey(p.spec_source_url) ?? '') ?? null : null;
     const brandSite = siteDomain(p.brand_website);
-    const isKnown = (url: string) => storeRows.some((s) => s.known && hostAllowed(new URL(url).hostname, s.allowedDomains));
-    const fromPages = [...listings].sort((a, b) => Number(isKnown(b.url)) - Number(isKnown(a.url))).map((x) => x.page?.image).find((u): u is string => !!u);
-    let imageUrl = fromPages ?? null;
-    if (!imageUrl && p.image_url) {
-      try {
-        const u = new URL(p.image_url);
-        const trusted = [
-          ...storeRows.filter((s) => s.known).flatMap((s) => s.allowedDomains), ...IMAGE_CDNS,
-          ...listings.map((x) => new URL(x.url).hostname.replace(/^www\./, '')),
-          ...(specSource ? [new URL(specSource).hostname.replace(/^www\./, '')] : []), ...(brandSite ? [brandSite] : []),
-        ];
-        if (u.protocol === 'https:' && !u.username && !u.password && hostAllowed(u.hostname, trusted)) imageUrl = u.toString();
-      } catch { /* ignore invalid image URL */ }
-    }
 
     if (!productId) {
       if (!listings.length && subject.kind !== 'gtin') return null; // a product nobody sells is not a result

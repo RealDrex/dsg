@@ -18,6 +18,8 @@ export async function setup(): Promise<{ app: FastifyInstance; ctx: Ctx; db: DB 
     CORS_ORIGINS: 'http://admin.test', FREE_ASSISTANT_DAILY: '40', FREE_WATCH_LIMIT: '3',
   } as NodeJS.ProcessEnv);
   const { app, ctx } = await buildApp(cfg, db);
+  // Tests never reach the internet: image lookups answer "not found" unless a test scripts them.
+  (ctx.media as unknown as { opts: { fetcher: unknown } }).opts.fetcher = async (url: string) => ({ status: 404, url, contentType: 'text/plain', body: Buffer.alloc(0) });
   await app.ready();
   return { app, ctx, db };
 }

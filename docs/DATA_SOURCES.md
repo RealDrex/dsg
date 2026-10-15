@@ -19,7 +19,11 @@ A source can only be activated after its **legal basis** (`terms_note`: API term
 
 ### Logos
 
-Store and brand logos are each site's own icon, fetched by the server through a site-icon service and cached (`/v1/logo/:domain`); they identify the store next to its price (nominative use). If a store provides an official logo file, set `logo_url` on the store in the admin panel and it takes precedence. Icons smaller than 48 px are ignored and the app shows the store's wordmark instead.
+Store and brand logos identify the seller next to its price (nominative use). The server tries, in order: logo.dev (when `LOGO_DEV_TOKEN` is set), the icons the site itself declares (`apple-touch-icon`…), then Google's and DuckDuckGo's site-icon services; the first sharp one (≥ 96 px, else the best ≥ 32 px) is cached and served from `/v1/logo/:domain`. If a store provides an official logo file, set `logo_url` on the store in the admin panel and it takes precedence. No usable icon → the app shows the store's wordmark.
+
+### Product photos
+
+In order: the photo the listing pages publish (known stores first), the spec page's photo, a photo the search result showed on a trusted host, then image search (Brave Search API when `BRAVE_SEARCH_API_KEY` is set) and Wikipedia/Wikimedia for well-known products (only an article whose title matches the product). Every candidate is fetched once to prove it is a real image of reasonable size. Products opened without a photo get one looked up on the spot.
 
 ## Launch market plan
 

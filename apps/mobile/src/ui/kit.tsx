@@ -325,10 +325,12 @@ const CATEGORY_GLYPH: Record<string, string> = {
 
 /** Product photo when we have one, otherwise a category glyph tile. */
 export function ProductThumb({ uri, category, size, radius = 12 }: { uri?: string | null; category?: string | null; size: number; radius?: number }) {
-  if (uri) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [uri]);
+  if (uri && !failed) {
     return (
       <View style={{ width: size, height: size, borderRadius: radius, overflow: 'hidden', backgroundColor: '#fff' }}>
-        <Image source={{ uri }} style={{ width: '100%', height: '100%' }} contentFit="contain" transition={150} recyclingKey={uri} />
+        <Image source={{ uri }} style={{ width: '100%', height: '100%' }} contentFit="contain" transition={150} recyclingKey={uri} onError={() => setFailed(true)} />
       </View>
     );
   }

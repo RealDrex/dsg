@@ -19,6 +19,7 @@ import { assistantRoutes } from './routes/assistant';
 import { adminRoutes } from './routes/admin';
 import { DiscoveryJobs, DiscoveryService } from './services/discovery';
 import { LogoService } from './lib/logo';
+import { MediaService } from './services/media';
 
 export interface Ctx {
   cfg: Config;
@@ -29,6 +30,7 @@ export interface Ctx {
   discovery: DiscoveryService;
   jobs: DiscoveryJobs;
   logos: LogoService;
+  media: MediaService;
 }
 
 declare module 'fastify' {
@@ -54,13 +56,14 @@ export async function buildApp(cfg: Config, db: DB): Promise<{ app: FastifyInsta
 
   const tokens = new TokenService(db, cfg.JWT_SECRET);
   const catalog = new CatalogService(db, cfg.PUBLIC_BASE_URL);
+  const media = new MediaService(db, { braveKey: cfg.BRAVE_SEARCH_API_KEY || undefined });
   const discovery = new DiscoveryService(db, catalog, {
     apiKey: cfg.ANTHROPIC_API_KEY || undefined,
     model: cfg.DISCOVERY_MODEL,
     effort: cfg.DISCOVERY_EFFORT,
     freeDaily: cfg.FREE_DISCOVERY_DAILY,
     proDaily: cfg.PRO_DISCOVERY_DAILY,
-  });
+  }, media);
   const assistant = new AssistantService(db, catalog, {
     apiKey: cfg.ANTHROPIC_API_KEY || undefined,
     model: cfg.ASSISTANT_MODEL,
@@ -70,7 +73,7 @@ export async function buildApp(cfg: Config, db: DB): Promise<{ app: FastifyInsta
     proWatchLimit: cfg.PRO_WATCH_LIMIT,
   }, discovery);
   const jobs = new DiscoveryJobs(2, 400, (e) => app.log.error({ err: e }, 'online search failed'));
-  const ctx: Ctx = { cfg, db, tokens, catalog, assistant, discovery, jobs, logos: new LogoService() };
+  const ctx: Ctx = { cfg, db, tokens, catalog, assistant, discovery, jobs, media, logos: new LogoService(undefined, { logoDevToken: cfg.LOGO_DEV_TOKEN || undefined }) };
 
   await app.register(helmet, {
     contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },

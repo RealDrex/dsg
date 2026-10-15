@@ -33,7 +33,7 @@ const publicLookup: LookupFunction = (hostname, options, callback) => {
  */
 export async function safeGet(
   raw: string,
-  { accept = '*/*', maxBytes = 1_500_000, timeoutMs = 6_000, maxRedirects = 3, truncate = false }: { accept?: string; maxBytes?: number; timeoutMs?: number; maxRedirects?: number; truncate?: boolean } = {},
+  { accept = '*/*', maxBytes = 1_500_000, timeoutMs = 6_000, maxRedirects = 3, truncate = false, headers = {} }: { accept?: string; maxBytes?: number; timeoutMs?: number; maxRedirects?: number; truncate?: boolean; headers?: Record<string, string> } = {},
 ): Promise<SafeResponse> {
   const deadline = Date.now() + timeoutMs;
   let url = new URL(raw);
@@ -43,7 +43,8 @@ export async function safeGet(
     if (url.port && url.port !== '443') throw new Error('url_unusual_port');
     // IP literals skip DNS (and so the lookup guard): never fetch them.
     if (net.isIP(url.hostname.replace(/^\[|\]$/g, ''))) throw new Error('host_not_public');
-    const res = await getOnce(url, accept, maxBytes, Math.max(500, deadline - Date.now()), truncate);
+    // Extra headers (API keys) are only sent to the host they were meant for, never after a redirect.
+    const res = await getOnce(url, accept, maxBytes, Math.max(500, deadline - Date.now()), truncate, hop === 0 ? headers : {});
     if (res.status >= 300 && res.status < 400 && res.location) {
       if (hop >= maxRedirects) throw new Error('too_many_redirects');
       url = new URL(res.location, url);
@@ -53,12 +54,13 @@ export async function safeGet(
   }
 }
 
-function getOnce(url: URL, accept: string, maxBytes: number, timeoutMs: number, truncate: boolean): Promise<{ status: number; location?: string; contentType: string; body: Buffer }> {
+function getOnce(url: URL, accept: string, maxBytes: number, timeoutMs: number, truncate: boolean, extra: Record<string, string>): Promise<{ status: number; location?: string; contentType: string; body: Buffer }> {
   return new Promise((resolve, reject) => {
     const req = https.get(url, {
       lookup: publicLookup,
       timeout: timeoutMs,
       headers: {
+        ...extra,
         accept,
         'accept-language': 'ar-SA,ar;q=0.9,en;q=0.8',
         // Identifies us honestly; a page fetched once on a shopper's request, like a link preview.

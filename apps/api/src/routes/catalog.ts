@@ -19,6 +19,8 @@ export async function catalogRoutes(app: FastifyInstance, ctx: Ctx) {
   app.get('/v1/products/search', async (req): Promise<SearchResponse> => {
     const q = parse(SearchQuery, req.query);
     const results = await catalog.search(q.q, countryOf(req, q.country), q.limit);
+    // Missing photos are looked up in the background; the next view shows them.
+    for (const p of results.filter((r) => !r.imageUrl).slice(0, 6)) void ctx.media.ensureImage(p.id);
     if (req.user) await db.insert(searchHistory).values({ userId: req.user.id, query: q.q.slice(0, 120) });
     return { results, canDiscover: discovery.available };
   });
@@ -68,6 +70,11 @@ export async function catalogRoutes(app: FastifyInstance, ctx: Ctx) {
     const { id } = parse(IdParam, req.params);
     const p = await catalog.product(id, countryOf(req));
     if (req.user) await db.insert(searchHistory).values({ userId: req.user.id, productId: id });
+    if (!p.imageUrl) {
+      // No photo yet: look one up, waiting a few seconds at most.
+      const url = await Promise.race([ctx.media.ensureImage(id), new Promise<null>((r) => setTimeout(() => r(null), 4_000))]);
+      if (url) p.imageUrl = url;
+    }
     return p;
   });
 
