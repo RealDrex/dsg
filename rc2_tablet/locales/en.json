@@ -1,0 +1,20 @@
+{
+    "notify": {
+        "default_title": "Tablet"
+    },
+    "ui": {
+        "loading": "Loading",
+        "notifications": "Notifications",
+        "clear": "Clear",
+        "no_notifications": "No notifications",
+        "settings": "Settings",
+        "ui_scale": "UI Scale",
+        "sound": "Sound",
+        "version": "Version",
+        "wallpaper": "Wallpaper",
+        "add": "Add",
+        "save": "Save",
+        "wallpaper_placeholder": "background/4.png or https://...",
+        "default_title": "Tablet"
+    }
+}
