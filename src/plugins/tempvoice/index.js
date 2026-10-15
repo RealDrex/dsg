@@ -30,14 +30,14 @@ async function panelPayload() {
         btn('limit', 'الحد', I.users),
         btn('lock', 'قفل', I.lock),
         btn('unlock', 'فتح', I.unlock),
-        btn('claim', 'ملكية', I.crown),
+        btn('claim', 'ملكية', I.user),
       ),
       new ActionRowBuilder().addComponents(
         btn('hide', 'إخفاء', I.hide),
         btn('show', 'إظهار', I.show),
         btn('kick', 'طرد', I.logout),
-        btn('block', 'حظر', I.forbid, ButtonStyle.Danger),
-        btn('unblock', 'فك الحظر', I.success, ButtonStyle.Success),
+        btn('block', 'حظر', I.kick, ButtonStyle.Danger),
+        btn('unblock', 'فك الحظر', I.autorole, ButtonStyle.Success),
       ),
     ],
   };
