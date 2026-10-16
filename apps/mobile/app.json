@@ -10,7 +10,7 @@
     "backgroundColor": "#000000",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.bestprice.mobile",
+      "bundleIdentifier": "com.saudalhubais.bestprice",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocalNetworkUsageDescription": "Best Price connects to its server on your local network during development.",

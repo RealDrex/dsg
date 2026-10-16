@@ -40,15 +40,15 @@
 npm install
 
 # 1) قاعدة البيانات والخادم
-cp apps/api/.env.example apps/api/.env      # عدّل JWT_SECRET و ADMIN_PASSWORD (و ANTHROPIC_API_KEY اختياري)
-npm run db:seed -w @bestprice/api            # ينشئ الجداول + حساب المدير + بيانات تجريبية واضحة
-npm run dev:api                              # http://localhost:4000
+cp apps/api/.env.example apps/api/.env
+npm run db:seed -w @bestprice/api
+npm run dev:api
 
 # 2) لوحة الإدارة
-npm run dev:admin                            # http://localhost:5173
+npm run dev:admin
 
 # 3) تطبيق الجوال
-npm run dev:mobile                           # امسح رمز Expo، أو اضغط w للمعاينة على الويب
+npm run dev:mobile
 ```
 
 أو كل شيء عبر Docker: انظر `docker-compose.yml`.

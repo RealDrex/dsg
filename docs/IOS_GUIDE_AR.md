@@ -22,7 +22,7 @@
 ## الخطوة 1: فك ضغط السورس وتثبيت المكتبات
 
 ```bash
-cd ~/Desktop            # أو أي مكان فكّيت فيه الملف
+cd ~/Downloads
 cd bestprice
 npm install
 ```
@@ -52,8 +52,8 @@ open -e apps/api/.env
 بعدها:
 
 ```bash
-npm run db:seed -w @bestprice/api     # ينشئ الجداول والبيانات التجريبية
-npm run dev:api                       # الخادم على http://localhost:4000
+npm run db:seed -w @bestprice/api
+npm run dev:api
 ```
 
 اترك هذه النافذة مفتوحة. للتأكد افتح في المتصفح: http://localhost:4000/health
@@ -126,9 +126,7 @@ npx expo run:ios
    حساب Apple ID المجاني يكفي للتجربة على جوالك (التطبيق يشتغل 7 أيام ثم تعيد تنزيله بنفس الأمر). حساب المطوّر المدفوع (99$ بالسنة) يخليه سنة، ولازم له للنشر.
 
 ### ج) معرّف خاص للتطبيق (مرة وحدة)
-1. في `apps/mobile/app.json` غيّر السطر:
-   `"bundleIdentifier": "app.bestprice.mobile"`
-   إلى معرّف باسمك، مثل: `"bundleIdentifier": "com.saud.bestprice"`.
+1. المعرّف مضبوط مسبقًا على `com.saudalhubais.bestprice` في `apps/mobile/app.json` (تغيّره بس لو Xcode قال إنه مستخدم).
 2. في Terminal:
    ```
    cd ~/Downloads/bestprice/apps/mobile
