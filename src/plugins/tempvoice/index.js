@@ -81,6 +81,38 @@ async function onVoiceUpdate(oldS, newS) {
   }
 }
 
+// ── auto-clear temp room chats ────────────────────────────────────────
+const lastClear = new Map(); // channelId -> timestamp
+const FRESH = 14 * 24 * 60 * 60 * 1000;
+
+async function clearChat(channel) {
+  for (let i = 0; i < 5; i += 1) {
+    const batch = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+    if (!batch || !batch.size) break;
+    const fresh = batch.filter((m) => Date.now() - m.createdTimestamp < FRESH && !m.pinned);
+    if (!fresh.size) break;
+    const res = await channel.bulkDelete(fresh, true).catch(() => null);
+    if (!res || res.size < 100) break;
+  }
+}
+
+async function sweepChats(client) {
+  const now = Date.now();
+  for (const guild of client.guilds.cache.values()) {
+    if (!store.isEnabled(guild.id, ID)) continue;
+    const cfg = cfgOf(guild.id);
+    if (!cfg.autoClear) continue;
+    const everyMs = Math.max(1, cfg.autoClearHours || 2) * 60 * 60 * 1000;
+    for (const row of data.all(guild.id)) {
+      const ch = guild.channels.cache.get(row.channel_id);
+      if (!ch) { data.remove(row.channel_id); lastClear.delete(row.channel_id); continue; }
+      if (now - (lastClear.get(ch.id) || 0) < everyMs) continue;
+      lastClear.set(ch.id, now);
+      await clearChat(ch);
+    }
+  }
+}
+
 // ── panel helpers ─────────────────────────────────────────────────────
 // Returns the owner's temp room channel, or replies with an error.
 async function ownRoom(interaction) {
@@ -107,6 +139,8 @@ module.exports = {
     panelMsg: null,
     nameTemplate: 'روم {user}',
     defaultLimit: 0,
+    autoClear: true,       // مسح شات الرومات المؤقتة تلقائياً
+    autoClearHours: 2,     // كل كم ساعة
   },
   dashboard: [
     {
@@ -117,6 +151,8 @@ module.exports = {
         { key: 'panelChannel', type: 'channel', label: 'روم لوحة التحكم' },
         { key: 'nameTemplate', type: 'text', label: 'اسم الروم ({user} = اسم العضو)', max: 80 },
         { key: 'defaultLimit', type: 'number', label: 'الحد الافتراضي للأعضاء (0 = بلا حد)', min: 0, max: 99 },
+        { key: 'autoClear', type: 'bool', label: 'مسح شات الرومات تلقائياً' },
+        { key: 'autoClearHours', type: 'number', label: 'كل كم ساعة يمسح الشات', min: 1, max: 48 },
       ],
     },
   ],
@@ -144,6 +180,9 @@ module.exports = {
       if (cfg.panelMsg && await ch.messages.fetch(cfg.panelMsg).catch(() => null)) continue;
       await sendPanel(guild, ch).catch((e) => logger.warn('[tempvoice] panel:', e.message));
     }
+    // Auto-clear temp room chats: check hourly, purge rooms whose interval elapsed.
+    setInterval(() => sweepChats(client).catch(() => null), 60 * 60 * 1000);
+    sweepChats(client).catch(() => null);
   },
   events: {
     voiceStateUpdate: onVoiceUpdate,
