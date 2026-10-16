@@ -151,8 +151,18 @@ async function onMessage(message) {
     return warnDM(message, 'رسالتك فيها كلمة ممنوعة، انحذفت.');
   }
 
-  if (f.antiLink && (cfg.links.invitesOnly ? INVITE_RE.test(content) : LINK_RE.test(content))) {
-    return warnInChannel(message, cfg.links.invitesOnly ? 'ممنوع نشر روابط سيرفرات.' : 'ممنوع نشر الروابط هنا.');
+  if (f.antiLink) {
+    // Any Discord invite → delete + 10-minute timeout.
+    if (INVITE_RE.test(content)) {
+      await warnInChannel(message, 'ممنوع نشر روابط سيرفرات — تايم أوت 10 دقائق.');
+      await punish(message.member, 10, 'نشر رابط دعوة');
+      alert(message.guild, `${I.link} رابط دعوة`, `${message.author} نشر رابط سيرفر في ${message.channel} — تايم أوت 10 دقائق.`);
+      return;
+    }
+    // Other links (only when the mode is "all links").
+    if (!cfg.links.invitesOnly && LINK_RE.test(content)) {
+      return warnInChannel(message, 'ممنوع نشر الروابط هنا.');
+    }
   }
 
   if (f.antiMention) {
