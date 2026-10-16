@@ -19,6 +19,12 @@ db.exec(`
     at       INTEGER NOT NULL,
     PRIMARY KEY (guild_id, user_id)
   );
+
+  CREATE TABLE IF NOT EXISTS activation_grants (
+    guild_id TEXT NOT NULL,
+    user_id  TEXT NOT NULL,
+    PRIMARY KEY (guild_id, user_id)
+  );
 `);
 
 const stmt = {
@@ -31,6 +37,10 @@ const stmt = {
   holdGet: db.prepare('SELECT roles FROM activation_hold WHERE guild_id = ? AND user_id = ?'),
   holdDel: db.prepare('DELETE FROM activation_hold WHERE guild_id = ? AND user_id = ?'),
   holdAll: db.prepare('SELECT user_id, roles FROM activation_hold WHERE guild_id = ?'),
+
+  grantAdd: db.prepare('INSERT OR IGNORE INTO activation_grants (guild_id, user_id) VALUES (?, ?)'),
+  grantDel: db.prepare('DELETE FROM activation_grants WHERE guild_id = ? AND user_id = ?'),
+  grantHas: db.prepare('SELECT 1 FROM activation_grants WHERE guild_id = ? AND user_id = ?'),
 };
 
 module.exports = {
@@ -44,4 +54,11 @@ module.exports = {
   holdGet: (g, u) => { const r = stmt.holdGet.get(g, u); return r ? JSON.parse(r.roles) : []; },
   holdClear: (g, u) => stmt.holdDel.run(g, u),
   holdAll: (g) => stmt.holdAll.all(g).map((r) => ({ userId: r.user_id, roles: JSON.parse(r.roles) })),
+
+  // Extra users allowed to use the تفعيل command (besides the staff role / owner).
+  grantHas: (g, u) => !!stmt.grantHas.get(g, u),
+  grantToggle: (g, u) => {
+    if (stmt.grantHas.get(g, u)) { stmt.grantDel.run(g, u); return false; }
+    stmt.grantAdd.run(g, u); return true;
+  },
 };

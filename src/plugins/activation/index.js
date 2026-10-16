@@ -22,9 +22,10 @@ const ID = 'activation';
 const pad = (n) => String(n).padStart(4, '0');
 
 const cfgOf = (g) => store.get(g, ID);
-// The activation role can activate; the server owner can too (recovery path).
+// The activation role can activate; the server owner and granted users too.
 const canActivate = (member, cfg) => member.id === member.guild.ownerId
-  || (!!cfg.staffRole && member.roles.cache.has(cfg.staffRole));
+  || (!!cfg.staffRole && member.roles.cache.has(cfg.staffRole))
+  || data.grantHas(member.guild.id, member.id);
 const canManage = (member, cfg) => canActivate(member, cfg) || member.permissions.has(P.ManageChannels);
 
 // ── banners / panels ─────────────────────────────────────────────────
@@ -318,6 +319,21 @@ async function onMessage(message) {
     let txt = `Done — hidden ${res.denied} rooms, gated ${res.gated} members.`;
     if (res.blocked) txt += ` ⚠️ ${res.blocked} member(s) hold a role ABOVE the bot — move the bot's role to the very top, then run !aclock again.`;
     await say(txt);
+    return;
+  }
+
+  // +تفعيل @عضو → grant/revoke that user's permission to use تفعيل
+  if (first === '+تفعيل' || first.toLowerCase() === '+activate') {
+    if (!canActivate(message.member, cfg)) return void react(false);
+    let id = resolveId(parts.slice(1).join(' '));
+    if (!id && message.reference?.messageId) {
+      const ref = await message.channel.messages.fetch(message.reference.messageId).catch(() => null);
+      id = ref?.author?.id || null;
+    }
+    if (!id) return void react(false);
+    const added = data.grantToggle(message.guildId, id);
+    await react(true);
+    await say(added ? `✅ <@${id}> صار يقدر يستخدم أمر تفعيل.` : `تم سحب صلاحية التفعيل من <@${id}>.`);
     return;
   }
 
