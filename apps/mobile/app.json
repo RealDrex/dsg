@@ -13,6 +13,7 @@
       "bundleIdentifier": "app.bestprice.mobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "NSLocalNetworkUsageDescription": "Best Price connects to its server on your local network during development.",
         "CFBundleDevelopmentRegion": "ar",
         "CFBundleLocalizations": [
           "ar",

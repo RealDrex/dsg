@@ -13,7 +13,8 @@
     "lint": "npm run lint --workspaces --if-present",
     "dev:api": "npm run dev -w @bestprice/api",
     "dev:admin": "npm run dev -w @bestprice/admin",
-    "dev:mobile": "npm run start -w @bestprice/mobile"
+    "dev:mobile": "npm run start -w @bestprice/mobile",
+    "ios:phone": "cd apps/mobile && EXPO_PUBLIC_API_URL=http://$(ipconfig getifaddr en0):4000 npx expo run:ios --device --configuration Release"
   },
   "engines": {
     "node": ">=20.19"
