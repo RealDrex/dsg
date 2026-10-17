@@ -51,8 +51,11 @@ function guard(ctx, target, action = 'هذا الإجراء') {
   if (target.id === guild.ownerId) return 'ما ينفع على مالك السيرفر.';
   if (target.id === me.id) return `ما أقدر أسوي هذا على نفسي ${I.sword}`;
   if (target.user?.bot) return 'ما ينفع على البوتات.';
-  if (member.id !== guild.ownerId && levelOf(target) >= levelOf(member)) return 'العضو إداري مثلك أو أعلى منك.';
-  if (member.id !== guild.ownerId && target.roles.highest.position >= member.roles.highest.position) return 'رتبة العضو أعلى منك أو مساوية لك.';
+  // Position-based: you can act on anyone whose highest role is strictly BELOW
+  // yours — even same rank/tier (e.g. a higher Monarch on a lower Monarch).
+  if (member.id !== guild.ownerId && target.roles.highest.position >= member.roles.highest.position) {
+    return 'رتبة العضو أعلى منك أو مساوية لك.';
+  }
   return null;
 }
 

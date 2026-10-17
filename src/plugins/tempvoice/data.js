@@ -10,6 +10,13 @@ db.exec(`
     created_at INTEGER NOT NULL,
     PRIMARY KEY (guild_id, channel_id)
   );
+
+  CREATE TABLE IF NOT EXISTS room_claims (
+    guild_id   TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    owner_id   TEXT NOT NULL,
+    PRIMARY KEY (guild_id, channel_id)
+  );
 `);
 
 const stmt = {
@@ -19,6 +26,10 @@ const stmt = {
   setOwner: db.prepare('UPDATE temp_rooms SET owner_id = ? WHERE channel_id = ?'),
   del: db.prepare('DELETE FROM temp_rooms WHERE channel_id = ?'),
   all: db.prepare('SELECT * FROM temp_rooms WHERE guild_id = ?'),
+
+  claimSet: db.prepare('INSERT OR REPLACE INTO room_claims (guild_id, channel_id, owner_id) VALUES (?, ?, ?)'),
+  claimGet: db.prepare('SELECT owner_id FROM room_claims WHERE channel_id = ?'),
+  claimDel: db.prepare('DELETE FROM room_claims WHERE channel_id = ?'),
 };
 
 module.exports = {
@@ -28,4 +39,9 @@ module.exports = {
   setOwner: (c, owner) => stmt.setOwner.run(owner, c),
   remove: (c) => stmt.del.run(c),
   all: (g) => stmt.all.all(g),
+
+  // Manually-claimed room ownership (أمر انشاء ملكيه)
+  claimSet: (g, c, owner) => stmt.claimSet.run(g, c, owner),
+  claimOwner: (c) => stmt.claimGet.get(c)?.owner_id || null,
+  claimDel: (c) => stmt.claimDel.run(c),
 };

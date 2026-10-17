@@ -126,6 +126,86 @@ const oneInput = (id, label, style = TextInputStyle.Short) => new ActionRowBuild
   new TextInputBuilder().setCustomId('v').setLabel(label).setStyle(style).setRequired(true).setMaxLength(100));
 const modal = (id, title, label) => new ModalBuilder().setCustomId(`tempvoice:${id}`).setTitle(title).addComponents(oneInput('v', label));
 
+// ── room ownership text commands ──────────────────────────────────────
+// Grant/deny access to the channel where the command is used.
+function accessPerms(channel, allow) {
+  const voice = channel.type === ChannelType.GuildVoice || channel.type === ChannelType.GuildStageVoice;
+  if (voice) return allow
+    ? { ViewChannel: true, Connect: true, Speak: true }
+    : { ViewChannel: false, Connect: false };
+  return allow
+    ? { ViewChannel: true, SendMessages: true, ReadMessageHistory: true }
+    : { ViewChannel: false };
+}
+
+async function onMessage(message) {
+  if (!message.inGuild() || message.author.bot || !message.member || !message.content) return;
+  const norm = message.content.trim().replace(/\s+/g, ' ');
+  const low = norm.toLowerCase();
+  const react = (ok) => message.react(ok ? '✅' : '❌').catch(() => null);
+  const say = (t) => message.reply({ content: t, allowedMentions: { repliedUser: false } }).catch(() => null);
+  const ch = message.channel;
+  const ownerId = data.claimOwner(ch.id);
+  const isOwner = ownerId && ownerId === message.author.id;
+  const argId = () => {
+    const m = message.mentions.users.first();
+    if (m) return m.id;
+    const n = norm.match(/\d{15,20}/);
+    return n ? n[0] : null;
+  };
+
+  // vc/ → control panel (admins)
+  const tok = norm.split(' ')[0].replace(/^[!\-#.+]/, '').toLowerCase();
+  if (tok === 'vc/' || tok === 'vc') {
+    if (!message.member.permissions.has(P.ManageGuild)) return;
+    const mentioned = message.mentions.channels.find((c) => c.isTextBased?.());
+    const err = await sendPanel(message.guild, mentioned || ch).then(() => null).catch((e) => e.message);
+    await react(!err);
+    if (err) await say(`Failed: ${err}`);
+    return;
+  }
+
+  // انشاء ملكيه → claim the current room
+  if (/^انشاء ملكي[ةه]$/.test(norm) || low === 'claim room') {
+    if (ownerId) return void say(`هذا الروم له مالك: <@${ownerId}>`);
+    data.claimSet(message.guildId, ch.id, message.author.id);
+    await react(true);
+    return void say(`صرت مالك هذا الروم ${message.author}.`);
+  }
+
+  // نقل ملكيه @user → transfer
+  if (/^نقل ملكي[ةه]\b/.test(norm)) {
+    if (!isOwner) return void react(false);
+    const id = argId();
+    if (!id) return void say('منشن الشخص أو حط آيديه.');
+    data.claimSet(message.guildId, ch.id, id);
+    await react(true);
+    return void say(`تم نقل ملكية الروم لـ <@${id}>.`);
+  }
+
+  // رفض دخول @user → remove access  (check before "دخول")
+  if (/^رفض دخول\b/.test(norm)) {
+    if (!isOwner) return void react(false);
+    const id = argId();
+    if (!id) return void say('منشن الشخص أو حط آيديه.');
+    await ch.permissionOverwrites.edit(id, accessPerms(ch, false)).catch(() => null);
+    const m = await message.guild.members.fetch(id).catch(() => null);
+    if (m && (m.voice?.channelId === ch.id)) await m.voice.disconnect('رفض دخول').catch(() => null);
+    await react(true);
+    return void say(`تم رفض دخول <@${id}>.`);
+  }
+
+  // دخول @user|id → allow access
+  if (/^دخول\b/.test(norm)) {
+    if (!isOwner) return void react(false);
+    const id = argId();
+    if (!id) return void say('منشن الشخص أو حط آيديه. مثال: `دخول @عضو`');
+    await ch.permissionOverwrites.edit(id, accessPerms(ch, true)).catch(() => null);
+    await react(true);
+    return void say(`تم السماح لـ <@${id}> بالدخول.`);
+  }
+}
+
 module.exports = {
   id: ID,
   name: 'Temp Voice',
@@ -186,19 +266,8 @@ module.exports = {
   },
   events: {
     voiceStateUpdate: onVoiceUpdate,
-    channelDelete(channel) { if (data.byChannel(channel.id)) data.remove(channel.id); },
-    // "vc/" (or "!vc") in chat posts the control panel (admins only).
-    async messageCreate(message) {
-      if (!message.inGuild() || message.author.bot || !message.member || !message.content) return;
-      const tok = message.content.trim().split(/\s+/)[0].replace(/^[!\-#.+]/, '').toLowerCase();
-      if (tok !== 'vc/' && tok !== 'vc') return;
-      if (!message.member.permissions.has(P.ManageGuild)) return;
-      const mentioned = message.mentions.channels.find((c) => c.isTextBased?.());
-      const ch = mentioned || message.channel;
-      const err = await sendPanel(message.guild, ch).then(() => null).catch((e) => e.message);
-      await message.react(err ? '❌' : '✅').catch(() => null);
-      if (err) await message.reply({ content: `Failed: ${err}`, allowedMentions: { repliedUser: false } }).catch(() => null);
-    },
+    channelDelete(channel) { if (data.byChannel(channel.id)) data.remove(channel.id); data.claimDel(channel.id); },
+    messageCreate: onMessage,
   },
   components: {
     async rename(i) { if (await ownRoom(i)) return i.showModal(modal('renamesubmit', 'اسم الروم', 'الاسم الجديد')); },
