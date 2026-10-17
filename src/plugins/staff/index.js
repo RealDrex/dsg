@@ -139,7 +139,7 @@ const LOGS = {
 
 function logAction(guild, cfg, kind, { target, mod, minutes, reason }) {
   const meta = LOGS[kind];
-  const channel = guild.channels.cache.get(cfg.logs?.[kind]);
+  const channel = guild.channels.cache.get(cfg.logs?.[kind] || cfg.logs?.general);
   if (!meta || !channel) return;
   const who = typeof mod === 'string' ? mod : `<@${mod.id}>`;
   const lines = [
@@ -1040,14 +1040,15 @@ module.exports = {
     purgeRoles: ['1559430792411877417'], // رتب تقدر تستخدم مسح حتى لو مو ستريشن (Sword)
     okEmoji: '✅', noEmoji: '❌', wipeDelay: 3000, noticeDelay: 6000,
     logs: {
-      vmute: '1553538498815074346',
-      tmute: '1553539863159251075',
-      block: '1553538873445982359',
-      ban: '1553538137869778994',
-      jail: '1553544386099548210',
-      warn: '1553544436619808799',
-      timeout: '1553543310877139004',
-      protect: '',
+      vmute: '',                       // → عام
+      tmute: '1553539863159251075',     // الاسكات الكتابي
+      block: '1553538200834678884',     // بلاك لست
+      ban: '',                          // → عام
+      jail: '1552743062101299311',      // لوقات السجن
+      warn: '',                         // → عام
+      timeout: '1553543310877139004',   // التايم اوت
+      protect: '',                      // → عام
+      general: '745645110234054778',    // أي لوق ثاني
     },
     // Preset reasons shown in the picker. minutes: 0 = permanent / until release.
     presets: [

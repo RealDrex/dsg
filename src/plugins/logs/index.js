@@ -8,18 +8,23 @@ const { I } = require('../../core/icons');
 
 const TYPES = {
   messages: { label: 'الرسائل', emoji: I.message, channel: 'سجل-الرسائل' },
+  messageEdit: { label: 'تعديل الرسائل', emoji: I.edit, channel: 'سجل-التعديل' },
   members: { label: 'الأعضاء', emoji: I.users, channel: 'سجل-الأعضاء' },
   moderation: { label: 'الإدارة', emoji: I.ban, channel: 'سجل-الإدارة' },
-  server: { label: 'السيرفر (رومات ورتب)', emoji: I.server, channel: 'سجل-السيرفر' },
+  server: { label: 'الرتب والرومات', emoji: I.roles, channel: 'سجل-الرتب' },
   voice: { label: 'الفويس', emoji: I.voice, channel: 'سجل-الفويس' },
+  voiceLeave: { label: 'الخروج من الفويس', emoji: I.leave, channel: 'سجل-خروج-الفويس' },
   protection: { label: 'الحماية', emoji: I.protection, channel: 'سجل-الحماية' },
+  general: { label: 'عام', emoji: I.logs, channel: 'سجل-عام' },
 };
 
 function log(guild, type, { title, description, user, fields }) {
-  const channelId = store.get(guild.id, 'logs').channels[type];
+  const cfg = store.get(guild.id, 'logs');
+  // fall back to the general log room for any type without its own channel
+  const channelId = cfg.channels[type] || cfg.channels.general;
   const channel = channelId && guild.channels.cache.get(channelId);
   if (!channel) return;
-  const parts = [`**${TYPES[type].emoji} ${title}**`];
+  const parts = [`**${(TYPES[type] || TYPES.general).emoji} ${title}**`];
   if (user) parts.push(`-# ${user.tag || user.username}`);
   if (description) parts.push(truncate(description, 3500));
   if (fields?.length) parts.push(fieldsToText(fields));
@@ -39,7 +44,7 @@ const events = {
   },
   messageUpdate(before, after) {
     if (!after.guild || after.author?.bot || before.partial || before.content === after.content) return;
-    log(after.guild, 'messages', {
+    log(after.guild, 'messageEdit', {
       title: 'رسالة تعدلت',
       color: 'edit',
       user: after.author,
@@ -134,10 +139,11 @@ const events = {
     if (!member || member.user.bot || before.channelId === after.channelId) return;
     let title;
     let description;
+    const leaving = !after.channelId;
     if (!before.channelId) [title, description] = ['دخل فويس', `${member} دخل ${after.channel}`];
-    else if (!after.channelId) [title, description] = ['طلع من فويس', `${member} طلع من ${before.channel}`];
+    else if (leaving) [title, description] = ['طلع من فويس', `${member} طلع من ${before.channel}`];
     else [title, description] = ['تنقل بين الرومات', `${member}: ${before.channel} ← ${after.channel}`];
-    log(after.guild, 'voice', { title, description, user: member.user, color: !after.channelId ? 'remove' : !before.channelId ? 'add' : 'edit' });
+    log(after.guild, leaving ? 'voiceLeave' : 'voice', { title, description, user: member.user });
   },
   swordModAction(guild, entry) {
     const meta = cases.ACTIONS[entry.action];
@@ -213,7 +219,19 @@ module.exports = {
   nameAr: 'اللوقات',
   emoji: I.logs,
   description: 'تسجيل الرسائل، الأعضاء، العقوبات، الرومات والرتب، الفويس وتنبيهات الحماية.',
-  defaults: { channels: Object.fromEntries(Object.keys(TYPES).map((k) => [k, null])) },
+  defaults: {
+    channels: {
+      messages: null,                       // حذف/مسح الرسائل → عام
+      messageEdit: '1553544691121655808',    // تعديل الرسائل
+      members: null,                         // دخول/خروج الأعضاء → عام
+      moderation: null,                      // الإدارة → عام
+      server: '1553552008860925982',         // الرتب والرومات
+      voice: '1553545068655411311',          // معلومات الفويس
+      voiceLeave: '1558853500153237644',     // الخروج من الفويس
+      protection: null,                      // الحماية → عام
+      general: '745645110234054778',         // أي لوق ثاني
+    },
+  },
   commands: [{ data, execute }],
   dashboard: [
     {
