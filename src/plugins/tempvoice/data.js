@@ -17,6 +17,12 @@ db.exec(`
     owner_id   TEXT NOT NULL,
     PRIMARY KEY (guild_id, channel_id)
   );
+
+  CREATE TABLE IF NOT EXISTS room_denies (
+    channel_id TEXT NOT NULL,
+    user_id    TEXT NOT NULL,
+    PRIMARY KEY (channel_id, user_id)
+  );
 `);
 
 const stmt = {
@@ -30,6 +36,11 @@ const stmt = {
   claimSet: db.prepare('INSERT OR REPLACE INTO room_claims (guild_id, channel_id, owner_id) VALUES (?, ?, ?)'),
   claimGet: db.prepare('SELECT owner_id FROM room_claims WHERE channel_id = ?'),
   claimDel: db.prepare('DELETE FROM room_claims WHERE channel_id = ?'),
+
+  denyAdd: db.prepare('INSERT OR IGNORE INTO room_denies (channel_id, user_id) VALUES (?, ?)'),
+  denyDel: db.prepare('DELETE FROM room_denies WHERE channel_id = ? AND user_id = ?'),
+  denyHas: db.prepare('SELECT 1 FROM room_denies WHERE channel_id = ? AND user_id = ?'),
+  denyClear: db.prepare('DELETE FROM room_denies WHERE channel_id = ?'),
 };
 
 module.exports = {
@@ -43,5 +54,10 @@ module.exports = {
   // Manually-claimed room ownership (أمر انشاء ملكيه)
   claimSet: (g, c, owner) => stmt.claimSet.run(g, c, owner),
   claimOwner: (c) => stmt.claimGet.get(c)?.owner_id || null,
-  claimDel: (c) => stmt.claimDel.run(c),
+  claimDel: (c) => { stmt.claimDel.run(c); stmt.denyClear.run(c); },
+
+  // Denied users for a claimed room (kicked on sight if they bypass)
+  denyAdd: (c, u) => stmt.denyAdd.run(c, u),
+  denyDel: (c, u) => stmt.denyDel.run(c, u),
+  denyHas: (c, u) => !!stmt.denyHas.get(c, u),
 };

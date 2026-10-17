@@ -54,6 +54,13 @@ async function onVoiceUpdate(oldS, newS) {
   const cfg = cfgOf(newS.guild.id);
   const member = newS.member;
 
+  // A denied user who got into a claimed room anyway (e.g. via a high role) → kick.
+  if (newS.channelId && member && !member.user.bot && newS.channelId !== oldS.channelId
+      && data.claimOwner(newS.channelId) && data.denyHas(newS.channelId, member.id)) {
+    await member.voice.disconnect('مرفوض من الروم').catch(() => null);
+    return;
+  }
+
   // joined the hub → make a room and move them in
   if (cfg.joinChannel && newS.channelId === cfg.joinChannel && member && !member.user.bot) {
     const parent = cfg.category && newS.guild.channels.cache.get(cfg.category);
@@ -183,26 +190,28 @@ async function onMessage(message) {
     return void say(`تم نقل ملكية الروم لـ <@${id}>.`);
   }
 
-  // رفض دخول @user → remove access  (check before "دخول")
+  // رفض دخول @user → hide + record deny (kicked on sight if they bypass)
   if (/^رفض دخول\b/.test(norm)) {
     if (!isOwner) return void react(false);
     const id = argId();
     if (!id) return void say('منشن الشخص أو حط آيديه.');
+    data.denyAdd(ch.id, id);
     await ch.permissionOverwrites.edit(id, accessPerms(ch, false)).catch(() => null);
     const m = await message.guild.members.fetch(id).catch(() => null);
     if (m && (m.voice?.channelId === ch.id)) await m.voice.disconnect('رفض دخول').catch(() => null);
     await react(true);
-    return void say(`تم رفض دخول <@${id}>.`);
+    return void say(`تم رفض دخول <@${id}> — الروم مخفي عنه ولو دخل غصب يتطرد.`);
   }
 
-  // دخول @user|id → allow access
+  // دخول @user|id → show + allow access
   if (/^دخول\b/.test(norm)) {
     if (!isOwner) return void react(false);
     const id = argId();
     if (!id) return void say('منشن الشخص أو حط آيديه. مثال: `دخول @عضو`');
+    data.denyDel(ch.id, id);
     await ch.permissionOverwrites.edit(id, accessPerms(ch, true)).catch(() => null);
     await react(true);
-    return void say(`تم السماح لـ <@${id}> بالدخول.`);
+    return void say(`تم السماح لـ <@${id}> بالدخول — صار الروم يظهر له.`);
   }
 }
 
