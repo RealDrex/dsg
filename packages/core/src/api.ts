@@ -179,6 +179,8 @@ export interface DiscoverJobDTO {
 }
 
 export interface ProductDTO extends ProductSummaryDTO {
+  /** When the price monitor last re-checked this product's prices (null = never). */
+  pricesCheckedAt: string | null;
   gtins: string[];
   specs: { key: string; label: string; labelAr: string; value: string }[];
   attributes: Record<string, number | string | boolean>;
@@ -252,6 +254,10 @@ export interface HistoryResponse {
 export interface WatchItemDTO {
   id: string;
   product: ProductSummaryDTO;
+  /** When prices were last re-checked for this product. */
+  checkedAt: string | null;
+  /** Lowest best price seen since the watch started (null until known). */
+  lowestMinor: number | null;
   targetMinor: number;
   startMinor: number;
   currentMinor: number | null;
@@ -329,6 +335,17 @@ export interface HomeResponse {
   recent: ProductSummaryDTO[];
   suggestions: string[];
   coverage: { market: string; live: boolean };
+}
+
+/** Result of re-checking a product's prices now. */
+export interface RefreshResponse {
+  checkedAt: string;
+  /** Offers whose page we could read. */
+  checked: number;
+  /** Offers whose price or stock changed. */
+  changed: number;
+  /** A web search was run because pages couldn't be read. */
+  searched: boolean;
 }
 
 export type ApiError = { error: { code: string; message: string } };

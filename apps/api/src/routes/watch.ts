@@ -1,11 +1,11 @@
 import type { FastifyInstance } from 'fastify';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { effectivePriceMarket, WatchBody, WatchPatch, type WatchItemDTO } from '@bestprice/core';
 import { parse, requireUser, type Ctx } from '../app';
-import { notifications, products, watches } from '../db/schema';
+import { notifications, offers, priceObservations, products, watches } from '../db/schema';
 import { HttpError, notFound } from '../lib/errors';
-import { markRead } from '../services/alerts';
+import { checkWatches, markRead } from '../services/alerts';
 import type { UserRow } from '../services/auth';
 import { toNotificationDTO } from './me';
 
@@ -17,11 +17,21 @@ export async function listWatches(ctx: Ctx, u: UserRow): Promise<WatchItemDTO[]>
   const market = effectivePriceMarket(u.country).code;
   const best = await ctx.catalog.bestPrices(rows.map((r) => r.p.id), market);
   const summaries = await ctx.catalog.summaries(rows.map((r) => r.p), u.country);
-  return rows.map(({ w, p }) => {
+  // Lowest daily best price recorded since each watch started.
+  const lows = await Promise.all(rows.map(async ({ w, p }) => {
+    const [r] = await ctx.db.select({ m: sql<number | null>`min(${priceObservations.finalMinor})`.mapWith((v) => (v === null ? null : Number(v))) })
+      .from(priceObservations).innerJoin(offers, eq(offers.id, priceObservations.offerId))
+      .where(and(eq(priceObservations.productId, p.id), gte(priceObservations.observedAt, w.createdAt), eq(offers.flagged, false), eq(offers.condition, 'new')));
+    return r?.m ?? null;
+  }));
+  return rows.map(({ w, p }, i) => {
     const b = best.get(p.id);
+    const seen = [lows[i], b?.minor].filter((x): x is number => typeof x === 'number');
     return {
       id: w.id,
       product: summaries.find((s) => s.id === p.id)!,
+      checkedAt: p.pricesCheckedAt?.toISOString() ?? null,
+      lowestMinor: seen.length ? Math.min(...seen) : null,
       targetMinor: w.targetMinor,
       startMinor: w.startMinor,
       currentMinor: b?.minor ?? null,
@@ -54,6 +64,20 @@ export async function watchRoutes(app: FastifyInstance, ctx: Ctx) {
       .onConflictDoUpdate({ target: [watches.userId, watches.productId], set: { targetMinor: body.targetMinor, hitAt: null } })
       .returning();
     return reply.status(existing ? 200 : 201).send({ id: w!.id });
+  });
+
+  /** Re-checks the prices of the user's watched products that weren't checked in the last 10 minutes. */
+  app.post('/watches/refresh', { config: { rateLimit: { max: 4, timeWindow: '1 minute' } } }, async (req) => {
+    const u = requireUser(req);
+    const due = await db.select({ id: products.id }).from(watches).innerJoin(products, eq(products.id, watches.productId))
+      .where(and(eq(watches.userId, u.id), or(isNull(products.pricesCheckedAt), lt(products.pricesCheckedAt, new Date(Date.now() - 10 * 60_000))))).limit(10);
+    let changed = 0;
+    for (let i = 0; i < due.length; i += 3) {
+      const r = await Promise.all(due.slice(i, i + 3).map((d) => ctx.monitor.refreshProduct(d.id, { search: false }).catch(() => null)));
+      changed += r.reduce((n, x) => n + (x?.changed ?? 0), 0);
+    }
+    if (due.length) await checkWatches(db, ctx.catalog).catch(() => 0);
+    return { checked: due.length, changed, watches: await listWatches(ctx, u) };
   });
 
   app.patch('/watches/:id', async (req) => {

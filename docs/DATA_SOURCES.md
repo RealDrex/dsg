@@ -11,6 +11,7 @@ Best Price only shows prices from sources it is allowed to use. The AI model nev
 | `affiliate_feed` | Affiliate network product feeds (e.g. Amazon Associates / PA-API, regional networks) | Use the feed's own price/freshness rules and required disclosures. |
 | `user_report` | Price-tag photos / reports from users | Must be verified (e.g. multiple reports or moderator review) before publishing; lower confidence window. |
 | `web_search` | Prices found by web search (Claude with web search) at the moment a user searched: known stores, unknown sellers (named by domain, badged), stores abroad (converted, original shown) and used/refurbished listings (own section) | Created automatically. Shown as unverified with the link and age; confidence at most "medium" for 6 h, "low" up to 48 h, then stale. The listing page is read once (like a link preview) for its photo and published price. Replace with an official feed for stores you cover regularly. |
+| `store_page` | The price monitor re-reading a listing's own product page (its published structured price and stock) | Automatic: watched products every hour, recently viewed ones every 6 h. Confidence "high" for 6 h. A page price far from the previous one (< 40 % or > 250 %) is ignored as a likely different variant. Pages that can't be read fall back to a web search within a daily budget. |
 | `demo` | Seed data | Development only; always labelled "demo data" in the apps. |
 
 **Not allowed:** scraping sites whose terms forbid it, bypassing bot protection, or using prices without the right to display them.

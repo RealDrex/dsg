@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,13 +6,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import * as Location from 'expo-location';
 import Svg, { Circle, Line as SvgLine, Polygon, Polyline } from 'react-native-svg';
-import { displayGtin, formatAmount, currencySymbol, minorDigitsOf, type HistoryResponse, type OfferDTO, type OffersResponse, type ProductDTO, type SortMode } from '@bestprice/core';
+import { displayGtin, formatAmount, currencySymbol, minorDigitsOf, type HistoryResponse, type OfferDTO, type OffersResponse, type ProductDTO, type SortMode, type WatchItemDTO } from '@bestprice/core';
 import { api } from '../../lib/api';
 import { ago, type StrKey } from '../../lib/i18n';
 import { registerForPush } from '../../lib/push';
 import { useApp } from '../../lib/store';
 import { useDiscovery } from '../../lib/useDiscovery';
 import { LiveSearchPanel } from '../../ui/live';
+import { TargetProgress, TargetSheet } from '../../ui/target';
 import { IconBack, IconBookmark, Sparkle } from '../../ui/icons';
 import { Badge, BrandLine, Glass, GhostButton, GradientButton, ProductThumb, Press, Row, Segmented, Spinner, StoreMark, Txt, Screen } from '../../ui/kit';
 import { C, CTA } from '../../ui/theme';
@@ -28,10 +29,13 @@ export default function Product() {
   const [history, setHistory] = useState<HistoryResponse | null>(null);
   const [sort, setSort] = useState<SortMode>(user?.priority ?? 'value');
   const [loc, setLoc] = useState<{ lat: number; lng: number } | null>(null);
-  const [watchId, setWatchId] = useState<string | null>(null);
-  const [target, setTarget] = useState<number | null>(null);
+  const [watch, setWatch] = useState<WatchItemDTO | null>(null);
+  const watchId = watch?.id ?? null;
+  const [sheet, setSheet] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const [error, setError] = useState(false);
   const [reload, setReload] = useState(0);
+  const refreshed = useRef<string | null>(null);
   const more = useDiscovery();
 
   /** More sellers / used listings from the web, then refresh what we show. */
@@ -51,12 +55,37 @@ export default function Product() {
       .then(([p, h, ws]) => {
         setProduct(p);
         setHistory(h);
-        const w = ws.find((x) => x.product.id === id);
-        setWatchId(w?.id ?? null);
-        setTarget(w?.targetMinor ?? null);
+        setWatch(ws.find((x) => x.product.id === id) ?? null);
       })
       .catch(() => setError(true));
   }, [id, reload]);
+
+  /** Re-check prices at the stores now; the screen reloads with what changed. */
+  const refreshPrices = useCallback(async (manual: boolean) => {
+    if (!id) return;
+    setUpdating(true);
+    try {
+      const r = await api.refreshProduct(id);
+      setReload((n) => n + 1);
+      if (manual) showToast({ title: r.changed > 0 ? `${t('pricesChanged')} ${r.changed}` : t('pricesFresh') });
+    } catch {
+      if (manual) showToast({ title: t('errorGeneric') });
+    } finally {
+      setUpdating(false);
+    }
+  }, [id, showToast, t]);
+
+  // Opening a product whose prices are older than 30 minutes refreshes them; while open, the screen re-reads every minute.
+  useEffect(() => {
+    if (!product || refreshed.current === product.id) return;
+    refreshed.current = product.id;
+    const age = product.pricesCheckedAt ? Date.now() - new Date(product.pricesCheckedAt).getTime() : Infinity;
+    if (age > 30 * 60_000) void refreshPrices(false);
+  }, [product, refreshPrices]);
+  useEffect(() => {
+    const timer = setInterval(() => setReload((n) => n + 1), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -79,40 +108,35 @@ export default function Product() {
   const cur = offers?.currency ?? product?.currency ?? 'SAR';
   const sym = currencySymbol(cur, lang);
   const cheapest = useMemo(() => offers ? [...offers.offers].filter((o) => o.confidence !== 'stale').sort((a, b) => a.finalMinor - b.finalMinor)[0] : undefined, [offers]);
+  /** When every price is old, the last one we knew still anchors a target. */
+  const lastKnown = useMemo(() => offers?.offers.filter((o) => !o.reasons.includes('suspicious_price')).reduce<number | null>((m, o) => (m === null || o.finalMinor < m ? o.finalMinor : m), null) ?? null, [offers]);
   const [valueTop, setValueTop] = useState<OfferDTO | undefined>();
   useEffect(() => {
     if (!id) return;
     api.offers(id, 'value', loc).then((r) => setValueTop(r.offers[0])).catch(() => {});
   }, [id, loc, reload]);
 
-  const toggleWatch = useCallback(async () => {
-    if (!product) return;
-    if (watchId) {
-      await api.removeWatch(watchId).catch(() => {});
-      setWatchId(null);
-      setTarget(null);
-    } else {
-      const base = cheapest?.finalMinor ?? product.bestPriceMinor ?? 0;
-      const unit = 100;
-      const tgt = Math.max(unit, Math.round((base * 0.92) / (50 * unit)) * 50 * unit);
-      try {
-        const r = await api.addWatch(product.id, tgt);
-        setWatchId(r.id);
-        setTarget(tgt);
-        showToast({ title: t('watching'), sub: `${t('notifyAt')} ${formatAmount(tgt, cur)} ${sym}` });
-        void registerForPush();
-      } catch (e) {
-        showToast({ title: (e as Error).message });
-      }
-    }
-    bump();
-  }, [product, watchId, cheapest, cur, sym, showToast, t, bump]);
+  const toggleWatch = useCallback(() => setSheet(true), []);
 
-  const changeTarget = async (delta: number) => {
-    if (!watchId || target === null) return;
-    const next = Math.max(100, target + delta);
-    setTarget(next);
-    await api.updateWatch(watchId, next).catch(() => {});
+  const saveTarget = async (tgt: number) => {
+    if (!product) return;
+    try {
+      await api.addWatch(product.id, tgt);
+      setSheet(false);
+      showToast({ title: t('watching'), sub: `${t('notifyAt')} ${formatAmount(tgt, cur)} ${sym}` });
+      void registerForPush();
+      setReload((n) => n + 1);
+      bump();
+    } catch (e) {
+      showToast({ title: (e as Error).message });
+    }
+  };
+
+  const stopWatching = async () => {
+    if (!watchId) return;
+    await api.removeWatch(watchId).catch(() => {});
+    setSheet(false);
+    setWatch(null);
     bump();
   };
 
@@ -242,6 +266,15 @@ export default function Product() {
             </Row>
             <Segmented value={sort} onChange={pickSort} items={[{ k: 'value', label: t('sortValue') }, { k: 'cheapest', label: t('sortCheap') }, { k: 'nearest', label: t('sortNear') }, { k: 'fastest', label: t('sortFast') }]} />
             <Txt size={12} color={C.textMute} lh={1.6}>{sort === 'nearest' && !loc ? t('whyNearNoLoc') : t(SORT_WHY[sort])}</Txt>
+            <Row style={{ justifyContent: 'space-between', gap: 8, backgroundColor: 'rgba(255,255,255,.04)', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 12 }}>
+              <Row style={{ gap: 6, flex: 1 }}>
+                <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: updating ? C.warn : C.green }} />
+                <Txt size={12} color={C.textMute} numberOfLines={1} style={{ flexShrink: 1 }}>
+                  {updating ? t('pricesUpdating') : `${t('pricesUpdated')}: ${product.pricesCheckedAt ? ago(lang, product.pricesCheckedAt) : t('pricesNever')}`}
+                </Txt>
+              </Row>
+              {!updating ? <Press onPress={() => refreshPrices(true)} style={{ paddingVertical: 2, paddingHorizontal: 6 }}><Txt size={12.5} weight="700" color={C.green}>{`↻ ${t('refreshNow')}`}</Txt></Press> : null}
+            </Row>
             {offers && offers.offers.length === 0 ? <Txt color={C.textMute}>{t('noOffers')}</Txt> : null}
             {offers?.offers.map((o, i) => renderOffer(o, i === 0))}
             {hasUnknown ? <Txt size={11.5} color={C.textDim} lh={1.6}>{`⚠️ ${t('unknownSeller')}: ${t('unknownSellerNote')}`}</Txt> : null}
@@ -294,23 +327,27 @@ export default function Product() {
             ) : <Txt size={12} color={C.textDim}>{t('noHistory')}</Txt>}
           </Glass>
 
-          {watchId && target !== null ? (
-            <View style={{ backgroundColor: 'rgba(62,224,154,.12)', borderRadius: 20, padding: 14, paddingHorizontal: 16, gap: 10 }}>
-              <Txt size={13.5} weight="600" color={C.greenSoft}>{t('notifyAt')}</Txt>
-              <Row style={{ justifyContent: 'space-between' }}>
-                <Press onPress={() => changeTarget(5000)} style={stepBtn}><Txt center size={18}>+</Txt></Press>
-                <Txt size={30} weight="700">{formatAmount(target, cur)} <Txt size={13} color={C.textMute} weight="500">{sym}</Txt></Txt>
-                <Press onPress={() => changeTarget(-5000)} style={stepBtn}><Txt center size={18}>−</Txt></Press>
-              </Row>
+          {watch ? (
+            <View style={{ gap: 8 }}>
+              <Txt size={15} weight="700">{t('targetYours')}</Txt>
+              <TargetProgress startMinor={watch.startMinor} currentMinor={cheapest?.finalMinor ?? watch.currentMinor} targetMinor={watch.targetMinor} currency={cur}
+                lowestMinor={watch.lowestMinor} checkedAt={product.pricesCheckedAt} onEdit={() => setSheet(true)} />
             </View>
-          ) : null}
+          ) : (
+            <Press onPress={() => setSheet(true)}>
+              <View style={{ borderRadius: 20, padding: 16, gap: 6, backgroundColor: 'rgba(62,224,154,.08)', borderWidth: 1, borderColor: 'rgba(62,224,154,.3)' }}>
+                <Txt size={15} weight="700" color={C.greenSoft}>{`🎯 ${t('targetTitle')}`}</Txt>
+                <Txt size={12.5} color={C.textSoft} lh={1.6}>{t('targetHow')}</Txt>
+              </View>
+            </Press>
+          )}
         </ScrollView>
       )}
 
       {product ? (
         <Row style={{ paddingTop: 12, paddingHorizontal: 16, paddingBottom: Math.max(insets.bottom, 12) + 8, backgroundColor: C.glass, borderTopWidth: 1, borderTopColor: C.line, gap: 10 }}>
           <Press onPress={toggleWatch} style={{ flex: 1, height: 50, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(255,255,255,.14)', backgroundColor: C.glass, alignItems: 'center', justifyContent: 'center' }}>
-            <Txt center size={14} weight="600">{watchId ? t('watching') : t('watchPrice')}</Txt>
+            <Txt center size={14} weight="600">{watchId ? t('targetEdit') : t('watchPrice')}</Txt>
           </Press>
           <Press onPress={async () => { router.navigate('/assistant'); await startProductChat({ id: product.id, name: product.name }); }} style={{ flex: 1.4, height: 50, borderRadius: 15, backgroundColor: '#fff', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             <Sparkle size={16} />
@@ -318,6 +355,8 @@ export default function Product() {
           </Press>
         </Row>
       ) : null}
+      <TargetSheet visible={sheet} currentMinor={cheapest?.finalMinor ?? product?.bestPriceMinor ?? lastKnown} currentIsOld={!cheapest && !product?.bestPriceMinor && lastKnown !== null} currency={cur} initialMinor={watch?.targetMinor ?? null}
+        editing={!!watch} onSave={saveTarget} onStop={stopWatching} onClose={() => setSheet(false)} />
     </View>
     </Screen>
   );
@@ -424,4 +463,3 @@ function buildChart(h: HistoryResponse) {
 }
 
 const roundBtn = { width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: C.lineSoft, backgroundColor: C.glass, alignItems: 'center' as const, justifyContent: 'center' as const };
-const stepBtn = { width: 38, height: 38, borderRadius: 12, backgroundColor: C.glass, alignItems: 'center' as const, justifyContent: 'center' as const };

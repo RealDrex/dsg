@@ -199,6 +199,7 @@ export class CatalogService {
     const gtins = await this.db.select({ g: productGtins.gtin }).from(productGtins).where(eq(productGtins.productId, id));
     return {
       ...summary!,
+      pricesCheckedAt: p.pricesCheckedAt?.toISOString() ?? null,
       gtins: gtins.map((g) => g.g),
       specs: p.specs,
       attributes: p.attributes,

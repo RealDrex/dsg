@@ -7,7 +7,7 @@ import { formatAmount, currencySymbol, getMarket, type HomeResponse } from '@bes
 import { api } from '../../lib/api';
 import { useApp } from '../../lib/store';
 import { IconBell, IconCamera, IconHeart, IconScan, IconSearch, IconTag, Sparkle } from '../../ui/icons';
-import { avatarGlow, Chevron, Glass, GradientButton, Halo, Hero, Memoji, Press, Row, SectionTitle, StoreMark, Txt, Screen } from '../../ui/kit';
+import { avatarGlow, Chevron, Glass, GradientButton, Halo, Hero, Memoji, Press, ProductThumb, Row, SectionTitle, StoreMark, Txt, Screen } from '../../ui/kit';
 import { C, GLOWS } from '../../ui/theme';
 
 export default function Home() {
@@ -169,12 +169,14 @@ export default function Home() {
                 return (
                   <Press key={w.id} onPress={() => router.push(`/product/${w.product.id}`)} style={{ width: 210, height: 260, borderRadius: 30, overflow: 'hidden', backgroundColor: C.card, borderWidth: 1, borderColor: C.line }}>
                     <LinearGradient colors={[GLOWS[i % 4]!, 'transparent']} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 200, opacity: 0.6 }} />
-                    <Row style={{ position: 'absolute', top: 12, left: 12, right: 12, justifyContent: 'space-between' }}>
-                      <Txt size={10} color="rgba(255,255,255,.45)" ltr>{t('productPhoto')}</Txt>
+                    <View style={{ position: 'absolute', top: 30, left: 0, right: 0, alignItems: 'center' }}>
+                      <ProductThumb uri={w.product.imageUrl} category={w.product.category} size={120} radius={22} />
+                    </View>
+                    <Row style={{ position: 'absolute', top: 12, left: 12, right: 12, justifyContent: 'flex-end' }}>
                       <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,.35)', alignItems: 'center', justifyContent: 'center' }}><IconHeart size={16} color="#fff" width={2} /></View>
                     </Row>
                     <View style={{ position: 'absolute', left: 10, right: 10, bottom: 10, padding: 12, borderRadius: 22, backgroundColor: 'rgba(20,22,26,.75)', borderWidth: 1, borderColor: 'rgba(255,255,255,.12)', gap: 4 }}>
-                      <Txt size={14} weight="700" numberOfLines={2}>{w.product.name}</Txt>
+                      <Txt size={14} weight="700" numberOfLines={2}>{lang === 'ar' ? w.product.nameAr ?? w.product.name : w.product.name}</Txt>
                       <Row style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
                         <Txt size={19} weight="800">{w.currentMinor !== null ? formatAmount(w.currentMinor, w.product.currency) : '—'}</Txt>
                         <Txt size={11.5} weight="700" color={hit ? C.green : C.textMute}>{hit ? t('targetHit') : delta > 0 ? `−${formatAmount(delta, w.product.currency)}` : ''}</Txt>

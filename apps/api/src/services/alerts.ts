@@ -30,12 +30,27 @@ export async function checkWatches(db: DB, catalog: CatalogService, log: (msg: s
   for (const { w, u, p } of open) {
     const market = effectivePriceMarket(u.country);
     const price = best.get(market.code)?.get(p.id);
-    if (!price || price.minor > w.targetMinor) continue;
+    if (!price) continue;
+    if (price.minor !== w.lastMinor) {
+      await db.update(watches).set({ lastMinor: price.minor }).where(eq(watches.id, w.id));
+      // Not at the target yet, but a real drop (3 %+): worth telling.
+      if (w.lastMinor !== null && price.minor > w.targetMinor && price.minor <= w.lastMinor * 0.97) {
+        const lang = u.lang as Lang;
+        const from = formatMoney(w.lastMinor, market.currency, lang);
+        const to = formatMoney(price.minor, market.currency, lang);
+        const gap = formatMoney(price.minor - w.targetMinor, market.currency, lang);
+        const title = lang === 'ar' ? `نزل سعر ${p.nameAr ?? p.name}` : `Price dropped: ${p.name}`;
+        const body = lang === 'ar' ? `من ${from} إلى ${to} في ${price.storeName}. باقي ${gap} على هدفك.` : `From ${from} to ${to} at ${price.storeName}. ${gap} to your target.`;
+        await db.insert(notifications).values({ userId: u.id, kind: 'price_drop', title, body, productId: p.id });
+        if (u.pushToken) pushes.push({ to: u.pushToken, title, body, data: { productId: p.id } });
+      }
+    }
+    if (price.minor > w.targetMinor) continue;
     const updated = await db.update(watches).set({ hitAt: new Date() }).where(and(eq(watches.id, w.id), isNull(watches.hitAt))).returning({ id: watches.id });
     if (!updated.length) continue; // another worker got it
     const lang = u.lang as Lang;
     const priceTxt = formatMoney(price.minor, market.currency, lang);
-    const title = lang === 'ar' ? `وصل لسعرك المستهدف: ${p.name}` : `Target price hit: ${p.name}`;
+    const title = lang === 'ar' ? `وصل لسعرك المستهدف: ${p.nameAr ?? p.name}` : `Target price hit: ${p.name}`;
     const body = lang === 'ar'
       ? `${priceTxt} في ${price.storeName}. السعر قد يتغير قبل إتمام الشراء.`
       : `${priceTxt} at ${price.storeName}. Prices may change before checkout.`;

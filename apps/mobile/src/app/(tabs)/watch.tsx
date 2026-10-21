@@ -1,13 +1,14 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, RefreshControl, ScrollView, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { formatAmount, type NotificationDTO, type WatchItemDTO } from '@bestprice/core';
+import { type NotificationDTO, type WatchItemDTO } from '@bestprice/core';
 import { api } from '../../lib/api';
 import { ago } from '../../lib/i18n';
 import { useApp } from '../../lib/store';
-import { Badge, Glass, Hero, Press, Row, Spinner, Txt, Screen } from '../../ui/kit';
+import { BrandLine, Glass, Hero, Press, ProductThumb, Row, Spinner, Txt, Screen } from '../../ui/kit';
+import { TargetProgress } from '../../ui/target';
 import { C, GLOWS } from '../../ui/theme';
 
 export default function Watch() {
@@ -29,7 +30,26 @@ export default function Watch() {
       setItems((x) => x ?? []);
     }
   }, [user?.id]);
-  useFocusEffect(useCallback(() => { void load(); }, [load, dataVersion]));
+  /** Asks the server to re-check prices of watched products now, then shows the result. */
+  const refreshAll = useCallback(async () => {
+    try {
+      const r = await api.refreshWatches();
+      setItems(r.watches);
+    } catch { await load(); }
+  }, [load]);
+
+  // On open: show what we have, then re-check prices. While open: re-read every minute.
+  const [focused, setFocused] = useState(false);
+  useFocusEffect(useCallback(() => {
+    setFocused(true);
+    void load().then(() => refreshAll());
+    return () => setFocused(false);
+  }, [load, refreshAll, dataVersion]));
+  useEffect(() => {
+    if (!focused) return;
+    const timer = setInterval(() => void load(), 60_000);
+    return () => clearInterval(timer);
+  }, [focused, load]);
 
   const remove = (w: WatchItemDTO) => {
     const go = async () => { await api.removeWatch(w.id).catch(() => {}); bump(); void load(); };
@@ -40,7 +60,7 @@ export default function Watch() {
   return (
     <Screen>
     <ScrollView contentContainerStyle={{ paddingBottom: 130, gap: 18 }} showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} tintColor={C.green} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} />}>
+      refreshControl={<RefreshControl refreshing={refreshing} tintColor={C.green} onRefresh={async () => { setRefreshing(true); await refreshAll(); setRefreshing(false); }} />}>
       <Hero radius={38} height={200} style={{ paddingTop: insets.top + 14, paddingHorizontal: 24, paddingBottom: 30, gap: 6 }}>
         <Txt size={40} weight="800" color={C.ink} display style={{ lineHeight: 44 }}>{t('watchTitle')}</Txt>
         <Txt size={13.5} weight="500" color="rgba(6,33,15,.75)" lh={1.6}>{t('watchSub')}</Txt>
@@ -60,41 +80,25 @@ export default function Watch() {
         {items === null ? <Spinner /> : null}
         {items?.length === 0 ? <Txt center color={C.textMute} lh={1.7}>{t('watchEmpty')}</Txt> : null}
 
-        {items?.map((w, i) => {
-          const cur = w.product.currency;
-          const pct = w.hit ? 100 : w.currentMinor === null ? 6 : Math.max(6, Math.round(((w.startMinor - w.currentMinor) / Math.max(1, w.startMinor - w.targetMinor)) * 100));
-          const fresh = Date.now() - new Date(w.createdAt).getTime() < 3600_000;
-          return (
-            <Press key={w.id} onPress={() => router.push(`/product/${w.product.id}`)} onLongPress={() => remove(w)}>
-              <Glass style={{ borderRadius: 28, paddingTop: 10, paddingHorizontal: 12, paddingBottom: 14, gap: 12, borderColor: w.hit ? 'rgba(62,224,154,.45)' : C.line }}>
-                <View style={{ height: 150, borderRadius: 20, backgroundColor: C.card, overflow: 'hidden' }}>
-                  <LinearGradient colors={[GLOWS[i % 4]!, 'transparent']} start={{ x: 0.5, y: 0.2 }} end={{ x: 0.5, y: 1 }} style={{ position: 'absolute', inset: 0, opacity: 0.6 }} />
-                  <Txt size={10} color="rgba(255,255,255,.45)" ltr style={{ position: 'absolute', top: 10, left: 12 }}>{t('productPhoto')}</Txt>
+        {items?.map((w, i) => (
+          <Press key={w.id} onPress={() => router.push(`/product/${w.product.id}`)} onLongPress={() => remove(w)}>
+            <Glass style={{ borderRadius: 28, padding: 12, gap: 12, borderColor: w.hit ? 'rgba(62,224,154,.45)' : C.line }}>
+              <Row style={{ gap: 12 }}>
+                <View style={{ borderRadius: 18, overflow: 'hidden' }}>
+                  <LinearGradient colors={[GLOWS[i % 4]!, 'transparent']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={{ position: 'absolute', inset: 0, opacity: 0.5 }} />
+                  <ProductThumb uri={w.product.imageUrl} category={w.product.category} size={84} radius={18} />
                 </View>
-                <Row style={{ gap: 12 }}>
-                  <View style={{ flex: 1, gap: 3 }}>
-                    <Txt size={14} weight="600">{w.product.name}</Txt>
-                    <Txt size={12} color={C.textMute}>{w.currentStore ? `${w.currentStore} · ${t('lowestFinal')}` : t('noPrice')}</Txt>
-                  </View>
-                  <Badge label={w.hit ? t('targetHit') : w.currentMinor !== null ? (lang === 'ar' ? `${t('toGo')} ${formatAmount(w.currentMinor - w.targetMinor, cur)}` : `${formatAmount(w.currentMinor - w.targetMinor, cur)} ${t('toGo')}`) : '—'}
-                    bg={w.hit ? 'rgba(62,224,154,.14)' : C.fill2} fg={w.hit ? C.greenSoft : C.textSoft} />
-                </Row>
-                <View style={{ gap: 6 }}>
-                  <Row style={{ justifyContent: 'space-between' }}>
-                    <Txt size={12} color={C.textMute}>{t('now')} <Txt size={15} weight="600">{w.currentMinor !== null ? formatAmount(w.currentMinor, cur) : '—'}</Txt></Txt>
-                    <Txt size={12} color={C.textMute}>{t('target')} <Txt size={12} weight="600">{formatAmount(w.targetMinor, cur)}</Txt></Txt>
-                  </Row>
-                  <View style={{ height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,.07)', overflow: 'hidden' }}>
-                    {w.hit
-                      ? <View style={{ width: '100%', height: '100%', backgroundColor: C.green }} />
-                      : <LinearGradient colors={[C.violet, C.sky, C.green]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ width: `${Math.min(100, pct)}%`, height: '100%', borderRadius: 3 }} />}
-                  </View>
-                  <Txt size={11.5} color={C.textDim}>{w.hit && w.hitAt ? `${t('targetHit')} · ${ago(lang, w.hitAt)}` : fresh ? t('addedNow') : `${t('statWatching')} · ${ago(lang, w.createdAt)}`}</Txt>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <BrandLine brand={w.product.brand} logoUrl={w.product.brandLogoUrl} />
+                  <Txt size={14.5} weight="700" numberOfLines={2}>{lang === 'ar' ? w.product.nameAr ?? w.product.name : w.product.name}</Txt>
+                  <Txt size={12} color={C.textMute} numberOfLines={1}>{w.currentStore ? `${t('lowestFinal')} · ${w.currentStore}` : t('noPrice')}</Txt>
                 </View>
-              </Glass>
-            </Press>
-          );
-        })}
+              </Row>
+              <TargetProgress startMinor={w.startMinor} currentMinor={w.currentMinor} targetMinor={w.targetMinor} currency={w.product.currency}
+                lowestMinor={w.lowestMinor} checkedAt={w.checkedAt} />
+            </Glass>
+          </Press>
+        ))}
         <Txt center size={12} color={C.textDim} lh={1.7} style={{ paddingHorizontal: 10 }}>{t('watchFoot')}</Txt>
       </View>
     </ScrollView>

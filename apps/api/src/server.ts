@@ -17,7 +17,11 @@ const { app, ctx } = await buildApp(cfg, db);
 // RUN_WORKER=false when running `npm run worker` as a separate process.
 let timer: NodeJS.Timeout | undefined;
 if (process.env.RUN_WORKER !== 'false') {
-  const tick = () => checkWatches(db, ctx.catalog, (m) => app.log.info(m)).catch((e) => app.log.error(e, 'watch check failed'));
+  // Price monitor first (fresh prices), then targets and price-drop alerts.
+  const tick = async () => {
+    await ctx.monitor.tick((m) => app.log.info(m)).catch((e) => app.log.error(e, 'price monitor failed'));
+    await checkWatches(db, ctx.catalog, (m) => app.log.info(m)).catch((e) => app.log.error(e, 'watch check failed'));
+  };
   timer = setInterval(tick, 10 * 60_000);
   setTimeout(tick, 5_000);
 }

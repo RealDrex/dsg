@@ -27,6 +27,10 @@ const Env = z.object({
   PRO_ASSISTANT_DAILY: z.coerce.number().int().default(300),
   FREE_DISCOVERY_DAILY: z.coerce.number().int().default(15),
   PRO_DISCOVERY_DAILY: z.coerce.number().int().default(100),
+  /** Price monitor: how often watched / recently viewed products are re-checked, and its daily web-search budget. */
+  WATCHED_REFRESH_MINUTES: z.coerce.number().int().min(10).default(60),
+  VIEWED_REFRESH_MINUTES: z.coerce.number().int().min(30).default(360),
+  MONITOR_SEARCH_DAILY: z.coerce.number().int().min(0).default(40),
   FREE_WATCH_LIMIT: z.coerce.number().int().default(5),
   PRO_WATCH_LIMIT: z.coerce.number().int().default(100),
 });

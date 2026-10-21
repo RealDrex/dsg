@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import type {
   AuthResponse, ChatResponse, HistoryResponse, HomeResponse, NotificationDTO, OffersResponse, ProductDTO, ProductSummaryDTO,
-  ScanResponse, SortMode, UserDTO, WatchItemDTO, AssistantMessageDTO, SearchResponse, DiscoverJobDTO,
+  ScanResponse, SortMode, UserDTO, WatchItemDTO, AssistantMessageDTO, SearchResponse, DiscoverJobDTO, RefreshResponse,
 } from '@bestprice/core';
 import { getSecret, setSecret } from './storage';
 
@@ -154,6 +154,10 @@ class Client {
   history = (id: string) => this.get<HistoryResponse>(`/v1/products/${id}/history`);
   scan = (raw: string) => this.post<ScanResponse>('/v1/scan', { raw });
   watches = () => this.get<WatchItemDTO[]>('/v1/watches');
+  /** Re-checks prices of the user's watched products now; returns the updated list. */
+  refreshWatches = () => this.request<{ checked: number; changed: number; watches: WatchItemDTO[] }>('POST', '/v1/watches/refresh', {}, 60_000);
+  /** Re-checks one product's prices now (store pages, or a web search). */
+  refreshProduct = (id: string) => this.request<RefreshResponse>('POST', `/v1/products/${id}/refresh`, {}, 150_000);
   addWatch = (productId: string, targetMinor: number) => this.post<{ id: string }>('/v1/watches', { productId, targetMinor });
   updateWatch = (id: string, targetMinor: number) => this.patch(`/v1/watches/${id}`, { targetMinor });
   removeWatch = (id: string) => this.del(`/v1/watches/${id}`);

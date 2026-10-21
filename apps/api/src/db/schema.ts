@@ -89,6 +89,8 @@ export const products = pgTable('products', {
   specSourceUrl: text('spec_source_url'),
   description: text('description'),
   status: text('status', { enum: ['active', 'hidden'] }).notNull().default('active'),
+  /** Last time the price monitor re-checked this product's offers. */
+  pricesCheckedAt: timestamp('prices_checked_at', { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [index('products_category_idx').on(t.category), index('products_match_idx').on(t.matchKey)]);
 
@@ -100,7 +102,7 @@ export const productGtins = pgTable('product_gtins', {
 export const dataSources = pgTable('data_sources', {
   id: id(),
   name: text('name').notNull(),
-  type: text('type', { enum: ['official_api', 'partner_catalog', 'affiliate_feed', 'user_report', 'web_search', 'demo'] }).notNull(),
+  type: text('type', { enum: ['official_api', 'partner_catalog', 'affiliate_feed', 'user_report', 'web_search', 'store_page', 'demo'] }).notNull(),
   storeId: uuid('store_id').references(() => stores.id, { onDelete: 'set null' }),
   country: text('country').notNull().default('SA'),
   active: boolean('active').notNull().default(true),
@@ -189,6 +191,8 @@ export const watches = pgTable('watches', {
   productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   targetMinor: integer('target_minor').notNull(),
   startMinor: integer('start_minor').notNull(),
+  /** Best price at the last check; a big drop from it sends a "price dropped" alert. */
+  lastMinor: integer('last_minor'),
   hitAt: timestamp('hit_at', { withTimezone: true }),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex('watches_user_product_uq').on(t.userId, t.productId)]);

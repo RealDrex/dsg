@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { classifyScan, DiscoverBody, effectivePriceMarket, OffersQuery, ProductDiscoverBody, PurchaseBody, ScanBody, SearchQuery, siteDomain, type DiscoverJobDTO, type ScanResponse, type SearchResponse } from '@bestprice/core';
+import { classifyScan, DiscoverBody, effectivePriceMarket, OffersQuery, ProductDiscoverBody, PurchaseBody, ScanBody, SearchQuery, siteDomain, type DiscoverJobDTO, type RefreshResponse, type ScanResponse, type SearchResponse } from '@bestprice/core';
 import { parse, requireUser, type Ctx } from '../app';
-import { clickEvents, offers, purchases, searchHistory, sponsoredPlacements, stores } from '../db/schema';
+import { clickEvents, offers, products, purchases, searchHistory, sponsoredPlacements, stores } from '../db/schema';
+import { checkWatches } from '../services/alerts';
 import { notFound } from '../lib/errors';
 import { safeOutboundUrl } from '../lib/net';
 import { toStoreDTO } from '../services/catalog';
@@ -54,6 +55,24 @@ export async function catalogRoutes(app: FastifyInstance, ctx: Ctx) {
     if (!discovery.available) return unavailable;
     const country = countryOf(req);
     return jobs.start(user.id, (p) => discovery.discoverForProduct(user, id, focus, country, p));
+  });
+
+  /**
+   * Re-checks a product's prices now (store pages; a web search if none can
+   * be read). At most once every 2 minutes per product, so many people opening
+   * the same product don't multiply the work.
+   */
+  app.post('/v1/products/:id/refresh', { config: { rateLimit: { max: 6, timeWindow: '1 minute' } } }, async (req): Promise<RefreshResponse> => {
+    requireUser(req);
+    const { id } = parse(IdParam, req.params);
+    const p = await db.query.products.findFirst({ where: eq(products.id, id) });
+    if (!p) throw notFound('product_not_found');
+    if (p.pricesCheckedAt && Date.now() - p.pricesCheckedAt.getTime() < 2 * 60_000) {
+      return { checkedAt: p.pricesCheckedAt.toISOString(), checked: 0, changed: 0, searched: false };
+    }
+    const r = await ctx.monitor.refreshProduct(id, { search: true });
+    await checkWatches(db, catalog).catch(() => 0);
+    return r;
   });
 
   /** Store and brand logos (site icons), cached server-side so devices never call third parties. */

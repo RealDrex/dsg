@@ -20,6 +20,7 @@ import { adminRoutes } from './routes/admin';
 import { DiscoveryJobs, DiscoveryService } from './services/discovery';
 import { LogoService } from './lib/logo';
 import { MediaService } from './services/media';
+import { PriceMonitor } from './services/monitor';
 
 export interface Ctx {
   cfg: Config;
@@ -31,6 +32,7 @@ export interface Ctx {
   jobs: DiscoveryJobs;
   logos: LogoService;
   media: MediaService;
+  monitor: PriceMonitor;
 }
 
 declare module 'fastify' {
@@ -63,7 +65,9 @@ export async function buildApp(cfg: Config, db: DB): Promise<{ app: FastifyInsta
     effort: cfg.DISCOVERY_EFFORT,
     freeDaily: cfg.FREE_DISCOVERY_DAILY,
     proDaily: cfg.PRO_DISCOVERY_DAILY,
+    monitorDaily: cfg.MONITOR_SEARCH_DAILY,
   }, media);
+  const monitor = new PriceMonitor(db, discovery, { watchedEveryMin: cfg.WATCHED_REFRESH_MINUTES, viewedEveryMin: cfg.VIEWED_REFRESH_MINUTES });
   const assistant = new AssistantService(db, catalog, {
     apiKey: cfg.ANTHROPIC_API_KEY || undefined,
     model: cfg.ASSISTANT_MODEL,
@@ -73,7 +77,7 @@ export async function buildApp(cfg: Config, db: DB): Promise<{ app: FastifyInsta
     proWatchLimit: cfg.PRO_WATCH_LIMIT,
   }, discovery);
   const jobs = new DiscoveryJobs(2, 400, (e) => app.log.error({ err: e }, 'online search failed'));
-  const ctx: Ctx = { cfg, db, tokens, catalog, assistant, discovery, jobs, media, logos: new LogoService(undefined, { logoDevToken: cfg.LOGO_DEV_TOKEN || undefined, dir: cfg.NODE_ENV === 'test' ? undefined : cfg.LOGO_CACHE_DIR }) };
+  const ctx: Ctx = { cfg, db, tokens, catalog, assistant, discovery, jobs, media, monitor, logos: new LogoService(undefined, { logoDevToken: cfg.LOGO_DEV_TOKEN || undefined, dir: cfg.NODE_ENV === 'test' ? undefined : cfg.LOGO_CACHE_DIR }) };
 
   await app.register(helmet, {
     contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] } },

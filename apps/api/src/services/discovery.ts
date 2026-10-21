@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import {
@@ -7,7 +7,7 @@ import {
   type DiscoveredDTO, type DiscoverJobDTO, type Market,
 } from '@bestprice/core';
 import type { DB } from '../db/client';
-import { dataSources, discoveryRuns, productGtins, products, stores } from '../db/schema';
+import { dataSources, discoveryRuns, offers, productGtins, products, stores } from '../db/schema';
 import { importListings, matchKey } from '../ingest/pipeline';
 import { HttpError, notFound, tooMany } from '../lib/errors';
 import { safeGet } from '../lib/http';
@@ -176,6 +176,8 @@ export interface DiscoveryOptions {
   effort: 'low' | 'medium' | 'high';
   freeDaily: number;
   proDaily: number;
+  /** Web searches the price monitor may run per day (for watched products whose pages can't be read). */
+  monitorDaily?: number;
   /** Reads product pages for their photo and published price. Tests replace it. */
   fetchPage?: (url: string) => Promise<PageFacts | null>;
 }
@@ -204,6 +206,11 @@ export class DiscoveryService {
     return this.client !== null;
   }
 
+  /** Reads one product page (photo, published price, stock), or null if it can't be read. */
+  readPage(url: string): Promise<PageFacts | null> {
+    return this.fetchPage(url).catch(() => null);
+  }
+
   /** Free text, a barcode, or a photo (optionally with a text hint). */
   async discover(user: { id: string; plan: string }, input: { q?: string; gtin?: string; image?: ImageInput }, country: string, progress?: Progress): Promise<Result> {
     if (!this.client) return { status: 'unavailable', results: [] };
@@ -228,7 +235,7 @@ export class DiscoveryService {
   }
 
   /** More sellers (or used listings) for a product already in the catalog. */
-  async discoverForProduct(user: { id: string; plan: string }, productId: string, focus: 'all' | 'used', country: string, progress?: Progress): Promise<Result> {
+  async discoverForProduct(user: { id: string | null; plan: string }, productId: string, focus: 'all' | 'used', country: string, progress?: Progress): Promise<Result> {
     if (!this.client) return { status: 'unavailable', results: [] };
     const product = await this.db.query.products.findFirst({ where: and(eq(products.id, productId), eq(products.status, 'active')) });
     if (!product) throw notFound('product_not_found');
@@ -236,7 +243,7 @@ export class DiscoveryService {
     return this.run(user, { kind: 'product', product, gtins, focus }, `p:${productId}:${focus}`, effectivePriceMarket(country), country, progress);
   }
 
-  private async run(user: { id: string; plan: string }, subject: Subject, key: string, market: Market, country: string, progress?: Progress): Promise<Result> {
+  private async run(user: { id: string | null; plan: string }, subject: Subject, key: string, market: Market, country: string, progress?: Progress): Promise<Result> {
     // Cache: a found result is reused for 24 h (12 h for "more sellers"), a miss for 1 h, for any user.
     const now = Date.now();
     const foundTtl = subject.kind === 'product' ? 12 * 3_600_000 : 24 * 3_600_000;
@@ -250,11 +257,12 @@ export class DiscoveryService {
       return { status: 'not_found', results: [] };
     }
 
-    const limit = user.plan === 'pro' ? this.opts.proDaily : this.opts.freeDaily;
+    // Per-user daily quota; the price monitor (no user) has its own daily budget.
+    const limit = user.id === null ? this.opts.monitorDaily ?? 0 : user.plan === 'pro' ? this.opts.proDaily : this.opts.freeDaily;
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     const [usage] = await this.db.select({ n: sql<number>`count(*)`.mapWith(Number) }).from(discoveryRuns)
-      .where(and(eq(discoveryRuns.userId, user.id), gte(discoveryRuns.createdAt, today)));
+      .where(and(user.id === null ? isNull(discoveryRuns.userId) : eq(discoveryRuns.userId, user.id), gte(discoveryRuns.createdAt, today)));
     if ((usage?.n ?? 0) >= limit) throw tooMany('discovery_daily_limit', `Daily limit of ${limit} online searches reached`);
 
     const storeRows = await this.db.select().from(stores).where(eq(stores.country, market.code));
@@ -490,6 +498,11 @@ export class DiscoveryService {
       if (!priceMinor || priceMinor <= 0) continue;
       const inStock = page?.inStock ?? l.in_stock;
 
+      // The price monitor may already track this page: a fresh page-confirmed price wins over a search snippet.
+      const tracked = await this.db.select({ o: offers }).from(offers).innerJoin(dataSources, eq(dataSources.id, offers.sourceId))
+        .where(and(eq(offers.productId, productId), eq(offers.url, url), eq(offers.active, true), eq(dataSources.type, 'store_page'))).limit(1);
+      if (tracked[0] && Date.now() - tracked[0].o.observedAt.getTime() < 24 * 3_600_000) continue;
+      if (tracked[0]) await this.db.update(offers).set({ active: false }).where(eq(offers.id, tracked[0].o.id));
       const sourceId = await this.webSource(store, market.code);
       await importListings(this.db, sourceId, [{
         externalId: `web:${createHash('sha256').update(urlKey(url)!).digest('hex').slice(0, 24)}`,
