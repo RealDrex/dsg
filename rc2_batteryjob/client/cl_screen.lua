@@ -1,8 +1,8 @@
 --[[
-    الشاشة الخارجية على جنب مركبة الخدمة
-    - صفحة HTML تنرسم كـ DUI على مستطيل ملصوق بجنب المركبة (DRAW_TEXTURED_POLY)
-    - ما تحتاج موديل مخصص: المكان والمقاس من Config.ServiceVehicleLayouts
-    - الاستخدام: كاميرا قدام الشاشة + الماوس، والضغط ينرسل للـ DUI
+    External screen on the side of the service van
+    - an HTML page rendered as a DUI onto a quad stuck to the van's side (DRAW_TEXTURED_POLY)
+    - no custom model needed: position and size come from Config.ServiceVehicleLayouts
+    - usage: camera in front of the screen + mouse, clicks are forwarded to the DUI
 ]]
 
 Screen = { interacting = false }
@@ -36,8 +36,8 @@ function Screen.layout(vehicle)
     return Config.ServiceVehicleLayouts[GetEntityModel(vehicle)]
 end
 
--- زوايا الشاشة بإحداثيات العالم + الاتجاه الخارج منها
--- الشاشة على الجهة اليسرى: الخارج = -X، يمين الواقف قدامها = -Y
+-- Screen corners in world space + its outward normal
+-- Screen is on the left side: outward = -X, the viewer's right = -Y
 local function screenGeometry(vehicle, offset, w, h)
     local c = offset
     local tl = Utils.toWorld(vehicle, vec3(c.x, c.y + w / 2, c.z + h / 2))
@@ -51,7 +51,7 @@ end
 local function drawQuad(tl, tr, bl, br, r, g, b, a)
     DrawPoly(tl.x, tl.y, tl.z, bl.x, bl.y, bl.z, tr.x, tr.y, tr.z, r, g, b, a)
     DrawPoly(tr.x, tr.y, tr.z, bl.x, bl.y, bl.z, br.x, br.y, br.z, r, g, b, a)
-    -- الاتجاه المعاكس عشان ما ينحذف بسبب culling
+    -- Reverse winding too so backface culling never hides it
     DrawPoly(tl.x, tl.y, tl.z, tr.x, tr.y, tr.z, bl.x, bl.y, bl.z, r, g, b, a)
     DrawPoly(tr.x, tr.y, tr.z, br.x, br.y, br.z, bl.x, bl.y, bl.z, r, g, b, a)
 end
@@ -67,19 +67,19 @@ local function drawScreen(vehicle, layout)
     local s = layout.screen
     local bezel = Config.Screen.bezel
 
-    -- الإطار (ورا الشاشة بشوي)
+    -- Bezel (slightly behind the screen)
     local inner = vec3(s.offset.x + 0.004, s.offset.y, s.offset.z)
     local btl, btr, bbl, bbr = screenGeometry(vehicle, inner, s.width + bezel * 2, s.height + bezel * 2)
     drawQuad(btl, btr, bbl, bbr, 18, 18, 20, 255)
 
-    -- الشاشة نفسها
+    -- The screen itself
     local tl, tr, bl, br = screenGeometry(vehicle, s.offset, s.width, s.height)
     drawTexturedTri(tl, bl, tr, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0)
     drawTexturedTri(tr, bl, br, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0)
     drawTexturedTri(tl, tr, bl, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0)
     drawTexturedTri(tr, br, bl, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0)
 
-    -- لوحة المنافذ (+ / -)
+    -- Port panel (+ / -)
     local p = layout.ports
     local panel = vec3(p.offset.x + 0.004, p.offset.y, p.offset.z)
     local ptl, ptr, pbl, pbr = screenGeometry(vehicle, panel, p.spacing * 2 + 0.06, 0.14)
@@ -94,7 +94,7 @@ local function drawScreen(vehicle, layout)
     drawQuad(ktl, ktr, kbl, kbr, 40, 40, 40, 255)
 end
 
--- مكان خروج السلك من المنفذ (بالعالم)
+-- World position where a cable leaves its port
 function Screen.portCoords(vehicle, color)
     local layout = Screen.layout(vehicle)
     if not layout then return GetEntityCoords(vehicle) end
@@ -114,7 +114,7 @@ local function pushVanState(vehicle)
     sendDui({ type = 'state', data = state })
 end
 
--- يختار أقرب مركبة خدمة ويجهز لها الـ DUI
+-- Picks the nearest service van and prepares the DUI for it
 CreateThread(function()
     while true do
         local pedCoords = GetEntityCoords(cache.ped)
@@ -149,7 +149,7 @@ CreateThread(function()
             local normal = Utils.toWorldDir(activeVan, vec3(-1.0, 0.0, 0.0))
             local camPos = GetFinalRenderedCamCoord()
             local toCam = camPos - center
-            -- يرسم بس لو الكاميرا قدام الشاشة
+            -- Only draw when the camera is in front of the screen
             if toCam.x * normal.x + toCam.y * normal.y + toCam.z * normal.z > 0 then
                 drawScreen(activeVan, activeLayout)
             end
@@ -174,7 +174,7 @@ RegisterNUICallback('screen:ready', function(_, cb)
 end)
 
 --------------------------------------------------------------------------------
--- استخدام الشاشة بالماوس
+-- Using the screen with the mouse
 --------------------------------------------------------------------------------
 
 local function cursorToDui(vehicle, layout, cursorX, cursorY)
@@ -205,7 +205,7 @@ function Screen.interact(vehicle)
     local normal = Utils.toWorldDir(vehicle, vec3(-1.0, 0.0, 0.0))
     local camPos = center + normal * Config.Screen.camDistance
 
-    -- اللاعب يمشي ويوقف قدام الشاشة
+    -- Walk the player in front of the screen
     local pedZ = GetEntityCoords(cache.ped).z
     local standPos = center + normal * 0.55
     TaskGoStraightToCoord(cache.ped, standPos.x, standPos.y, pedZ, 1.0, 2000, GetHeadingFromVector_2d(-normal.x, -normal.y), 0.1)
@@ -228,7 +228,7 @@ function Screen.interact(vehicle)
             if CamMode.released() then SendDuiMouseUp(dui, 'left') end
         end
 
-        -- بديل للضغط: Enter يشغل زر البدء مباشرة
+        -- Click fallback: Enter triggers the start button directly
         if IsDisabledControlJustPressed(0, 191) then
             CreateThread(Job.startAssist)
         end
@@ -252,7 +252,7 @@ function Screen.close()
     Screen.interacting = false
 end
 
--- زر "بدء المساعدة" داخل صفحة الشاشة
+-- "Start assistance" button inside the screen page
 RegisterNUICallback('screen:start', function(_, cb)
     cb({})
     if Screen.interacting then CreateThread(Job.startAssist) end

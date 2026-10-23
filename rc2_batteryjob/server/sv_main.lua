@@ -1,21 +1,21 @@
 --[[
-    كل منطق الشغل والفلوس هنا. الكلاينت يطلب والسيرفر يتحقق:
-    - كل خطوة لازم تجي بالترتيب
-    - اللاعب لازم يكون قريب من السيارة المعطلة
-    - مدة الشحن تنحسب من السيرفر
-    - البلاغ ينصرف مرة وحدة فقط
+    All job and payment logic lives here. The client asks, the server validates:
+    - every step must arrive in order
+    - the player must be close to the stalled vehicle
+    - the charge duration is timed by the server
+    - each call pays out only once
 ]]
 
 local STEPS = {
-    'assigned',   -- البلاغ وصل
-    'talked',     -- كلم صاحب السيارة
-    'hood',       -- فتح الكبوت
-    'red',        -- ركّب الموجب
-    'black',      -- ركّب السالب (جاهز)
-    'running',    -- الشحن شغال
-    'started',    -- السيارة اشتغلت
-    'disconnected', -- فك الأسلاك
-    'stored',     -- رجّع الأسلاك (يصرف المبلغ)
+    'assigned',   -- call received
+    'talked',     -- talked to the customer
+    'hood',       -- hood opened
+    'red',        -- positive connected
+    'black',      -- negative connected (ready)
+    'running',    -- charging
+    'started',    -- vehicle started
+    'disconnected', -- cables disconnected
+    'stored',     -- cables stored (pays out)
 }
 
 local STEP_INDEX = {}
@@ -105,7 +105,7 @@ local function cleanupCall(call, delay)
     end)
 end
 
--- vector -> جدول عادي (عشان ينرسل للواجهة JSON بدون مشاكل)
+-- vector -> plain table (so it serializes cleanly to JSON for the UI)
 local function toTable(v)
     return { x = v.x, y = v.y, z = v.z }
 end
@@ -154,7 +154,7 @@ local function getState(src)
     }
 end
 
--- حالة الشاشة الخارجية على المركبة (يشوفها كل اللاعبين القريبين)
+-- External screen state on the van (visible to every nearby player)
 local function updateScreen(src)
     local shift = shifts[src]
     local van = shift and getEntity(shift.vanNet)
@@ -216,7 +216,7 @@ local function assignCall(src)
     }
 
     TriggerClientEvent('rc2_batteryjob:client:newCall', src, publicCall(shift.call))
-    tabletNotify(src, ('بلاغ جديد: %s - %s'):format(shift.call.customer, shift.call.area.label))
+    tabletNotify(src, ('New call: %s - %s'):format(shift.call.customer, shift.call.area.label))
     pushState(src)
 end
 
@@ -337,7 +337,7 @@ lib.callback.register('rc2_batteryjob:server:acceptContract', function(src, id)
     for _, def in ipairs(Config.Contracts) do
         if def.id == id then
             shift.contract = { def = def, done = 0, endsAt = os.time() + def.time * 60 }
-            tabletNotify(src, ('بدأ %s'):format(def.label))
+            tabletNotify(src, ('Started %s'):format(def.label))
             pushState(src)
             return true
         end
@@ -360,7 +360,7 @@ local function progressContract(src, shift)
 
     if os.time() > c.endsAt then
         shift.contract = nil
-        tabletNotify(src, ('انتهى وقت %s'):format(c.def.label))
+        tabletNotify(src, ('%s expired'):format(c.def.label))
         return 0
     end
 
@@ -368,7 +368,7 @@ local function progressContract(src, shift)
     if c.done < c.def.calls then return 0 end
 
     shift.contract = nil
-    tabletNotify(src, ('أنجزت %s! مكافأة $%d'):format(c.def.label, c.def.bonus))
+    tabletNotify(src, ('Completed %s! Bonus $%d'):format(c.def.label, c.def.bonus))
     return c.def.bonus
 end
 
@@ -396,7 +396,7 @@ lib.callback.register('rc2_batteryjob:server:spawnTarget', function(src, callId,
     pcall(function() exports.qbx_core:DisablePersistence(vehicle) end)
 
     local pedModel = Config.CustomerPeds[math.random(#Config.CustomerPeds)]
-    -- العميل يوقف على الرصيف (يمين السيارة) قدام شوي ووجهه للسيارة
+    -- Customer stands on the sidewalk (right side of the car), slightly ahead, facing the car
     local rad = math.rad(heading)
     local right = vec3(math.cos(rad), math.sin(rad), 0.0)
     local forward = vec3(-math.sin(rad), math.cos(rad), 0.0)
@@ -430,7 +430,7 @@ lib.callback.register('rc2_batteryjob:server:step', function(src, callId, step)
     local call = shift and shift.call
     if not call or call.id ~= callId then return false end
 
-    -- البداية: يرجع مدة الشحن والنتيجة من السيرفر
+    -- Start: the server decides the duration and the outcome
     if step == 'running' then
         if not canAdvance(src, call, step) then return false end
         call.step = 'running'
@@ -447,7 +447,7 @@ lib.callback.register('rc2_batteryjob:server:step', function(src, callId, step)
         if GetGameTimer() - call.runStartedAt < (Config.AssistDuration - 1) * 1000 then return false end
 
         if not call.runSuccess then
-            -- فشل: يرجع لحالة جاهز ويعيد المحاولة
+            -- Failed: back to ready so the player can retry
             call.step = 'black'
             call.lastResult = 'fail'
             pushState(src)
@@ -481,7 +481,7 @@ lib.callback.register('rc2_batteryjob:server:step', function(src, callId, step)
             addStats(shift.citizenid, 1, amount + bonus, bonus > 0 and 1 or 0)
         end
 
-        notify(src, ('استلمت $%d%s'):format(amount, bonus > 0 and (' + مكافأة $%d'):format(bonus) or ''), 'success')
+        notify(src, ('You received $%d%s'):format(amount, bonus > 0 and (' + bonus $%d'):format(bonus) or ''), 'success')
 
         TriggerClientEvent('rc2_batteryjob:client:callFinished', src, call.id)
         cleanupCall(call, 45000)
@@ -498,7 +498,7 @@ lib.callback.register('rc2_batteryjob:server:step', function(src, callId, step)
     return true
 end)
 
--- اللاعب يقدر يلغي البلاغ الحالي (بدون فلوس)
+-- The player can cancel the current call (no payment)
 lib.callback.register('rc2_batteryjob:server:cancelCall', function(src)
     local shift = shifts[src]
     if not shift or not shift.call then return false end
@@ -518,7 +518,7 @@ AddEventHandler('playerDropped', function()
     endShift(source, 'dropped')
 end)
 
--- حدث سيرفر محلي من qbx_core (مو net event عشان ما ينطلب من الكلاينت)
+-- Local server event from qbx_core (not a net event, so clients cannot trigger it)
 AddEventHandler('QBCore:Server:OnPlayerUnload', function(src)
     endShift(src, 'unloaded')
 end)

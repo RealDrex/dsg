@@ -1,4 +1,4 @@
--- السكربت ينشئ الجدول تلقائياً، هذا الملف للاحتياط
+-- The resource creates this table automatically; this file is a fallback
 CREATE TABLE IF NOT EXISTS `rc2_batteryjob_stats` (
     `citizenid` VARCHAR(50) NOT NULL,
     `calls` INT NOT NULL DEFAULT 0,

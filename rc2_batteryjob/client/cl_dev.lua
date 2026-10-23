@@ -1,11 +1,11 @@
 --[[
-    أداة ضبط الأماكن داخل اللعبة (Config.Debug = true)
-    /battery_edit screen   -> مكان الشاشة على مركبة الخدمة
-    /battery_edit ports    -> مكان منافذ الأسلاك
-    /battery_edit battery  -> مكان البطارية داخل كبوت أقرب سيارة
+    In-game placement tool (Config.Debug = true)
+    /battery_edit screen   -> screen position on the service van
+    /battery_edit ports    -> cable port position
+    /battery_edit battery  -> battery position in the nearest vehicle's engine bay
 
-    الأسهم ← → قدام/ورا | ↑ ↓ فوق/تحت | PageUp/PageDown داخل/برا
-    Shift = خطوة صغيرة | Enter = حفظ وطباعة السطر للكونفق
+    Arrows left/right = forward/back | up/down = up/down | PageUp/PageDown = in/out
+    Shift = fine step | Enter = save and print the config line
 ]]
 
 if not Config.Debug then return end
@@ -30,7 +30,7 @@ end
 
 local function editLoop(getOffset, setOffset, onDone)
     editing = true
-    lib.showTextUI('← → قدام/ورا  \n↑ ↓ فوق/تحت  \nPgUp/PgDn داخل/برا  \nShift دقيق | Enter حفظ', { position = 'left-center' })
+    lib.showTextUI('[Left/Right] Forward/Back  \n[Up/Down] Up/Down  \n[PgUp/PgDn] In/Out  \n[Shift] Fine | [Enter] Save', { position = 'left-center' })
 
     while editing do
         local step = IsControlPressed(0, 21) and 0.002 or 0.01
@@ -64,7 +64,7 @@ RegisterCommand('battery_edit', function(_, args)
 
     if mode == 'screen' or mode == 'ports' then
         local van = nearestVehicle(function(v) return Entity(v).state.batteryVan and Screen.layout(v) end)
-        if not van then return lib.notify({ description = 'ابدأ الشيفت وقف جنب مركبة الخدمة', type = 'error' }) end
+        if not van then return lib.notify({ description = 'Start a shift and stand next to the service van', type = 'error' }) end
 
         local layout = Screen.layout(van)
         local part = layout[mode == 'screen' and 'screen' or 'ports']
@@ -72,11 +72,11 @@ RegisterCommand('battery_edit', function(_, args)
             local line = ('%s.offset = %s'):format(mode, fmt(o))
             print(('[rc2_batteryjob] %s (model %s)'):format(line, GetEntityModel(van)))
             lib.setClipboard(line)
-            lib.notify({ description = 'انطبع في F8 وانسخ: ' .. line, type = 'success' })
+            lib.notify({ description = 'Printed to F8 and copied: ' .. line, type = 'success' })
         end)
     elseif mode == 'battery' then
         local vehicle = nearestVehicle(function(v) return v ~= cache.vehicle and not Entity(v).state.batteryVan end)
-        if not vehicle then return lib.notify({ description = 'ما فيه سيارة قريبة', type = 'error' }) end
+        if not vehicle then return lib.notify({ description = 'No vehicle nearby', type = 'error' }) end
 
         local model = GetEntityModel(vehicle)
         Battery.keep[vehicle] = true
@@ -92,7 +92,7 @@ RegisterCommand('battery_edit', function(_, args)
             local line = ('[`%s`] = %s,'):format(name, fmt(o))
             print('[rc2_batteryjob] Config.Battery.perModel ' .. line)
             lib.setClipboard(line)
-            lib.notify({ description = 'انطبع في F8 وانسخ: ' .. line, type = 'success' })
+            lib.notify({ description = 'Printed to F8 and copied: ' .. line, type = 'success' })
         end)
         Battery.keep[vehicle] = nil
     end

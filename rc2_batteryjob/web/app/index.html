@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -11,7 +11,7 @@
     header { display: flex; align-items: center; gap: 12px; padding: 18px 22px; border-bottom: 1px solid #1f2128; }
     header .icon { width: 40px; height: 40px; border-radius: 12px; background: var(--c1); display: grid; place-items: center; color: #fff; font-size: 18px; }
     header h1 { font-size: 18px; font-weight: 700; }
-    header .status { margin-right: auto; font-size: 12px; padding: 5px 10px; border-radius: 999px; background: #1f2128; color: #9ca3af; }
+    header .status { margin-left: auto; font-size: 12px; padding: 5px 10px; border-radius: 999px; background: #1f2128; color: #9ca3af; }
     header .status.on { background: rgba(34,197,94,0.15); color: #4ade80; }
     header .close { background: none; border: none; color: #9ca3af; font-size: 18px; cursor: pointer; }
     main { flex: 1; overflow-y: auto; padding: 18px 22px; display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-content: start; }
@@ -51,8 +51,8 @@
 <div class="app">
     <header>
         <div class="icon"><i class="fa-solid fa-car-battery"></i></div>
-        <h1>مساعدة البطاريات</h1>
-        <div class="status" id="status">خارج الدوام</div>
+        <h1>Battery Assist</h1>
+        <div class="status" id="status">Off duty</div>
         <button class="close" id="close"><i class="fa-solid fa-xmark"></i></button>
     </header>
     <main>
@@ -62,7 +62,7 @@
         <div style="display:flex;flex-direction:column;gap:16px">
             <div class="card" id="contractCard"></div>
             <div class="card">
-                <h2><i class="fa-solid fa-chart-simple"></i>إحصائياتك</h2>
+                <h2><i class="fa-solid fa-chart-simple"></i>Your stats</h2>
                 <div class="stats" id="stats"></div>
             </div>
         </div>
@@ -77,15 +77,15 @@
     const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     const STEPS = [
-        ['assigned', 'fa-location-dot', 'روح لموقع البلاغ'],
-        ['talked', 'fa-comments', 'كلّم صاحب السيارة'],
-        ['hood', 'fa-car', 'افتح الكبوت'],
-        ['red', 'fa-plus', 'ركّب الموجب (الأحمر)'],
-        ['black', 'fa-minus', 'ركّب السالب (الأسود)'],
-        ['running', 'fa-bolt', 'شغّل الشحن من الشاشة'],
-        ['started', 'fa-key', 'السيارة اشتغلت'],
-        ['disconnected', 'fa-plug-circle-xmark', 'فك الأسلاك'],
-        ['stored', 'fa-box', 'رجّع الأسلاك للمركبة'],
+        ['assigned', 'fa-location-dot', 'Drive to the call'],
+        ['talked', 'fa-comments', 'Talk to the customer'],
+        ['hood', 'fa-car', 'Open the hood'],
+        ['red', 'fa-plus', 'Connect positive (red)'],
+        ['black', 'fa-minus', 'Connect negative (black)'],
+        ['running', 'fa-bolt', 'Start charging from the screen'],
+        ['started', 'fa-key', 'Vehicle started'],
+        ['disconnected', 'fa-plug-circle-xmark', 'Disconnect the cables'],
+        ['stored', 'fa-box', 'Store the cables in the van'],
     ];
 
     let state = null;
@@ -105,16 +105,16 @@
     function renderCall() {
         const card = $('callCard');
         if (!state || !state.onShift) {
-            card.innerHTML = `<h2><i class="fa-solid fa-briefcase"></i>الشيفت</h2>
-                <div class="empty">ابدأ الشيفت من المقر عشان تستقبل البلاغات</div>
-                <div class="actions"><button class="btn primary" data-act="depot"><i class="fa-solid fa-map-pin"></i> حدد المقر</button></div>`;
+            card.innerHTML = `<h2><i class="fa-solid fa-briefcase"></i>Shift</h2>
+                <div class="empty">Start your shift at the depot to receive calls</div>
+                <div class="actions"><button class="btn primary" data-act="depot"><i class="fa-solid fa-map-pin"></i> Mark depot</button></div>`;
             return;
         }
 
         const call = state.call;
         if (!call) {
-            const wait = state.nextCallIn != null ? `البلاغ الجاي خلال <b id="countdown">${fmt(state.nextCallIn)}</b>` : 'بانتظار بلاغ...';
-            card.innerHTML = `<h2><i class="fa-solid fa-tower-broadcast"></i>البلاغات</h2><div class="empty">${wait}</div>`;
+            const wait = state.nextCallIn != null ? `Next call in <b id="countdown">${fmt(state.nextCallIn)}</b>` : 'Waiting for a call...';
+            card.innerHTML = `<h2><i class="fa-solid fa-tower-broadcast"></i>Dispatch</h2><div class="empty">${wait}</div>`;
             return;
         }
 
@@ -125,19 +125,19 @@
             return `<li class="${cls}"><i class="fa-solid ${idx <= current ? 'fa-check' : icon}"></i>${label}</li>`;
         }).join('');
 
-        card.innerHTML = `<h2><i class="fa-solid fa-triangle-exclamation"></i>البلاغ الحالي</h2>
+        card.innerHTML = `<h2><i class="fa-solid fa-triangle-exclamation"></i>Current call</h2>
             <div class="big">${esc(call.customer)}</div>
-            <div class="muted">${esc(call.area)} · بطارية فاضية</div>
+            <div class="muted">${esc(call.area)} · Dead battery</div>
             <ul class="steps">${steps}</ul>
             <div class="actions">
-                <button class="btn primary" data-act="call"><i class="fa-solid fa-route"></i> تحديد الموقع</button>
-                <button class="btn danger" data-act="cancelCall">إلغاء البلاغ</button>
+                <button class="btn primary" data-act="call"><i class="fa-solid fa-route"></i> Set waypoint</button>
+                <button class="btn danger" data-act="cancelCall">Cancel call</button>
             </div>`;
     }
 
     function renderContract() {
         const card = $('contractCard');
-        const head = `<h2><i class="fa-solid fa-file-signature"></i>العقود</h2>`;
+        const head = `<h2><i class="fa-solid fa-file-signature"></i>Contracts</h2>`;
 
         if (state && state.contract) {
             const c = state.contract;
@@ -145,8 +145,8 @@
             card.innerHTML = `${head}
                 <div class="big">${esc(c.label)}</div>
                 <div class="bar"><i style="width:${(c.done / c.calls) * 100}%"></i></div>
-                <div class="muted">${c.done} / ${c.calls} بلاغ · باقي <b id="contractLeft">${fmt(left)}</b></div>
-                <div class="actions"><button class="btn danger" data-act="cancelContract">إلغاء العقد</button></div>`;
+                <div class="muted">${c.done} / ${c.calls} calls · <b id="contractLeft">${fmt(left)}</b> left</div>
+                <div class="actions"><button class="btn danger" data-act="cancelContract">Cancel contract</button></div>`;
             return;
         }
 
@@ -154,24 +154,24 @@
             <div class="contract">
                 <div class="info"><div class="title">${esc(c.label)}</div><div class="muted">${esc(c.description)}</div></div>
                 <div class="bonus">$${c.bonus}</div>
-                <button class="btn primary" data-act="accept" data-id="${esc(c.id)}" ${state && state.onShift ? '' : 'disabled'}>قبول</button>
+                <button class="btn primary" data-act="accept" data-id="${esc(c.id)}" ${state && state.onShift ? '' : 'disabled'}>Accept</button>
             </div>`).join('');
 
-        card.innerHTML = head + (list || '<div class="empty">لا توجد عقود</div>');
+        card.innerHTML = head + (list || '<div class="empty">No contracts available</div>');
     }
 
     function renderStats() {
         const s = (state && state.stats) || { calls: 0, earned: 0, contracts: 0 };
         const session = (state && state.session) || { calls: 0, earned: 0 };
         $('stats').innerHTML = `
-            <div class="stat"><b>${session.calls}</b><span>بلاغات الشيفت</span></div>
-            <div class="stat"><b>$${session.earned}</b><span>دخل الشيفت</span></div>
-            <div class="stat"><b>${s.calls}</b><span>كل البلاغات</span></div>
-            <div class="stat"><b>$${s.earned}</b><span>كل الدخل</span></div>`;
+            <div class="stat"><b>${session.calls}</b><span>Shift calls</span></div>
+            <div class="stat"><b>$${session.earned}</b><span>Shift earnings</span></div>
+            <div class="stat"><b>${s.calls}</b><span>Total calls</span></div>
+            <div class="stat"><b>$${s.earned}</b><span>Total earnings</span></div>`;
     }
 
     function render() {
-        $('status').textContent = state && state.onShift ? 'في الدوام' : 'خارج الدوام';
+        $('status').textContent = state && state.onShift ? 'On duty' : 'Off duty';
         $('status').classList.toggle('on', !!(state && state.onShift));
         renderCall();
         renderContract();

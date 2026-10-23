@@ -1,18 +1,18 @@
 # rc2_tablet
 
-التابلت مجرد **لانشر** (شاشة رئيسية + إشعارات + إعدادات). كل تطبيق (الوظائف، العقار، MDT...) هو ريسورس مستقل له واجهة خاصة فيه، يفتح داخل التابلت كـ iframe.
+The tablet is only a **launcher** (home screen + notifications + settings). Every app (jobs, real estate, MDT...) is a separate resource with its own UI, opened inside the tablet as an iframe.
 
-## المتطلبات
+## Requirements
 
 - `qbx_core`
 - `ox_lib`
 - `oxmysql`
 - `ox_inventory`
 
-## التركيب
+## Installation
 
-1. انسخ `rc2_tablet` لمجلد الريسورسات وأضف `ensure rc2_tablet` بعد `qbx_core` و `ox_lib` و `ox_inventory`.
-2. عرّف الآيتم في `ox_inventory/data/items.lua`:
+1. Copy `rc2_tablet` into your resources and add `ensure rc2_tablet` after `qbx_core`, `ox_lib` and `ox_inventory`.
+2. Define the item in `ox_inventory/data/items.lua`:
 
 ```lua
 ['tablet'] = {
@@ -24,55 +24,55 @@
 },
 ```
 
-3. اللغة تتبع `setr ox:locale "ar"` في `server.cfg`.
+3. The UI language follows `setr ox:locale` in `server.cfg` (falls back to English).
 
-## إضافة تطبيق
+## Adding an app
 
-**الطريقة 1 – من الكونفق** (`config.lua` → `Config.Apps`):
+**Option 1 – from the config** (`config.lua` → `Config.Apps`):
 
 ```lua
 {
     identifier = 'jobs',
-    name = 'الوظائف',
+    name = 'Jobs',
     image = 'apps/jobs.png',
-    resource = 'rc2_jobs', -- إذا الريسورس مو شغال التطبيق يختفي
+    resource = 'rc2_jobs', -- hidden while this resource is not started
     ui = 'https://cfx-nui-rc2_jobs/web/build/index.html',
-    jobs = { police = 0 }, -- اختياري
-    onDuty = true,         -- اختياري
+    jobs = { police = 0 }, -- optional
+    onDuty = true,         -- optional
 }
 ```
 
-**الطريقة 2 – من ريسورس التطبيق نفسه (server):**
+**Option 2 – from the app's own resource (server):**
 
 ```lua
 exports.rc2_tablet:RegisterApp({
     identifier = 'jobs',
-    name = 'الوظائف',
+    name = 'Jobs',
     image = 'apps/jobs.png',
     ui = ('https://cfx-nui-%s/web/build/index.html'):format(GetCurrentResourceName()),
 })
 ```
 
-ينحذف تلقائياً لما الريسورس يطفي.
+It is removed automatically when that resource stops.
 
-## التواصل بين واجهة التطبيق والتابلت
+## App UI <-> tablet messaging
 
-داخل واجهة التطبيق (الـ iframe):
+Inside the app UI (the iframe):
 
 ```js
-// إغلاق التطبيق
+// close the app
 window.parent.postMessage({ action: 'phone:close' }, '*')
 
-// إشعار
-window.parent.postMessage({ action: 'phone:notify', data: { title: 'الوظائف', message: 'تم قبولك' } }, '*')
+// notification
+window.parent.postMessage({ action: 'phone:notify', data: { title: 'Jobs', message: 'You were hired' } }, '*')
 
-// استقبال رسائل من اللوا + الألوان
+// messages from Lua + theme colors
 window.addEventListener('message', (e) => {
     if (e.data.action === 'phone:message') { /* e.data.data */ }
     if (e.data.action === 'phone:theme')   { /* e.data.data.color1 ... */ }
 })
 
-// NUI callbacks تروح لريسورس التطبيق نفسه
+// NUI callbacks go to the app's own resource
 fetch('https://rc2_jobs/getJobs', { method: 'POST', body: JSON.stringify({}) })
 ```
 
@@ -80,22 +80,22 @@ fetch('https://rc2_jobs/getJobs', { method: 'POST', body: JSON.stringify({}) })
 
 **Client**
 
-| Export | الوصف |
+| Export | Description |
 |---|---|
-| `open()` / `close()` / `isOpen()` | فتح / إغلاق التابلت |
-| `openApp(id)` / `closeApp(id)` | فتح تطبيق معيّن |
-| `notify(data)` | إشعار `{ title, message, icon, iconColor, image, app }` |
-| `sendAppMessage(id, data)` | رسالة لواجهة التطبيق |
-| `refreshApps()` | تحديث قائمة التطبيقات |
+| `open()` / `close()` / `isOpen()` | Open / close the tablet |
+| `openApp(id)` / `closeApp(id)` | Open a specific app |
+| `notify(data)` | Notification `{ title, message, icon, iconColor, image, app }` |
+| `sendAppMessage(id, data)` | Message to an app UI |
+| `refreshApps()` | Refresh the app list |
 
 **Server**
 
-| Export | الوصف |
+| Export | Description |
 |---|---|
-| `RegisterApp(app)` / `RemoveApp(id)` | إضافة / حذف تطبيق |
-| `Notify(source, data)` | إشعار على تابلت لاعب |
-| `SendAppMessage(source, id, data)` | رسالة لواجهة التطبيق عند لاعب |
-| `CanUseApp(source, id)` | يتحقق إن اللاعب مسموح له بالتطبيق |
-| `GetAppsFor(source)` | التطبيقات المتاحة للاعب |
+| `RegisterApp(app)` / `RemoveApp(id)` | Add / remove an app |
+| `Notify(source, data)` | Notification on a player's tablet |
+| `SendAppMessage(source, id, data)` | Message to an app UI on a player's tablet |
+| `CanUseApp(source, id)` | Whether a player may use an app |
+| `GetAppsFor(source)` | Apps available to a player |
 
-**Events (client)**: `rc2_tablet:client:opened`، `rc2_tablet:client:closed`، `rc2_tablet:client:appOpened (id)`، `rc2_tablet:client:appClosed (id)`
+**Events (client)**: `rc2_tablet:client:opened`, `rc2_tablet:client:closed`, `rc2_tablet:client:appOpened (id)`, `rc2_tablet:client:appClosed (id)`

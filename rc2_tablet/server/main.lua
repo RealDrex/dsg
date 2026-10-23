@@ -1,6 +1,6 @@
--- تطبيقات انضافت وقت التشغيل من ريسورسات ثانية عن طريق exports.rc2_tablet:RegisterApp
+-- Apps registered at runtime by other resources through exports.rc2_tablet:RegisterApp
 local dynamicApps = {}
--- identifier -> اسم الريسورس اللي سجّله (عشان ينحذف لما الريسورس يطفي)
+-- identifier -> resource that registered it (removed when that resource stops)
 local appOwners = {}
 
 local function getAllApps()
@@ -49,7 +49,7 @@ local function canUseApp(player, app)
         or hasGroup(app.gangs, data.gang) == true
 end
 
--- اللي ينرسل للواجهة (بدون الحقول الداخلية)
+-- What gets sent to the UI (without internal fields)
 local function toUi(app)
     return {
         identifier = app.identifier,
@@ -87,7 +87,7 @@ lib.callback.register('rc2_tablet:server:getApps', function(source)
     return getAppsFor(source)
 end)
 
--- يتحقق إن اللاعب مسموح له يفتح التطبيق (للتطبيقات اللي تبي تتأكد من السيرفر)
+-- Checks whether a player may use an app (for apps that validate on the server)
 local function CanUseApp(source, identifier)
     local app = findApp(identifier)
     if not app then return false end
@@ -99,11 +99,11 @@ local function refreshAll()
     TriggerClientEvent('rc2_tablet:client:refreshApps', -1)
 end
 
---- يضيف تطبيق من ريسورس ثاني
---- exports.rc2_tablet:RegisterApp({ identifier = 'jobs', name = 'الوظائف', image = 'apps/jobs.png', ui = 'https://cfx-nui-rc2_jobs/web/build/index.html' })
+--- Registers an app from another resource
+--- exports.rc2_tablet:RegisterApp({ identifier = 'jobs', name = 'Jobs', image = 'apps/jobs.png', ui = 'https://cfx-nui-rc2_jobs/web/build/index.html' })
 local function RegisterApp(app)
     if type(app) ~= 'table' or type(app.identifier) ~= 'string' or type(app.ui) ~= 'string' then
-        lib.print.error('RegisterApp: identifier و ui مطلوبين')
+        lib.print.error('RegisterApp: identifier and ui are required')
         return false
     end
 
@@ -129,13 +129,13 @@ local function RemoveApp(identifier)
     return true
 end
 
---- إشعار على تابلت لاعب
---- exports.rc2_tablet:Notify(source, { app = 'jobs', title = 'الوظائف', message = 'تم قبولك' })
+--- Notification on a player's tablet
+--- exports.rc2_tablet:Notify(source, { app = 'jobs', title = 'Jobs', message = 'You were hired' })
 local function Notify(source, data)
     TriggerClientEvent('rc2_tablet:client:notify', source, data)
 end
 
---- يرسل رسالة لواجهة تطبيق مفتوح عند لاعب (توصل للـ iframe كـ phone:message)
+--- Sends a message to an app UI open on a player's tablet (arrives in the iframe as phone:message)
 local function SendAppMessage(source, identifier, data)
     TriggerClientEvent('rc2_tablet:client:appMessage', source, identifier, data)
 end

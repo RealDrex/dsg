@@ -99,7 +99,7 @@ local function open()
     LocalPlayer.state:set('tabletOpen', true, true)
     TriggerEvent('rc2_tablet:client:opened')
 
-    -- يعيد الأنميشن إذا انقطع، ويقفل التابلت إذا مات اللاعب
+    -- Restarts the anim if interrupted and closes the tablet if the player dies
     CreateThread(function()
         while isOpen do
             if IsEntityDead(cache.ped) then
@@ -184,7 +184,7 @@ end
 RegisterNetEvent('rc2_tablet:client:notify', notify)
 RegisterNetEvent('rc2_tablet:client:appMessage', sendAppMessage)
 
--- تحديث التطبيقات لما تتغير الوظيفة/العصابة/الديوتي
+-- Refresh apps when job / gang / duty changes
 RegisterNetEvent('QBCore:Client:OnPlayerLoaded', refreshApps)
 RegisterNetEvent('QBCore:Client:OnJobUpdate', refreshApps)
 RegisterNetEvent('QBCore:Client:OnGangUpdate', refreshApps)

@@ -11,7 +11,7 @@ function Utils.stopAnim(ped, anim)
     StopAnimTask(ped, anim.dict, anim.clip, 2.0)
 end
 
--- يشغل أنميشن لمدة محددة وينتظر
+-- Plays an anim for its duration and waits
 function Utils.playAnimWait(anim)
     Utils.playAnim(cache.ped, anim)
     Wait(anim.duration or 1000)
@@ -54,7 +54,7 @@ function Utils.deleteEntity(entity)
     end
 end
 
--- يحوّل اتجاه/نقطة من إحداثيات المركبة لإحداثيات العالم
+-- Converts a point/direction from entity space to world space
 function Utils.toWorld(entity, offset)
     return GetOffsetFromEntityInWorldCoords(entity, offset.x, offset.y, offset.z)
 end
@@ -71,7 +71,7 @@ function Utils.sparks(coords)
 end
 
 --------------------------------------------------------------------------------
--- برومبت E بسيط (نص + مسافة) بدل ox_target للنقاط اللي مالها موديل
+-- Simple [E] prompt (text + distance) for points that have no entity to target
 --------------------------------------------------------------------------------
 
 Prompts = {}
@@ -133,8 +133,8 @@ CreateThread(function()
 end)
 
 --------------------------------------------------------------------------------
--- كاميرا + مؤشر الماوس للتعامل مع الأشياء في العالم بدون NUI
--- الفكرة مأخوذة من objectInteractions (MIT - whoisdelta)
+-- Camera + mouse cursor for interacting with world objects without NUI
+-- Ray math adapted from objectInteractions (MIT - whoisdelta)
 --------------------------------------------------------------------------------
 
 CamMode = { active = false }
@@ -167,7 +167,7 @@ function CamMode.stop()
     CamMode.active = false
 end
 
--- ينادى كل فريم وقت الكاميرا شغالة
+-- Call every frame while the camera is active
 function CamMode.frame()
     for i = 1, #DISABLED_CONTROLS do
         DisableControlAction(0, DISABLED_CONTROLS[i], true)
@@ -192,7 +192,7 @@ function CamMode.exitPressed()
     return IsDisabledControlJustPressed(0, 177) or IsDisabledControlJustPressed(0, 194) or IsDisabledControlJustPressed(0, 200)
 end
 
--- شعاع من الكاميرا عبر مكان الماوس
+-- Ray from the camera through the cursor
 function CamMode.ray(screenX, screenY)
     local camPos = GetCamCoord(cam)
     local camRot = GetCamRot(cam, 2)
@@ -211,7 +211,7 @@ function CamMode.ray(screenX, screenY)
     return camPos, dir / #dir
 end
 
--- تقاطع شعاع مع مستوى
+-- Ray / plane intersection
 function Utils.rayPlane(origin, dir, planePoint, normal)
     local denom = dir.x * normal.x + dir.y * normal.y + dir.z * normal.z
     if math.abs(denom) < 1e-5 then return nil end
@@ -221,7 +221,7 @@ function Utils.rayPlane(origin, dir, planePoint, normal)
     return origin + dir * t
 end
 
--- مسافة بين الماوس ونقطة في العالم (على الشاشة)
+-- Screen-space distance between the cursor and a world point
 function Utils.screenDistance(cursorX, cursorY, coords)
     local onScreen, sx, sy = GetScreenCoordFromWorldCoord(coords.x, coords.y, coords.z)
     if not onScreen then return math.huge end

@@ -21,7 +21,7 @@ local function removeBlip(blip)
     if blip and DoesBlipExist(blip) then RemoveBlip(blip) end
 end
 
---- يطلب من السيرفر ينقل البلاغ للخطوة الجاية
+--- Asks the server to move the call to the next step
 function Job.step(step)
     local c = call()
     if not c then return false end
@@ -39,7 +39,7 @@ function Job.step(step)
 end
 
 --------------------------------------------------------------------------------
--- المقر
+-- Depot
 --------------------------------------------------------------------------------
 
 local function startShift()
@@ -100,7 +100,7 @@ local function setupDepot()
 end
 
 --------------------------------------------------------------------------------
--- السيارة المعطلة + صاحبها
+-- Stalled vehicle + customer
 --------------------------------------------------------------------------------
 
 local function findRoadsideSpot(center)
@@ -254,7 +254,7 @@ local function watchCall(c)
 end
 
 --------------------------------------------------------------------------------
--- خطوات الشغل
+-- Job steps
 --------------------------------------------------------------------------------
 
 function Job.takeCables()
@@ -389,7 +389,7 @@ function Job.disconnect()
 end
 
 --------------------------------------------------------------------------------
--- نقاط التفاعل
+-- Interaction points
 --------------------------------------------------------------------------------
 
 local function hoodCoords()
@@ -458,7 +458,7 @@ Prompts.add('battery_disconnect', {
 })
 
 --------------------------------------------------------------------------------
--- أحداث السيرفر
+-- Server events
 --------------------------------------------------------------------------------
 
 local function sendToTablet(state)
@@ -471,7 +471,7 @@ RegisterNetEvent('rc2_batteryjob:client:state', function(state)
     local previous = call()
     Job.data = state
 
-    -- البلاغ تغير (انلغى/انتهى)
+    -- The call changed (cancelled / finished)
     if previous and (not state.call or state.call.id ~= previous.id) and target.callId == previous.id then
         clearTarget(false)
     end
@@ -500,7 +500,7 @@ RegisterNetEvent('rc2_batteryjob:client:shiftEnded', function()
 end)
 
 --------------------------------------------------------------------------------
--- تطبيق التابلت
+-- Tablet app
 --------------------------------------------------------------------------------
 
 RegisterNUICallback('app:getState', function(_, cb)
@@ -536,13 +536,13 @@ RegisterNUICallback('app:waypoint', function(data, cb)
 end)
 
 --------------------------------------------------------------------------------
--- تشغيل
+-- Startup
 --------------------------------------------------------------------------------
 
 CreateThread(function()
     setupDepot()
 
-    -- لو السكربت انعاد تشغيله والشيفت شغال
+    -- Resource restarted mid-shift
     local state = lib.callback.await('rc2_batteryjob:server:getState', false)
     if state and state.onShift then
         Job.data = state

@@ -1,16 +1,16 @@
 Config = {}
 
--- اسم الآيتم في ox_inventory (لازم يكون معرّف في ox_inventory/data/items.lua)
+-- ox_inventory item name (must be defined in ox_inventory/data/items.lua)
 Config.Item = 'tablet'
 
--- أمر لفتح التابلت (false لإلغائه). إذا RequireItem = true لازم يكون معه الآيتم
+-- Command to open the tablet (false to disable). With RequireItem = true the player needs the item
 Config.Command = 'tablet'
 Config.RequireItem = true
 
--- زر لفتح التابلت (false لإلغائه). اللاعب يقدر يغيّره من إعدادات اللعبة
-Config.Keybind = false -- مثال: 'F5'
+-- Keybind to open the tablet (false to disable). Players can rebind it in the game settings
+Config.Keybind = false -- e.g. 'F5'
 
--- البروب والأنميشن وقت فتح التابلت
+-- Prop and animation while the tablet is open
 Config.Prop = {
     model = `prop_cs_tablet`,
     bone = 28422,
@@ -23,42 +23,42 @@ Config.Anim = {
     clip = 'base',
 }
 
--- ألوان الواجهة (تنرسل للتابلت ولكل تطبيق داخله)
+-- UI colors (sent to the tablet and to every app inside it)
 Config.Theme = {
-    color1 = '#ff5a1f', -- اللون الأساسي
+    color1 = '#ff5a1f', -- primary color
     color2 = '#1c1c1e',
     color3 = '#ffffff',
 }
 
 --[[
-    التطبيقات
-    كل تطبيق = ريسورس مستقل له واجهة خاصة فيه (iframe داخل التابلت).
+    Apps
+    Each app is a separate resource with its own UI (an iframe inside the tablet).
 
-    identifier : معرف فريد للتطبيق
-    name       : الاسم اللي يظهر تحت الأيقونة
-    image      : صورة الأيقونة (من web/build/apps) أو رابط
-    color      : لون الخلفية إذا ما فيه صورة
-    resource   : اسم ريسورس التطبيق. إذا مو شغال، التطبيق ما يظهر
-    ui         : رابط واجهة التطبيق (https://cfx-nui-<resource>/<path>)
-    jobs       : اختياري - { police = 0, ambulance = 2 } (الوظيفة = أقل رتبة)
-    gangs      : اختياري - نفس فكرة jobs بس للعصابات
-    onDuty     : اختياري - true = لازم يكون أون ديوتي
+    identifier : unique app id
+    name       : label shown under the icon
+    image      : icon image (from web/build/apps) or a URL
+    color      : background color when there is no image
+    resource   : the app's resource name. Hidden while that resource is not started
+    ui         : app UI URL (https://cfx-nui-<resource>/<path>)
+    jobs       : optional - { police = 0, ambulance = 2 } (job = minimum grade)
+    gangs      : optional - same as jobs, for gangs
+    onDuty     : optional - true = must be on duty
 ]]
 Config.Apps = {
     {
         identifier = 'jobs',
-        name = 'الوظائف',
+        name = 'Jobs',
         image = 'apps/jobs.png',
         color = '#1c1c1e',
         resource = 'rc2_jobs',
         ui = 'https://cfx-nui-rc2_jobs/web/build/index.html',
     },
 
-    -- تطبيقات تنضاف مع الوقت (الأيقونات موجودة جاهزة في web/build/apps):
+    -- Apps to add over time (icons are already in web/build/apps):
     -- { identifier = 'mdt',        name = 'MDT',      image = 'apps/mdt.png',        resource = 'rc2_mdt',        ui = 'https://cfx-nui-rc2_mdt/web/build/index.html', jobs = { police = 0 }, onDuty = true },
-    -- { identifier = 'hotel',      name = 'الفندق',   image = 'apps/hotel.png',      resource = 'rc2_hotel',      ui = 'https://cfx-nui-rc2_hotel/web/build/index.html' },
-    -- { identifier = 'furniture',  name = 'الأثاث',   image = 'apps/furniture.png',  resource = 'rc2_furniture',  ui = 'https://cfx-nui-rc2_furniture/web/build/index.html' },
-    -- { identifier = 'managment',  name = 'الإدارة',  image = 'apps/managment.png',  resource = 'rc2_managment',  ui = 'https://cfx-nui-rc2_managment/web/build/index.html' },
-    -- { identifier = 'supply',     name = 'التوريد',  image = 'apps/supply.png',     resource = 'rc2_supply',     ui = 'https://cfx-nui-rc2_supply/web/build/index.html' },
-    -- { identifier = 'skilltree',  name = 'المهارات', image = 'apps/skilltree.png',  resource = 'rc2_skilltree',  ui = 'https://cfx-nui-rc2_skilltree/web/build/index.html' },
+    -- { identifier = 'hotel',      name = 'Hotel',    image = 'apps/hotel.png',      resource = 'rc2_hotel',      ui = 'https://cfx-nui-rc2_hotel/web/build/index.html' },
+    -- { identifier = 'furniture',  name = 'Furniture', image = 'apps/furniture.png',  resource = 'rc2_furniture',  ui = 'https://cfx-nui-rc2_furniture/web/build/index.html' },
+    -- { identifier = 'managment',  name = 'Management', image = 'apps/managment.png',  resource = 'rc2_managment',  ui = 'https://cfx-nui-rc2_managment/web/build/index.html' },
+    -- { identifier = 'supply',     name = 'Supply',   image = 'apps/supply.png',     resource = 'rc2_supply',     ui = 'https://cfx-nui-rc2_supply/web/build/index.html' },
+    -- { identifier = 'skilltree',  name = 'Skills',   image = 'apps/skilltree.png',  resource = 'rc2_skilltree',  ui = 'https://cfx-nui-rc2_skilltree/web/build/index.html' },
 }

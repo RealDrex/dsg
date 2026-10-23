@@ -1,96 +1,96 @@
 Config = {}
 
--- يفعّل أوامر الضبط (/battery_edit) ويطبع معلومات إضافية
+-- Enables the placement commands (/battery_edit) and extra logging
 Config.Debug = false
 
-Config.JobLabel = 'مساعدة البطاريات'
+Config.JobLabel = 'Battery Assist'
 
 --------------------------------------------------------------------------------
--- المقر (بداية الشيفت)
+-- Depot (shift start)
 --------------------------------------------------------------------------------
 Config.Depot = {
     ped = {
         model = `s_m_m_autoshop_02`,
-        coords = vec4(528.46, -1603.54, 29.32, 47.98),
+        coords = vec4(452.1, -571.66, 28.5, 271.67),
         scenario = 'WORLD_HUMAN_CLIPBOARD',
     },
-    blip = { sprite = 354, color = 47, scale = 0.8, label = 'مساعدة البطاريات' },
+    blip = { sprite = 354, color = 47, scale = 0.8, label = 'Battery Assist' },
     vehicleSpawns = {
-        vec4(533.1, -1595.16, 28.18, 319.42),
+        vec4(460.32, -575.37, 28.5, 167.04),
     },
-    -- اللاعب لازم يكون قريب من المقر عشان ينهي الشيفت
+    -- The player must be this close to the depot to end the shift
     returnDistance = 40.0,
 }
 
 --------------------------------------------------------------------------------
--- مركبة الخدمة
--- كل موديل له مكان الشاشة والمنافذ (إحداثيات نسبية للمركبة)
--- x سالب = الجهة اليسرى | y موجب = قدام | z موجب = فوق
--- عدّلها داخل اللعبة بـ /battery_edit screen (مع Config.Debug = true)
+-- Service vehicle
+-- Each model has its own screen and port placement (offsets relative to the vehicle)
+-- negative x = left side | positive y = forward | positive z = up
+-- Tune it in-game with /battery_edit screen (requires Config.Debug = true)
 --------------------------------------------------------------------------------
 Config.ServiceVehicle = {
     model = 'burrito3',
-    plate = 'BATT',     -- بداية اللوحة
+    plate = 'BATT',     -- plate prefix
     fuel = 100.0,
 }
 
 Config.ServiceVehicleLayouts = {
     [`burrito3`] = {
         screen = { offset = vec3(-1.045, -0.35, 0.55), width = 0.52, height = 0.39 },
-        -- منفذ الموجب والسالب تحت الشاشة (مكان خروج الأسلاك)
+        -- Positive and negative ports under the screen (where the cables come out)
         ports = { offset = vec3(-1.045, -0.35, 0.18), spacing = 0.16 },
     },
 }
 
--- الشاشة الخارجية (DUI)
+-- External screen (DUI)
 Config.Screen = {
     resolution = { w = 640, h = 480 },
-    drawDistance = 18.0,     -- يرسم الشاشة لين هالمسافة
-    interactDistance = 1.3,  -- مسافة استخدام الشاشة
-    camDistance = 0.75,      -- بعد الكاميرا عن الشاشة وقت الاستخدام
+    drawDistance = 18.0,     -- the screen is drawn within this distance
+    interactDistance = 1.3,  -- distance to use the screen
+    camDistance = 0.75,      -- camera distance from the screen while using it
     camFov = 42.0,
-    bezel = 0.03,            -- سماكة الإطار
+    bezel = 0.03,            -- bezel thickness
 }
 
 --------------------------------------------------------------------------------
--- الأسلاك
+-- Cables
 --------------------------------------------------------------------------------
 Config.Cables = {
-    -- موديل المشبك (غيّره لموديلك الخاص لما يجهز)
+    -- Clamp model (swap for your custom model when it is ready)
     clampModel = `prop_tool_pliers`,
     ropeType = 1,
-    -- طول السلك (الزايد ينسدح على الأرض)
+    -- Cable length (the slack lies on the ground)
     ropeLength = 9.0,
-    -- أقصى مسافة بين المنفذ واللاعب قبل ما ترجع الأسلاك للمركبة
+    -- Max distance between the port and the player before the cables snap back to the van
     maxReach = 8.5,
-    -- الأحمر باليد اليمنى والأسود باليسرى
+    -- Red in the right hand, black in the left
     hands = {
         red   = { bone = 57005, offset = vec3(0.12, 0.02, -0.02), rot = vec3(-90.0, 0.0, 0.0) },
         black = { bone = 18905, offset = vec3(0.12, 0.02, 0.02),  rot = vec3(-90.0, 0.0, 0.0) },
     },
-    -- مسافة السناب على القطب
+    -- Snap distance onto a terminal
     snapDistance = 0.09,
 }
 
 --------------------------------------------------------------------------------
--- البطارية داخل الكبوت
+-- Battery in the engine bay
 --------------------------------------------------------------------------------
 Config.Battery = {
     model = `prop_car_battery_01`,
-    -- أقطاب البطارية نسبةً لموديل البطارية
+    -- Terminal positions relative to the battery model
     terminals = {
         red   = vec3(0.075, 0.05, 0.12),
         black = vec3(-0.075, 0.05, 0.12),
     },
-    -- مكان البطارية الافتراضي: نسبةً لعظمة engine في السيارة
+    -- Default battery position: relative to the vehicle's "engine" bone
     defaultOffset = vec3(0.32, 0.1, 0.12),
-    -- لكل موديل مكان خاص (نسبةً لمركز السيارة) - /battery_edit battery
+    -- Per-model position (relative to the vehicle origin) - /battery_edit battery
     perModel = {
         -- [`asea`] = vec3(0.35, 1.55, 0.35),
     },
 }
 
--- السيارات المعطلة (لازم تكون محركها قدام)
+-- Stalled vehicles (must be front-engined)
 Config.TargetVehicles = {
     'asea', 'premier', 'primo', 'stanier', 'washington', 'ingot', 'intruder', 'emperor',
 }
@@ -101,46 +101,46 @@ Config.CustomerPeds = {
 }
 
 Config.CustomerNames = {
-    'خالد', 'سارة', 'فهد', 'نورة', 'عبدالله', 'ريم', 'سلطان', 'منيرة', 'ماجد', 'هند',
+    'Mike', 'Sarah', 'Jason', 'Emily', 'Carlos', 'Megan', 'Tony', 'Rachel', 'Derek', 'Nina',
 }
 
 --------------------------------------------------------------------------------
--- مناطق البلاغات
--- السكربت يختار أقرب طريق لهالنقطة ويوقف السيارة على جنب
+-- Call areas
+-- The script picks the nearest road to each point and parks the car on the roadside
 --------------------------------------------------------------------------------
 Config.CallAreas = {
-    { label = 'ليجن سكوير',   coords = vec3(215.0, -930.0, 30.0) },
-    { label = 'روكفورد',       coords = vec3(-560.0, -210.0, 37.0) },
-    { label = 'ميرور بارك',    coords = vec3(1150.0, -460.0, 66.0) },
-    { label = 'فسبوتشي',       coords = vec3(-1280.0, -1130.0, 6.0) },
-    { label = 'ديفيس',         coords = vec3(400.0, -1600.0, 29.0) },
-    { label = 'لا ميسا',       coords = vec3(820.0, -1040.0, 26.0) },
-    { label = 'ليتل سول',      coords = vec3(-700.0, -930.0, 19.0) },
-    { label = 'ستربري',        coords = vec3(130.0, -1300.0, 29.0) },
+    { label = 'Legion Square', coords = vec3(215.0, -930.0, 30.0) },
+    { label = 'Rockford Hills', coords = vec3(-560.0, -210.0, 37.0) },
+    { label = 'Mirror Park',   coords = vec3(1150.0, -460.0, 66.0) },
+    { label = 'Vespucci',      coords = vec3(-1280.0, -1130.0, 6.0) },
+    { label = 'Davis',         coords = vec3(400.0, -1600.0, 29.0) },
+    { label = 'La Mesa',       coords = vec3(820.0, -1040.0, 26.0) },
+    { label = 'Little Seoul',  coords = vec3(-700.0, -930.0, 19.0) },
+    { label = 'Strawberry',    coords = vec3(130.0, -1300.0, 29.0) },
 }
--- أقصى بعد مسموح بين نقطة البلاغ وموقع السيارة الفعلي
+-- Max distance allowed between the call point and the actual vehicle position
 Config.CallAreaRadius = 180.0
--- السيارة تنزل لما يقرب اللاعب هالمسافة
+-- The vehicle spawns once the player is within this distance
 Config.SpawnDistance = 180.0
 
 --------------------------------------------------------------------------------
--- الشغل والفلوس
+-- Work and pay
 --------------------------------------------------------------------------------
 Config.Payment = { min = 450, max = 650, account = 'bank' }
-Config.CallCooldown = { min = 15, max = 40 } -- ثواني قبل البلاغ الجاي
-Config.AssistDuration = 12                   -- مدة الشحن بالثواني
-Config.FailChance = 0.15                      -- احتمال فشل التشغيل (يعيد المحاولة)
-Config.MaxDistanceFromTarget = 8.0            -- لازم يكون قريب من السيارة لكل خطوة
+Config.CallCooldown = { min = 15, max = 40 } -- seconds before the next call
+Config.AssistDuration = 12                   -- charge duration in seconds
+Config.FailChance = 0.15                      -- chance the start fails (player retries)
+Config.MaxDistanceFromTarget = 8.0            -- player must be this close to the vehicle for each step
 
--- العقود (تظهر في التابلت)
+-- Contracts (shown in the tablet)
 Config.Contracts = {
-    { id = 'starter', label = 'عقد المبتدئ', description = 'أنجز 3 بلاغات خلال 30 دقيقة', calls = 3, time = 30, bonus = 600 },
-    { id = 'city',    label = 'عقد المدينة', description = 'أنجز 6 بلاغات خلال 60 دقيقة', calls = 6, time = 60, bonus = 1600 },
-    { id = 'marathon', label = 'ماراثون الطريق', description = 'أنجز 10 بلاغات خلال 90 دقيقة', calls = 10, time = 90, bonus = 3200 },
+    { id = 'starter',  label = 'Starter Contract', description = 'Complete 3 calls within 30 minutes',  calls = 3,  time = 30, bonus = 600 },
+    { id = 'city',     label = 'City Contract',    description = 'Complete 6 calls within 60 minutes',  calls = 6,  time = 60, bonus = 1600 },
+    { id = 'marathon', label = 'Road Marathon',    description = 'Complete 10 calls within 90 minutes', calls = 10, time = 90, bonus = 3200 },
 }
 
 --------------------------------------------------------------------------------
--- الأنميشنات
+-- Animations
 --------------------------------------------------------------------------------
 Config.Anims = {
     takeCables  = { dict = 'pickup_object', clip = 'pickup_low', flag = 0, duration = 1200 },
@@ -152,7 +152,7 @@ Config.Anims = {
 }
 
 --------------------------------------------------------------------------------
--- مفاتيح المركبة - عدلها حسب سكربت المفاتيح عندك (server side)
+-- Vehicle keys - adjust for your key script (server side)
 --------------------------------------------------------------------------------
 Config.GiveKeys = function(source, vehicle)
     if GetResourceState('qbx_vehiclekeys') == 'started' then

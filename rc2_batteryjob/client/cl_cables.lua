@@ -1,20 +1,20 @@
 --[[
-    الأسلاك والبطارية
-    - كل شي هنا محلي عند كل لاعب (مو networked) ويتزامن عن طريق state bags:
+    Cables and battery
+    - everything here is local per client (not networked) and synced through state bags:
         Player(id).state.batteryCables = { van = netId, target = netId, red = 'hand'|'terminal', black = ... }
-        Entity(veh).state.batteryTarget  = السيارة المعطلة (تنحط لها بطارية داخل الكبوت)
-    - السلك = rope حقيقي من منفذ المركبة للمشبك
+        Entity(veh).state.batteryTarget  = stalled vehicle (gets a battery prop under the hood)
+    - a cable is a real rope from the van port to the clamp
 ]]
 
 Cables = { override = false }
-Battery = { keep = {} } -- keep: سيارات ما تنحذف بطاريتها (أداة الضبط)
+Battery = { keep = {} } -- keep: vehicles whose battery prop must not be cleaned up (edit tool)
 
 local cfg = Config.Cables
 local renders = {}   -- [serverId] = { red = prop, black = prop, ropes = {}, state = {} }
 local batteries = {} -- [vehicle] = prop
 
 --------------------------------------------------------------------------------
--- البطارية داخل الكبوت
+-- Battery under the hood
 --------------------------------------------------------------------------------
 
 local function batteryLocalOffset(vehicle)
@@ -47,7 +47,7 @@ function Battery.get(vehicle)
     return prop
 end
 
--- يعيد تركيب البطارية (بعد تعديل المكان من أداة الضبط)
+-- Rebuilds the battery prop (after moving it with the edit tool)
 function Battery.refresh(vehicle)
     Utils.deleteEntity(batteries[vehicle])
     batteries[vehicle] = nil
@@ -84,7 +84,7 @@ CreateThread(function()
 end)
 
 --------------------------------------------------------------------------------
--- رسم الأسلاك لكل اللاعبين
+-- Cable rendering for every player
 --------------------------------------------------------------------------------
 
 local function loadRopeTextures()
@@ -179,7 +179,7 @@ local function updateRender(serverId, ped, state)
         return
     end
 
-    -- اللاعب نفسه وقت يركب الأسلاك بالماوس: لا نغير مكان المشابك
+    -- Local player is placing clamps with the mouse: leave them alone
     if serverId == cache.serverId and Cables.override then return end
 
     if not sameState(render.state, state) then
@@ -214,7 +214,7 @@ CreateThread(function()
 end)
 
 --------------------------------------------------------------------------------
--- حالة اللاعب نفسه
+-- Local player state
 --------------------------------------------------------------------------------
 
 function Cables.state()
@@ -241,7 +241,7 @@ function Cables.localClamps()
     return render and render.red, render and render.black
 end
 
--- يمسك الأسلاك (أنميشن) + يمنع ركوب السيارات + يرجعها لو بعد كثير
+-- Holding cables: keep the anim, block entering vehicles, return them if too far
 CreateThread(function()
     while true do
         local state = Cables.state()
@@ -264,10 +264,10 @@ CreateThread(function()
             end
 
             for _ = 1, 25 do
-                DisableControlAction(0, 23, true) -- ركوب سيارة
-                DisableControlAction(0, 24, true) -- ضرب
+                DisableControlAction(0, 23, true) -- enter vehicle
+                DisableControlAction(0, 24, true) -- attack
                 DisableControlAction(0, 25, true)
-                DisableControlAction(0, 22, true) -- قفز
+                DisableControlAction(0, 22, true) -- jump
                 Wait(0)
             end
         else
@@ -277,7 +277,7 @@ CreateThread(function()
 end)
 
 --------------------------------------------------------------------------------
--- توصيل / فك المشابك بالماوس داخل الكبوت
+-- Connecting / removing clamps with the mouse in the engine bay
 --------------------------------------------------------------------------------
 
 local function bayCamera(vehicle)
@@ -330,8 +330,8 @@ local function endBay()
     Cables.override = false
 end
 
---- يركب المشابك على الأقطاب. يرجع true لو انركب الاثنين
----@param onConnect fun(color: string): boolean  يتحقق من السيرفر
+--- Places the clamps on the terminals. Returns true when both are connected
+---@param onConnect fun(color: string): boolean  validated by the server
 function Cables.connect(vehicle, onConnect)
     local red, black = Cables.localClamps()
     if not red or not black then return false end
@@ -388,7 +388,7 @@ function Cables.connect(vehicle, onConnect)
                 local other = Battery.terminal(vehicle, otherColor)
 
                 if #(clampPos - other) < cfg.snapDistance then
-                    -- قطب غلط
+                    -- wrong terminal
                     Utils.sparks(other)
                     lib.notify({ description = locale('wrong_terminal'), type = 'error' })
                     local back = stagingCoords(vehicle, dragging)
@@ -417,7 +417,7 @@ function Cables.connect(vehicle, onConnect)
         Wait(0)
     end
 
-    -- اللي ما انركب يرجع لليد
+    -- Anything not connected goes back to the hands
     local ped = cache.ped
     for color, prop in pairs(clamps) do
         SetEntityDrawOutline(prop, false)
@@ -429,7 +429,7 @@ function Cables.connect(vehicle, onConnect)
     return next(clamps) == nil
 end
 
---- يفك المشابك (السالب أول). يرجع true لو انفك الاثنين
+--- Removes the clamps (negative first). Returns true when both are removed
 function Cables.disconnect(vehicle)
     local red, black = Cables.localClamps()
     if not red or not black then return false end

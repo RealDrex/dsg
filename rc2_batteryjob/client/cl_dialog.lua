@@ -2,7 +2,7 @@ Dialog = {}
 
 local pending
 
---- يعرض كلام شخص مع خيارات ويرجع رقم الخيار
+--- Shows a line of dialogue with options and returns the chosen index
 ---@param data { name: string, text: string, options: { label: string }[] }
 function Dialog.show(data)
     pending = promise.new()
@@ -30,7 +30,7 @@ RegisterNUICallback('dialog:choose', function(data, cb)
     end
 end)
 
---- محادثة كاملة مع كاميرا على وجه الشخص
+--- Full conversation with a camera on the speaker's face
 ---@param ped number
 ---@param script { text: string, options: { label: string, next?: number }[] }[]
 function Dialog.conversation(ped, name, script)
