@@ -55,6 +55,28 @@ exports.rc2_tablet:RegisterApp({
 
 It is removed automatically when that resource stops.
 
+## Built-in apps
+
+- **Battery Assist** (`drx_batteryjob`) — shown while that resource is running.
+- **Skills** — skill trees registered by job resources. XP per level: `Config.Skills.xpPerLevel`, each level = 1 skill point.
+
+## Skills API (server)
+
+```lua
+exports.rc2_tablet:RegisterSkillTree({
+    id = 'batteryjob', label = 'Battery Assist', icon = 'fa-solid fa-car-battery', color = '#ff5a1f',
+    skills = {
+        { id = 'install_speed', label = 'Installation Speed', description = '...', effect = '-10% time per level', maxLevel = 5 },
+    },
+})
+
+exports.rc2_tablet:AddSkillXP(source, 'batteryjob', 100)
+exports.rc2_tablet:GetSkillLevel(source, 'batteryjob', 'install_speed') -- 0..maxLevel
+exports.rc2_tablet:GetSkillLevels(source, 'batteryjob')                -- { install_speed = 2, ... }
+```
+
+Progress is saved in the `rc2_tablet_skills` table (created automatically). The tree is removed when the resource that registered it stops.
+
 ## App UI <-> tablet messaging
 
 Inside the app UI (the iframe):

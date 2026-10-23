@@ -8,7 +8,7 @@
 Screen = { interacting = false }
 
 local DRAW_TEXTURED_POLY <const> = 0x29280002282F1928
-local TXD_NAME <const> = 'rc2_battery_screen'
+local TXD_NAME <const> = 'drx_battery_screen'
 local TXN_NAME <const> = 'screen'
 
 local dui, duiReady

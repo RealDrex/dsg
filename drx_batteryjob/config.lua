@@ -140,6 +140,52 @@ Config.Contracts = {
 }
 
 --------------------------------------------------------------------------------
+-- Skills (shown and upgraded in the tablet's Skills app)
+-- Each tablet level = 1 skill point (XP per level is set in rc2_tablet's config)
+--------------------------------------------------------------------------------
+Config.Skills = {
+    xpPerCall = 100,
+    xpPerContract = 250,         -- extra XP when a call completes a contract
+
+    installSpeedPerLevel = 0.10, -- -10% charge time and handling time per level
+    reliabilityPerLevel = 0.03,  -- -3% failure chance per level
+    payPerLevel = 0.05,          -- +5% pay per level
+
+    tree = {
+        id = 'batteryjob',
+        label = 'Battery Assist',
+        icon = 'fa-solid fa-car-battery',
+        color = '#ff5a1f',
+        skills = {
+            {
+                id = 'install_speed',
+                label = 'Installation Speed',
+                description = 'Grab, connect and store the cables faster, and the jump starter charges quicker.',
+                effect = '-10% time per level',
+                icon = 'fa-solid fa-gauge-high',
+                maxLevel = 5,
+            },
+            {
+                id = 'reliability',
+                label = 'Reliability',
+                description = 'Better technique means the jump start fails less often.',
+                effect = '-3% failure chance per level',
+                icon = 'fa-solid fa-shield-halved',
+                maxLevel = 5,
+            },
+            {
+                id = 'customer_service',
+                label = 'Customer Service',
+                description = 'Happy customers pay more for the call.',
+                effect = '+5% pay per level',
+                icon = 'fa-solid fa-handshake',
+                maxLevel = 5,
+            },
+        },
+    },
+}
+
+--------------------------------------------------------------------------------
 -- Animations
 --------------------------------------------------------------------------------
 Config.Anims = {

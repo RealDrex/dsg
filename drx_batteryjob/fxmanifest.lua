@@ -2,7 +2,7 @@ fx_version 'cerulean'
 game 'gta5'
 lua54 'yes'
 
-name 'rc2_batteryjob'
+name 'drx_batteryjob'
 description 'Roadside battery assistance job - external DUI screen, real jumper cables, tablet app'
 version '1.0.0'
 

@@ -46,6 +46,23 @@ Config.Theme = {
 ]]
 Config.Apps = {
     {
+        identifier = 'batteryjob',
+        name = 'Battery Assist',
+        icon = 'fa-solid fa-car-battery',
+        iconColor = '#ffffff',
+        color = '#ff5a1f',
+        resource = 'drx_batteryjob',
+        ui = 'https://cfx-nui-drx_batteryjob/web/app/index.html',
+    },
+    {
+        -- Built-in skills app (skill trees are registered by each job resource)
+        identifier = 'skills',
+        name = 'Skills',
+        image = 'apps/skilltree.png',
+        color = '#1c1c1e',
+        ui = 'https://cfx-nui-rc2_tablet/web/apps/skills/index.html',
+    },
+    {
         identifier = 'jobs',
         name = 'Jobs',
         image = 'apps/jobs.png',
@@ -61,4 +78,9 @@ Config.Apps = {
     -- { identifier = 'managment',  name = 'Management', image = 'apps/managment.png',  resource = 'rc2_managment',  ui = 'https://cfx-nui-rc2_managment/web/build/index.html' },
     -- { identifier = 'supply',     name = 'Supply',   image = 'apps/supply.png',     resource = 'rc2_supply',     ui = 'https://cfx-nui-rc2_supply/web/build/index.html' },
     -- { identifier = 'skilltree',  name = 'Skills',   image = 'apps/skilltree.png',  resource = 'rc2_skilltree',  ui = 'https://cfx-nui-rc2_skilltree/web/build/index.html' },
+}
+
+-- Skills: XP needed per level (each level = 1 skill point)
+Config.Skills = {
+    xpPerLevel = 300,
 }

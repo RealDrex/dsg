@@ -4,7 +4,7 @@ lua54 'yes'
 name 'rc2_tablet'
 author 'Jaber Eyad'
 description 'RC2 Tablet - app launcher (apps are separate resources)'
-version '1.1.0'
+version '1.2.0'
 
 ox_lib 'locale'
 
@@ -28,6 +28,7 @@ ui_page 'web/build/index.html'
 
 files {
     'web/build/**',
+    'web/apps/**',
     'locales/*.json',
 }
 

@@ -12,9 +12,13 @@ function Utils.stopAnim(ped, anim)
 end
 
 -- Plays an anim for its duration and waits
-function Utils.playAnimWait(anim)
+---@param speed? number time multiplier (0.5 = twice as fast)
+function Utils.playAnimWait(anim, speed)
+    speed = speed or 1.0
     Utils.playAnim(cache.ped, anim)
-    Wait(anim.duration or 1000)
+    Wait(0)
+    if speed ~= 1.0 then SetEntityAnimSpeed(cache.ped, anim.dict, anim.clip, 1.0 / speed) end
+    Wait(math.floor((anim.duration or 1000) * speed))
     Utils.stopAnim(cache.ped, anim)
 end
 

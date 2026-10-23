@@ -10,6 +10,16 @@ local target = { vehicle = nil, ped = nil, callId = nil }
 
 local function call() return Job.data and Job.data.call end
 
+--- Player's level in one of this job's skills (from the tablet Skills app)
+function Job.skill(id)
+    return Job.data and Job.data.skills and Job.data.skills[id] or 0
+end
+
+--- Time multiplier from Installation Speed (1.0 = normal, 0.5 = twice as fast)
+function Job.speed()
+    return math.max(0.3, 1.0 - Job.skill('install_speed') * Config.Skills.installSpeedPerLevel)
+end
+
 local function myVan()
     local netId = Job.data and Job.data.van
     if not netId or not NetworkDoesNetworkIdExist(netId) then return nil end
@@ -27,7 +37,7 @@ function Job.step(step)
     if not c then return false end
     if STEP_INDEX[c.step] >= STEP_INDEX[step] and step ~= 'started' then return true end
 
-    local ok, result = lib.callback.await('rc2_batteryjob:server:step', false, c.id, step)
+    local ok, result = lib.callback.await('drx_batteryjob:server:step', false, c.id, step)
     if ok and c == call() then
         if step == 'started' and result and not result.success then
             c.step = 'black'
@@ -43,7 +53,7 @@ end
 --------------------------------------------------------------------------------
 
 local function startShift()
-    local ok, err = lib.callback.await('rc2_batteryjob:server:startShift', false)
+    local ok, err = lib.callback.await('drx_batteryjob:server:startShift', false)
     if not ok then
         lib.notify({ description = locale('error_' .. tostring(err)), type = 'error' })
         return
@@ -56,7 +66,7 @@ local function endShift()
         lib.notify({ description = locale('store_cables_first'), type = 'error' })
         return
     end
-    local ok, err = lib.callback.await('rc2_batteryjob:server:endShift', false)
+    local ok, err = lib.callback.await('drx_batteryjob:server:endShift', false)
     if not ok then
         lib.notify({ description = locale('error_' .. tostring(err)), type = 'error' })
     end
@@ -238,7 +248,7 @@ local function watchCall(c)
             if #(GetEntityCoords(cache.ped) - vec3(coords.x, coords.y, coords.z)) < Config.SpawnDistance then
                 local spot, heading = findRoadsideSpot(coords)
                 if spot then
-                    local ok, vehNet, pedNet = lib.callback.await('rc2_batteryjob:server:spawnTarget', false, c.id, spot, heading)
+                    local ok, vehNet, pedNet = lib.callback.await('drx_batteryjob:server:spawnTarget', false, c.id, spot, heading)
                     if ok and call() and call().id == c.id then
                         call().vehicleNet, call().pedNet = vehNet, pedNet
                         setupTarget(call())
@@ -263,7 +273,7 @@ function Job.takeCables()
 
     TaskTurnPedToFaceEntity(cache.ped, van, 600)
     Wait(600)
-    Utils.playAnimWait(Config.Anims.takeCables)
+    Utils.playAnimWait(Config.Anims.takeCables, Job.speed())
 
     local c = call()
     Cables.set({ van = Job.data.van, target = c and c.vehicleNet or nil, red = 'hand', black = 'hand' })
@@ -274,7 +284,7 @@ function Job.storeCables()
     if not state or state.red ~= 'hand' or state.black ~= 'hand' then return end
 
     Utils.stopAnim(cache.ped, Config.Anims.holdCables)
-    Utils.playAnimWait(Config.Anims.storeCables)
+    Utils.playAnimWait(Config.Anims.storeCables, Job.speed())
 
     local c = call()
     if c and c.step == 'disconnected' then
@@ -299,7 +309,7 @@ function Job.openHood()
     if not c or c.step ~= 'talked' or not target.vehicle then return end
 
     Utils.playAnim(cache.ped, Config.Anims.hood)
-    Wait(1500)
+    Wait(math.floor(1500 * Job.speed()))
     if Utils.requestControl(target.vehicle) then
         SetVehicleDoorOpen(target.vehicle, 4, false, false)
     end
@@ -467,7 +477,7 @@ local function sendToTablet(state)
     end
 end
 
-RegisterNetEvent('rc2_batteryjob:client:state', function(state)
+RegisterNetEvent('drx_batteryjob:client:state', function(state)
     local previous = call()
     Job.data = state
 
@@ -479,7 +489,7 @@ RegisterNetEvent('rc2_batteryjob:client:state', function(state)
     sendToTablet(state)
 end)
 
-RegisterNetEvent('rc2_batteryjob:client:newCall', function(c)
+RegisterNetEvent('drx_batteryjob:client:newCall', function(c)
     if not Job.data then Job.data = {} end
     Job.data.call = c
     lib.notify({ title = c.customer, description = locale('new_call', c.area), type = 'inform' })
@@ -487,11 +497,20 @@ RegisterNetEvent('rc2_batteryjob:client:newCall', function(c)
     watchCall(c)
 end)
 
-RegisterNetEvent('rc2_batteryjob:client:callFinished', function()
+-- Skill upgraded in the tablet: refresh levels so the new speed applies right away
+RegisterNetEvent('rc2_tablet:client:skillsUpdated', function()
+    local state = lib.callback.await('drx_batteryjob:server:getState', false)
+    if state then
+        Job.data = state
+        sendToTablet(state)
+    end
+end)
+
+RegisterNetEvent('drx_batteryjob:client:callFinished', function()
     clearTarget(true)
 end)
 
-RegisterNetEvent('rc2_batteryjob:client:shiftEnded', function()
+RegisterNetEvent('drx_batteryjob:client:shiftEnded', function()
     clearTarget(false)
     if Cables.state() then Cables.clear() end
     Utils.stopAnim(cache.ped, Config.Anims.holdCables)
@@ -504,16 +523,16 @@ end)
 --------------------------------------------------------------------------------
 
 RegisterNUICallback('app:getState', function(_, cb)
-    cb(lib.callback.await('rc2_batteryjob:server:getState', false))
+    cb(lib.callback.await('drx_batteryjob:server:getState', false))
 end)
 
 RegisterNUICallback('app:acceptContract', function(data, cb)
-    local ok, err = lib.callback.await('rc2_batteryjob:server:acceptContract', false, data.id)
+    local ok, err = lib.callback.await('drx_batteryjob:server:acceptContract', false, data.id)
     cb({ ok = ok, error = err and locale('error_' .. err) })
 end)
 
 RegisterNUICallback('app:cancelContract', function(_, cb)
-    cb({ ok = lib.callback.await('rc2_batteryjob:server:cancelContract', false) })
+    cb({ ok = lib.callback.await('drx_batteryjob:server:cancelContract', false) })
 end)
 
 RegisterNUICallback('app:cancelCall', function(_, cb)
@@ -521,7 +540,7 @@ RegisterNUICallback('app:cancelCall', function(_, cb)
         cb({ ok = false, error = locale('store_cables_first') })
         return
     end
-    cb({ ok = lib.callback.await('rc2_batteryjob:server:cancelCall', false) })
+    cb({ ok = lib.callback.await('drx_batteryjob:server:cancelCall', false) })
 end)
 
 RegisterNUICallback('app:waypoint', function(data, cb)
@@ -543,7 +562,7 @@ CreateThread(function()
     setupDepot()
 
     -- Resource restarted mid-shift
-    local state = lib.callback.await('rc2_batteryjob:server:getState', false)
+    local state = lib.callback.await('drx_batteryjob:server:getState', false)
     if state and state.onShift then
         Job.data = state
         if state.call then

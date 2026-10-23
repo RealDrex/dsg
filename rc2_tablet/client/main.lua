@@ -184,6 +184,21 @@ end
 RegisterNetEvent('rc2_tablet:client:notify', notify)
 RegisterNetEvent('rc2_tablet:client:appMessage', sendAppMessage)
 
+-- Skills app ----------------------------------------------------------------
+
+RegisterNUICallback('skills:get', function(_, cb)
+    cb(lib.callback.await('rc2_tablet:server:skills:get', false) or {})
+end)
+
+RegisterNUICallback('skills:upgrade', function(data, cb)
+    local ok, trees = lib.callback.await('rc2_tablet:server:skills:upgrade', false, data.tree, data.skill)
+    cb({ ok = ok, trees = trees })
+end)
+
+RegisterNetEvent('rc2_tablet:client:skillsUpdated', function()
+    sendAppMessage('skills', { type = 'refresh' })
+end)
+
 -- Refresh apps when job / gang / duty changes
 RegisterNetEvent('QBCore:Client:OnPlayerLoaded', refreshApps)
 RegisterNetEvent('QBCore:Client:OnJobUpdate', refreshApps)

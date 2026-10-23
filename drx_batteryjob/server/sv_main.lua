@@ -31,7 +31,7 @@ local callCounter = 0
 
 MySQL.ready(function()
     MySQL.query.await([[
-        CREATE TABLE IF NOT EXISTS `rc2_batteryjob_stats` (
+        CREATE TABLE IF NOT EXISTS `drx_batteryjob_stats` (
             `citizenid` VARCHAR(50) NOT NULL,
             `calls` INT NOT NULL DEFAULT 0,
             `earned` INT NOT NULL DEFAULT 0,
@@ -47,13 +47,13 @@ local function getCitizenId(src)
 end
 
 local function loadStats(citizenid)
-    local row = MySQL.single.await('SELECT calls, earned, contracts FROM rc2_batteryjob_stats WHERE citizenid = ?', { citizenid })
+    local row = MySQL.single.await('SELECT calls, earned, contracts FROM drx_batteryjob_stats WHERE citizenid = ?', { citizenid })
     return row or { calls = 0, earned = 0, contracts = 0 }
 end
 
 local function addStats(citizenid, calls, earned, contracts)
     MySQL.prepare([[
-        INSERT INTO rc2_batteryjob_stats (citizenid, calls, earned, contracts) VALUES (?, ?, ?, ?)
+        INSERT INTO drx_batteryjob_stats (citizenid, calls, earned, contracts) VALUES (?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE calls = calls + VALUES(calls), earned = earned + VALUES(earned), contracts = contracts + VALUES(contracts)
     ]], { citizenid, calls, earned, contracts })
 end
@@ -137,6 +137,40 @@ local function publicContract(shift)
     }
 end
 
+--------------------------------------------------------------------------------
+-- Skills (stored and upgraded through the rc2_tablet Skills app)
+--------------------------------------------------------------------------------
+
+local function tabletStarted()
+    return GetResourceState('rc2_tablet') == 'started'
+end
+
+local function skillLevel(src, skillId)
+    if not tabletStarted() then return 0 end
+    local ok, level = pcall(function()
+        return exports.rc2_tablet:GetSkillLevel(src, Config.Skills.tree.id, skillId)
+    end)
+    return ok and tonumber(level) or 0
+end
+
+local function skillLevels(src)
+    local levels = {}
+    for _, skill in ipairs(Config.Skills.tree.skills) do
+        levels[skill.id] = skillLevel(src, skill.id)
+    end
+    return levels
+end
+
+local function addXp(src, amount)
+    if not tabletStarted() then return end
+    pcall(function() exports.rc2_tablet:AddSkillXP(src, Config.Skills.tree.id, amount) end)
+end
+
+local function registerSkillTree()
+    if not tabletStarted() then return end
+    exports.rc2_tablet:RegisterSkillTree(Config.Skills.tree)
+end
+
 local function getState(src)
     local shift = shifts[src]
     local citizenid = getCitizenId(src)
@@ -149,6 +183,7 @@ local function getState(src)
         contract = shift and publicContract(shift),
         session = shift and { calls = shift.calls, earned = shift.earned } or nil,
         stats = citizenid and loadStats(citizenid) or nil,
+        skills = skillLevels(src),
         contracts = Config.Contracts,
         depot = toTable(Config.Depot.ped.coords),
     }
@@ -173,7 +208,7 @@ local function updateScreen(src)
             customer = call.customer,
             red = i >= STEP_INDEX.red and i < STEP_INDEX.disconnected,
             black = i >= STEP_INDEX.black and i < STEP_INDEX.disconnected,
-            running = call.step == 'running' and { duration = Config.AssistDuration, id = call.runId } or nil,
+            running = call.step == 'running' and { duration = call.runDuration, id = call.runId } or nil,
             result = (call.step == 'started' or call.step == 'disconnected') and 'success' or call.lastResult,
         }
     end
@@ -183,7 +218,7 @@ end
 
 local function pushState(src)
     updateScreen(src)
-    TriggerClientEvent('rc2_batteryjob:client:state', src, getState(src))
+    TriggerClientEvent('drx_batteryjob:client:state', src, getState(src))
 end
 
 --------------------------------------------------------------------------------
@@ -215,7 +250,7 @@ local function assignCall(src)
         createdAt = os.time(),
     }
 
-    TriggerClientEvent('rc2_batteryjob:client:newCall', src, publicCall(shift.call))
+    TriggerClientEvent('drx_batteryjob:client:newCall', src, publicCall(shift.call))
     tabletNotify(src, ('New call: %s - %s'):format(shift.call.customer, shift.call.area.label))
     pushState(src)
 end
@@ -262,11 +297,11 @@ local function endShift(src, reason)
     shifts[src] = nil
 
     Player(src).state:set('batteryShift', false, true)
-    TriggerClientEvent('rc2_batteryjob:client:shiftEnded', src, reason)
+    TriggerClientEvent('drx_batteryjob:client:shiftEnded', src, reason)
     pushState(src)
 end
 
-lib.callback.register('rc2_batteryjob:server:startShift', function(src)
+lib.callback.register('drx_batteryjob:server:startShift', function(src)
     if shifts[src] then return false, 'already_on_shift' end
     if #(playerCoords(src) - Config.Depot.ped.coords.xyz) > 10.0 then return false, 'too_far' end
 
@@ -309,7 +344,7 @@ lib.callback.register('rc2_batteryjob:server:startShift', function(src)
     return true, netId
 end)
 
-lib.callback.register('rc2_batteryjob:server:endShift', function(src)
+lib.callback.register('drx_batteryjob:server:endShift', function(src)
     local shift = shifts[src]
     if not shift then return false end
 
@@ -321,7 +356,7 @@ lib.callback.register('rc2_batteryjob:server:endShift', function(src)
     return true
 end)
 
-lib.callback.register('rc2_batteryjob:server:getState', function(src)
+lib.callback.register('drx_batteryjob:server:getState', function(src)
     return getState(src)
 end)
 
@@ -329,7 +364,7 @@ end)
 -- Contracts
 --------------------------------------------------------------------------------
 
-lib.callback.register('rc2_batteryjob:server:acceptContract', function(src, id)
+lib.callback.register('drx_batteryjob:server:acceptContract', function(src, id)
     local shift = shifts[src]
     if not shift then return false, 'not_on_shift' end
     if shift.contract then return false, 'has_contract' end
@@ -346,7 +381,7 @@ lib.callback.register('rc2_batteryjob:server:acceptContract', function(src, id)
     return false, 'unknown_contract'
 end)
 
-lib.callback.register('rc2_batteryjob:server:cancelContract', function(src)
+lib.callback.register('drx_batteryjob:server:cancelContract', function(src)
     local shift = shifts[src]
     if not shift or not shift.contract then return false end
     shift.contract = nil
@@ -376,7 +411,7 @@ end
 -- Call progress (server validated)
 --------------------------------------------------------------------------------
 
-lib.callback.register('rc2_batteryjob:server:spawnTarget', function(src, callId, coords, heading)
+lib.callback.register('drx_batteryjob:server:spawnTarget', function(src, callId, coords, heading)
     local shift = shifts[src]
     local call = shift and shift.call
     if not call or call.id ~= callId or call.vehicleNet then return false end
@@ -425,7 +460,7 @@ local function canAdvance(src, call, step)
     return #(playerCoords(src) - GetEntityCoords(vehicle)) <= Config.MaxDistanceFromTarget
 end
 
-lib.callback.register('rc2_batteryjob:server:step', function(src, callId, step)
+lib.callback.register('drx_batteryjob:server:step', function(src, callId, step)
     local shift = shifts[src]
     local call = shift and shift.call
     if not call or call.id ~= callId then return false end
@@ -437,14 +472,19 @@ lib.callback.register('rc2_batteryjob:server:step', function(src, callId, step)
         call.runId = (call.runId or 0) + 1
         call.lastResult = nil
         call.runStartedAt = GetGameTimer()
-        call.runSuccess = math.random() >= Config.FailChance
+
+        local speed = skillLevel(src, 'install_speed')
+        local reliability = skillLevel(src, 'reliability')
+        call.runDuration = math.max(3, Config.AssistDuration * (1 - speed * Config.Skills.installSpeedPerLevel))
+        call.runSuccess = math.random() >= math.max(0, Config.FailChance - reliability * Config.Skills.reliabilityPerLevel)
+
         pushState(src)
-        return true, { duration = Config.AssistDuration, success = call.runSuccess }
+        return true, { duration = call.runDuration, success = call.runSuccess }
     end
 
     if step == 'started' then
         if call.step ~= 'running' then return false end
-        if GetGameTimer() - call.runStartedAt < (Config.AssistDuration - 1) * 1000 then return false end
+        if GetGameTimer() - call.runStartedAt < (call.runDuration - 1) * 1000 then return false end
 
         if not call.runSuccess then
             -- Failed: back to ready so the player can retry
@@ -471,7 +511,8 @@ lib.callback.register('rc2_batteryjob:server:step', function(src, callId, step)
         local player = exports.qbx_core:GetPlayer(src)
         if not player then return false end
 
-        local amount = math.random(Config.Payment.min, Config.Payment.max)
+        local service = skillLevel(src, 'customer_service')
+        local amount = math.floor(math.random(Config.Payment.min, Config.Payment.max) * (1 + service * Config.Skills.payPerLevel))
         local bonus = progressContract(src, shift)
         player.Functions.AddMoney(Config.Payment.account, amount + bonus, 'battery-assist')
 
@@ -481,9 +522,10 @@ lib.callback.register('rc2_batteryjob:server:step', function(src, callId, step)
             addStats(shift.citizenid, 1, amount + bonus, bonus > 0 and 1 or 0)
         end
 
+        addXp(src, Config.Skills.xpPerCall + (bonus > 0 and Config.Skills.xpPerContract or 0))
         notify(src, ('You received $%d%s'):format(amount, bonus > 0 and (' + bonus $%d'):format(bonus) or ''), 'success')
 
-        TriggerClientEvent('rc2_batteryjob:client:callFinished', src, call.id)
+        TriggerClientEvent('drx_batteryjob:client:callFinished', src, call.id)
         cleanupCall(call, 45000)
         shift.call = nil
         scheduleNextCall(src)
@@ -499,7 +541,7 @@ lib.callback.register('rc2_batteryjob:server:step', function(src, callId, step)
 end)
 
 -- The player can cancel the current call (no payment)
-lib.callback.register('rc2_batteryjob:server:cancelCall', function(src)
+lib.callback.register('drx_batteryjob:server:cancelCall', function(src)
     local shift = shifts[src]
     if not shift or not shift.call then return false end
 
@@ -530,20 +572,9 @@ AddEventHandler('onResourceStop', function(resource)
     end
 end)
 
-local function registerTabletApp()
-    if GetResourceState('rc2_tablet') ~= 'started' then return end
-    exports.rc2_tablet:RegisterApp({
-        identifier = 'batteryjob',
-        name = Config.JobLabel,
-        icon = 'fa-solid fa-car-battery',
-        iconColor = '#ffffff',
-        color = '#ff5a1f',
-        ui = ('https://cfx-nui-%s/web/app/index.html'):format(cache.resource),
-    })
-end
-
+-- The app itself is listed in rc2_tablet's Config.Apps; only the skill tree is registered here
 AddEventHandler('onResourceStart', function(resource)
-    if resource == 'rc2_tablet' then registerTabletApp() end
+    if resource == 'rc2_tablet' then registerSkillTree() end
 end)
 
-CreateThread(registerTabletApp)
+CreateThread(registerSkillTree)

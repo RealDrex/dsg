@@ -352,6 +352,8 @@ function Cables.connect(vehicle, onConnect)
 
     lib.showTextUI(locale('bay_controls'), { position = 'left-center' })
 
+    -- Installation Speed: +10% snap radius per level so clamps lock on quicker
+    local snap = cfg.snapDistance * (1.0 + Job.skill('install_speed') * 0.1)
     local dragging, depth
 
     while next(clamps) do
@@ -387,13 +389,13 @@ function Cables.connect(vehicle, onConnect)
                 local otherColor = dragging == 'red' and 'black' or 'red'
                 local other = Battery.terminal(vehicle, otherColor)
 
-                if #(clampPos - other) < cfg.snapDistance then
+                if #(clampPos - other) < snap then
                     -- wrong terminal
                     Utils.sparks(other)
                     lib.notify({ description = locale('wrong_terminal'), type = 'error' })
                     local back = stagingCoords(vehicle, dragging)
                     SetEntityCoordsNoOffset(prop, back.x, back.y, back.z, false, false, false)
-                elseif #(clampPos - own) < cfg.snapDistance then
+                elseif #(clampPos - own) < snap then
                     if dragging == 'black' and clamps.red then
                         Utils.sparks(own)
                         lib.notify({ description = locale('positive_first'), type = 'error' })

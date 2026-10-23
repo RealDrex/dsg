@@ -1,15 +1,15 @@
-# rc2_batteryjob — Roadside Battery Assistance
+# drx_batteryjob — Roadside Battery Assistance
 
 A complete job: start a shift at the depot, get a service van with a **real screen on its left side**, receive calls for stalled vehicles, pull **two real jumper cables** from the van, connect them to the battery **with the mouse**, start the charge from the screen, and get paid.
 
 ## Requirements
 
 - `qbx_core` · `ox_lib` · `ox_target` · `oxmysql`
-- Optional: `rc2_tablet` (the job app is added automatically) · `qbx_vehiclekeys`
+- `rc2_tablet` (job app + Skills app) · optional `qbx_vehiclekeys`
 
 ## Installation
 
-1. Copy the folder and add `ensure rc2_batteryjob` after `rc2_tablet`.
+1. Copy the folder and add `ensure drx_batteryjob` after `rc2_tablet`.
 2. The database table is created automatically (or run `sql/install.sql`).
 3. Review `config.lua`: depot, vehicle model, pay, contracts.
 
@@ -28,6 +28,18 @@ A complete job: start a shift at the depot, get a service van with a **real scre
 | 9 | Start | Charging takes a server-timed duration, the car starts or fails and you retry |
 | 10 | Disconnect | `[E]` at the hood, click the clamps (**black first**) |
 | 11 | Store | `[E]` at the ports, **you get paid** and the customer drives away |
+
+## Skills
+
+The skill tree is registered in the tablet's **Skills** app. Each call gives XP (`Config.Skills.xpPerCall`, plus a bonus when it completes a contract), every level gives one skill point.
+
+| Skill | Effect (per level, max 5) |
+|---|---|
+| Installation Speed | -10% charge time, faster cable / hood animations, larger clamp snap radius |
+| Reliability | -3% jump start failure chance |
+| Customer Service | +5% pay |
+
+Charge time, failure chance and pay are all computed on the server from the stored skill levels.
 
 ## Screen (DUI)
 

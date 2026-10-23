@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<style>
+    :root { --c1: #ff5a1f; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; background: #0e0f12; color: #e5e7eb; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; overflow: hidden; }
+    .app { height: 100%; display: flex; flex-direction: column; }
+    header { display: flex; align-items: center; gap: 12px; padding: 18px 22px; border-bottom: 1px solid #1f2128; }
+    header .icon { width: 40px; height: 40px; border-radius: 12px; background: #2c2c2e; display: grid; place-items: center; color: #fff; font-size: 18px; }
+    header h1 { font-size: 18px; font-weight: 700; }
+    header .close { margin-left: auto; background: none; border: none; color: #9ca3af; font-size: 18px; cursor: pointer; }
+    main { flex: 1; overflow-y: auto; padding: 18px 22px; display: flex; flex-direction: column; gap: 16px; }
+    .empty { color: #6b7280; text-align: center; padding: 60px 0; font-size: 14px; }
+    .tree { background: #16171c; border: 1px solid #22242c; border-radius: 16px; padding: 18px; }
+    .tree-head { display: flex; align-items: center; gap: 14px; }
+    .tree-head .badge { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; color: #fff; font-size: 20px; flex: none; }
+    .tree-head .title { font-size: 17px; font-weight: 700; color: #fff; }
+    .tree-head .sub { font-size: 13px; color: #9ca3af; margin-top: 2px; }
+    .points { margin-left: auto; text-align: right; }
+    .points b { display: block; font-size: 22px; color: #fff; }
+    .points span { font-size: 12px; color: #9ca3af; }
+    .points.has b { color: #4ade80; }
+    .xp { height: 8px; border-radius: 4px; background: #22242c; overflow: hidden; margin: 14px 0 4px; }
+    .xp i { display: block; height: 100%; }
+    .xp-label { display: flex; justify-content: space-between; font-size: 12px; color: #6b7280; }
+    .skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-top: 16px; }
+    .skill { background: #1b1c22; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .skill .name { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #fff; font-size: 15px; }
+    .skill .name i { width: 18px; text-align: center; }
+    .skill .desc { font-size: 13px; color: #9ca3af; line-height: 1.45; }
+    .skill .effect { font-size: 12px; color: #4ade80; }
+    .skill .row { display: flex; align-items: center; gap: 10px; margin-top: auto; }
+    .pips { display: flex; gap: 5px; flex: 1; }
+    .pips i { flex: 1; height: 6px; border-radius: 3px; background: #2a2c35; }
+    .pips i.on { background: var(--tree, var(--c1)); }
+    .skill button { width: 34px; height: 34px; border-radius: 10px; border: none; cursor: pointer; font-size: 15px; color: #fff; background: var(--tree, var(--c1)); }
+    .skill button:disabled { background: #2a2c35; color: #6b7280; cursor: default; }
+    .skill .lvl { font-size: 12px; color: #9ca3af; min-width: 34px; text-align: right; }
+</style>
+</head>
+<body>
+<div class="app">
+    <header>
+        <div class="icon"><i class="fa-solid fa-diagram-project"></i></div>
+        <h1>Skills</h1>
+        <button class="close" id="close"><i class="fa-solid fa-xmark"></i></button>
+    </header>
+    <main id="trees"><div class="empty">Loading...</div></main>
+</div>
+
+<script>
+    const RES = location.host.replace('cfx-nui-', '') || 'rc2_tablet';
+    const $ = (id) => document.getElementById(id);
+    const post = (name, body = {}) => fetch(`https://${RES}/${name}`, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json()).catch(() => null);
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    let trees = [];
+
+    function render() {
+        if (!trees.length) {
+            $('trees').innerHTML = '<div class="empty">No skills yet. Start working a job to unlock its skill tree.</div>';
+            return;
+        }
+
+        $('trees').innerHTML = trees.map(t => {
+            const color = esc(t.color || '#ff5a1f');
+            const maxed = t.level >= t.maxLevel;
+            const pct = maxed ? 100 : ((t.xp - t.levelXp) / (t.nextXp - t.levelXp)) * 100;
+
+            const skills = t.skills.map(s => {
+                const pips = Array.from({ length: s.maxLevel }, (_, i) => `<i class="${i < s.level ? 'on' : ''}"></i>`).join('');
+                const canUp = t.points > 0 && s.level < s.maxLevel;
+                return `<div class="skill">
+                    <div class="name"><i class="${esc(s.icon || 'fa-solid fa-star')}" style="color:${color}"></i>${esc(s.label)}</div>
+                    <div class="desc">${esc(s.description)}</div>
+                    ${s.effect ? `<div class="effect">${esc(s.effect)}</div>` : ''}
+                    <div class="row">
+                        <div class="pips">${pips}</div>
+                        <span class="lvl">${s.level}/${s.maxLevel}</span>
+                        <button data-tree="${esc(t.id)}" data-skill="${esc(s.id)}" ${canUp ? '' : 'disabled'}><i class="fa-solid fa-plus"></i></button>
+                    </div>
+                </div>`;
+            }).join('');
+
+            return `<section class="tree" style="--tree:${color}">
+                <div class="tree-head">
+                    <div class="badge" style="background:${color}"><i class="${esc(t.icon || 'fa-solid fa-star')}"></i></div>
+                    <div><div class="title">${esc(t.label)}</div><div class="sub">Level ${t.level}${maxed ? ' · MAX' : ''}</div></div>
+                    <div class="points ${t.points > 0 ? 'has' : ''}"><b>${t.points}</b><span>skill points</span></div>
+                </div>
+                <div class="xp"><i style="width:${pct}%;background:${color}"></i></div>
+                <div class="xp-label"><span>${t.xp} XP</span><span>${maxed ? 'Max level' : `${t.nextXp} XP`}</span></div>
+                <div class="skills">${skills}</div>
+            </section>`;
+        }).join('');
+    }
+
+    async function refresh() {
+        const data = await post('skills:get');
+        if (data && typeof data === 'object') { trees = Array.isArray(data) ? data : Object.values(data); render(); }
+    }
+
+    document.addEventListener('click', async (e) => {
+        const btn = e.target.closest('button[data-skill]');
+        if (!btn || btn.disabled) return;
+        btn.disabled = true;
+        const res = await post('skills:upgrade', { tree: btn.dataset.tree, skill: btn.dataset.skill });
+        if (res && res.ok && Array.isArray(res.trees)) { trees = res.trees; render(); } else refresh();
+    });
+
+    $('close').onclick = () => window.parent.postMessage({ action: 'phone:close' }, '*');
+
+    window.addEventListener('message', (e) => {
+        const msg = e.data;
+        if (!msg) return;
+        if (msg.action === 'phone:message' && msg.data && msg.data.type === 'refresh') refresh();
+        if (msg.action === 'phone:theme' && msg.data && msg.data.color1) document.documentElement.style.setProperty('--c1', msg.data.color1);
+    });
+
+    refresh();
+</script>
+</body>
+</html>
