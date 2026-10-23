@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; }
+    .dialog {
+        position: absolute; left: 50%; bottom: 6vh; transform: translateX(-50%) translateY(20px);
+        width: min(760px, 90vw); opacity: 0; transition: opacity .2s, transform .2s;
+        pointer-events: none;
+    }
+    .dialog.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+    .box {
+        background: rgba(10, 12, 18, 0.88); border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px; padding: 20px 24px; color: #f1f5f9;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+    }
+    .name { display: inline-block; font-size: 15px; font-weight: 700; color: #fff; background: #ff5a1f; padding: 4px 12px; border-radius: 8px; margin-bottom: 10px; }
+    .text { font-size: 19px; line-height: 1.7; min-height: 32px; }
+    .options { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+    .option {
+        text-align: right; font: inherit; font-size: 16px; color: #e2e8f0;
+        background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 10px; padding: 11px 14px; cursor: pointer; transition: background .15s, border-color .15s;
+    }
+    .option:hover { background: rgba(255, 90, 31, 0.18); border-color: #ff5a1f; }
+    .option span { color: #ff5a1f; font-weight: 700; margin-left: 8px; }
+</style>
+</head>
+<body>
+<div class="dialog" id="dialog">
+    <div class="box">
+        <div class="name" id="name"></div>
+        <div class="text" id="text"></div>
+        <div class="options" id="options"></div>
+    </div>
+</div>
+<script>
+    const RES = typeof GetParentResourceName === 'function' ? GetParentResourceName() : 'rc2_batteryjob';
+    const $ = (id) => document.getElementById(id);
+    let typing = null;
+
+    function type(text) {
+        clearInterval(typing);
+        $('text').textContent = '';
+        let i = 0;
+        typing = setInterval(() => {
+            $('text').textContent = text.slice(0, ++i);
+            if (i >= text.length) clearInterval(typing);
+        }, 18);
+    }
+
+    function choose(index) {
+        $('options').innerHTML = '';
+        fetch(`https://${RES}/dialog:choose`, { method: 'POST', body: JSON.stringify({ index }) });
+    }
+
+    window.addEventListener('message', (e) => {
+        const msg = e.data;
+        if (msg.action === 'dialog') {
+            const d = msg.data;
+            $('name').textContent = d.name;
+            type(d.text);
+            $('options').innerHTML = '';
+            (d.options || []).forEach((opt, i) => {
+                const b = document.createElement('button');
+                b.className = 'option';
+                b.innerHTML = `<span>${i + 1}.</span>`;
+                b.appendChild(document.createTextNode(opt.label));
+                b.onclick = () => choose(i + 1);
+                $('options').appendChild(b);
+            });
+            $('dialog').classList.add('show');
+        }
+        if (msg.action === 'dialogClose') {
+            $('dialog').classList.remove('show');
+        }
+    });
+
+    window.addEventListener('keydown', (e) => {
+        const n = parseInt(e.key, 10);
+        if (n && $('options').children[n - 1]) choose(n);
+    });
+</script>
+</body>
+</html>

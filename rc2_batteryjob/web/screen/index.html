@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+        width: 640px; height: 480px; overflow: hidden;
+        background: #050b16;
+        font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+        color: #e8f0ff;
+        user-select: none;
+    }
+    .screen {
+        position: absolute; inset: 0;
+        padding: 22px 26px;
+        background: radial-gradient(120% 90% at 30% 0%, #0f2a55 0%, #071226 55%, #040912 100%);
+        display: flex; flex-direction: column; gap: 16px;
+    }
+    .header { display: flex; align-items: center; justify-content: space-between; }
+    .brand { font-size: 26px; font-weight: 800; letter-spacing: 1px; color: #cfe1ff; }
+    .brand small { display: block; font-size: 13px; font-weight: 500; color: #7f9cc9; letter-spacing: 0.5px; }
+    .volt { display: flex; align-items: center; gap: 10px; font-size: 30px; font-weight: 700; color: #fff; }
+    .batt { width: 30px; height: 18px; border: 2px solid #4ade80; border-radius: 3px; position: relative; padding: 2px; }
+    .batt::after { content: ''; position: absolute; right: -6px; top: 4px; width: 3px; height: 6px; background: #4ade80; border-radius: 1px; }
+    .batt i { display: block; height: 100%; background: #4ade80; transition: width .4s; }
+    .batt.low { border-color: #f59e0b; } .batt.low::after, .batt.low i { background: #f59e0b; }
+
+    .body { display: flex; gap: 18px; flex: 1; }
+    .car {
+        width: 210px; border-radius: 14px; background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(140,180,255,0.15);
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    }
+    .car svg { width: 150px; }
+    .customer { font-size: 15px; color: #9fb7dd; text-align: center; padding: 0 8px; }
+    .rows { flex: 1; display: flex; flex-direction: column; gap: 12px; justify-content: center; }
+    .row {
+        display: flex; align-items: center; gap: 14px;
+        padding: 14px 16px; border-radius: 12px;
+        background: rgba(255,255,255,0.05); border: 1px solid rgba(140,180,255,0.12);
+        font-size: 20px; font-weight: 600;
+    }
+    .dot { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: 18px; color: #fff; flex: none; }
+    .dot.pos { background: #6b1d1d; } .dot.neg { background: #1f2937; }
+    .row.on .dot.pos { background: #ef4444; box-shadow: 0 0 14px #ef4444; }
+    .row.on .dot.neg { background: #22c55e; box-shadow: 0 0 14px #22c55e; }
+    .row .state { margin-left: auto; font-size: 15px; color: #7f9cc9; }
+    .row.on .state { color: #86efac; }
+
+    .btn {
+        height: 66px; border: none; border-radius: 12px;
+        background: linear-gradient(180deg, #2f7bff, #1556d6);
+        color: #fff; font-size: 26px; font-weight: 800; letter-spacing: 1px;
+        box-shadow: 0 6px 0 #0b3a99, 0 0 24px rgba(47,123,255,0.35);
+        cursor: pointer; transition: transform .08s, filter .15s;
+    }
+    .btn:hover { filter: brightness(1.15); }
+    .btn:active { transform: translateY(3px); box-shadow: 0 3px 0 #0b3a99; }
+    .btn:disabled { background: #1e2a44; color: #5d7096; box-shadow: none; cursor: default; filter: none; }
+
+    .progress { display: flex; flex-direction: column; gap: 8px; }
+    .progress .label { display: flex; justify-content: space-between; font-size: 18px; font-weight: 600; color: #cfe1ff; }
+    .bar { height: 16px; border-radius: 8px; background: #0d1a33; overflow: hidden; border: 1px solid rgba(140,180,255,0.15); }
+    .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #1e90ff, #38bdf8); transition: width .2s linear; }
+
+    .banner {
+        position: absolute; left: 26px; right: 26px; bottom: 22px; height: 66px; border-radius: 12px;
+        display: none; align-items: center; justify-content: center; gap: 12px;
+        font-size: 24px; font-weight: 800;
+    }
+    .banner.success { display: flex; background: #14532d; color: #bbf7d0; border: 2px solid #22c55e; }
+    .banner.fail { display: flex; background: #4c0f0f; color: #fecaca; border: 2px solid #ef4444; }
+
+    .standby {
+        position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+        background: radial-gradient(120% 90% at 50% 0%, #0f2a55 0%, #071226 60%, #040912 100%);
+    }
+    .standby.show { display: flex; }
+    .standby h1 { font-size: 34px; letter-spacing: 2px; color: #cfe1ff; }
+    .standby p { font-size: 18px; color: #7f9cc9; }
+    .pulse { width: 18px; height: 18px; border-radius: 50%; background: #38bdf8; box-shadow: 0 0 0 0 rgba(56,189,248,0.6); animation: pulse 1.6s infinite; }
+    @keyframes pulse { to { box-shadow: 0 0 0 26px rgba(56,189,248,0); } }
+
+    #cursor {
+        position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%;
+        border: 2px solid rgba(255,255,255,0.9); background: rgba(255,255,255,0.15);
+        pointer-events: none; display: none; z-index: 10;
+    }
+    body.focus #cursor { display: block; }
+    .scan { position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0 2px, transparent 2px 4px); }
+</style>
+</head>
+<body>
+<div class="screen">
+    <div class="header">
+        <div class="brand">BATTERY ASSIST<small id="sub">JUMP STARTER v2</small></div>
+        <div class="volt"><div class="batt" id="batt"><i id="battFill" style="width:70%"></i></div><span id="volt">12.4</span> V</div>
+    </div>
+
+    <div class="body">
+        <div class="car">
+            <svg viewBox="0 0 120 60" fill="none">
+                <path d="M10 42 L14 28 Q18 20 30 19 L48 18 Q56 10 70 10 L86 11 Q96 12 102 22 L110 30 Q114 33 114 38 L114 44 L10 44 Z" fill="#3b82f6" opacity=".85"/>
+                <path d="M52 19 Q58 13 70 13 L84 14 Q91 15 95 22 Z" fill="#bfdbfe" opacity=".8"/>
+                <circle cx="32" cy="45" r="9" fill="#0b1220" stroke="#93c5fd" stroke-width="3"/>
+                <circle cx="92" cy="45" r="9" fill="#0b1220" stroke="#93c5fd" stroke-width="3"/>
+            </svg>
+            <div class="customer" id="customer">—</div>
+        </div>
+        <div class="rows">
+            <div class="row" id="rowPos"><div class="dot pos">+</div>Positive<span class="state" id="posState">Disconnected</span></div>
+            <div class="row" id="rowNeg"><div class="dot neg">−</div>Negative<span class="state" id="negState">Disconnected</span></div>
+        </div>
+    </div>
+
+    <button class="btn" id="start" disabled>START ASSISTANCE</button>
+
+    <div class="progress">
+        <div class="label"><span id="progressLabel">Waiting...</span><span id="percent">0%</span></div>
+        <div class="bar"><i id="bar"></i></div>
+    </div>
+
+    <div class="banner" id="banner"></div>
+    <div class="standby" id="standby"><div class="pulse"></div><h1 id="standbyTitle">STANDBY</h1><p id="standbyText">Waiting for dispatch</p></div>
+    <div class="scan"></div>
+</div>
+<div id="cursor"></div>
+
+<script>
+    const RES = location.host.replace('cfx-nui-', '');
+    const $ = (id) => document.getElementById(id);
+    const post = (name, body = {}) => fetch(`https://${RES}/${name}`, { method: 'POST', body: JSON.stringify(body) }).catch(() => {});
+
+    let state = { mode: 'idle' };
+    let runTimer = null;
+    let lastRunId = null;
+
+    function setVolt(v) {
+        $('volt').textContent = v.toFixed(1);
+        const pct = Math.max(5, Math.min(100, ((v - 10.5) / 4) * 100));
+        $('battFill').style.width = pct + '%';
+        $('batt').classList.toggle('low', v < 12);
+    }
+
+    function setProgress(p, label) {
+        $('bar').style.width = p + '%';
+        $('percent').textContent = Math.floor(p) + '%';
+        $('progressLabel').textContent = label;
+    }
+
+    function stopRun() {
+        if (runTimer) clearInterval(runTimer);
+        runTimer = null;
+    }
+
+    function startRun(run) {
+        if (lastRunId === run.id && runTimer) return;
+        lastRunId = run.id;
+        stopRun();
+        const started = Date.now();
+        const total = run.duration * 1000;
+        runTimer = setInterval(() => {
+            const p = Math.min(100, ((Date.now() - started) / total) * 100);
+            setProgress(p, 'Charging...');
+            setVolt(11.2 + (p / 100) * 3.0);
+            if (p >= 100) stopRun();
+        }, 100);
+    }
+
+    function render() {
+        const s = state || { mode: 'idle' };
+        const standby = s.mode !== 'call';
+        $('standby').classList.toggle('show', standby);
+        $('banner').className = 'banner';
+
+        if (standby) {
+            stopRun();
+            $('standbyTitle').textContent = s.mode === 'standby' ? 'ON DUTY' : 'STANDBY';
+            $('standbyText').textContent = s.mode === 'standby' ? `Waiting for dispatch · ${s.calls || 0} jobs done` : 'Device idle';
+            setVolt(12.6);
+            return;
+        }
+
+        $('customer').textContent = s.customer || '—';
+        $('rowPos').classList.toggle('on', !!s.red);
+        $('rowNeg').classList.toggle('on', !!s.black);
+        $('posState').textContent = s.red ? 'Connected' : 'Disconnected';
+        $('negState').textContent = s.black ? 'Connected' : 'Disconnected';
+
+        const ready = s.red && s.black && s.step === 'black';
+        $('start').disabled = !ready;
+
+        if (s.running) {
+            startRun(s.running);
+            $('start').disabled = true;
+            return;
+        }
+
+        stopRun();
+
+        if (s.result === 'success') {
+            setProgress(100, 'Complete');
+            setVolt(14.2);
+            $('banner').className = 'banner success';
+            $('banner').textContent = '✔ VEHICLE STARTED';
+        } else if (s.result === 'fail') {
+            setProgress(0, 'Start failed - retry');
+            setVolt(11.4);
+            $('banner').className = 'banner fail';
+            $('banner').textContent = '✖ START FAILED · TRY AGAIN';
+            setTimeout(() => { if (state.result === 'fail') $('banner').className = 'banner'; }, 4000);
+        } else {
+            setProgress(0, ready ? 'Ready' : 'Connect cables');
+            setVolt(s.red && s.black ? 11.3 : 11.8);
+        }
+    }
+
+    $('start').addEventListener('click', () => {
+        if (!$('start').disabled) post('screen:start');
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        $('cursor').style.left = e.clientX + 'px';
+        $('cursor').style.top = e.clientY + 'px';
+    });
+
+    window.addEventListener('message', (e) => {
+        let msg = e.data;
+        if (typeof msg === 'string') { try { msg = JSON.parse(msg); } catch { return; } }
+        if (!msg) return;
+        if (msg.type === 'state') { state = msg.data || { mode: 'idle' }; render(); }
+        if (msg.type === 'focus') document.body.classList.toggle('focus', !!msg.value);
+    });
+
+    render();
+    post('screen:ready');
+</script>
+</body>
+</html>
