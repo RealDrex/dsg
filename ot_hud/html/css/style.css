@@ -114,6 +114,7 @@ svg.ic { display: block; fill: currentColor; }
 .mm-clock { position: absolute; left: calc(198px * var(--s)); top: calc(22px * var(--s)); transform: translateY(-50%); display: flex; align-items: center; gap: calc(7px * var(--s)); white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.55); }
 .mm-clock .t { order: 2; font-size: calc(16px * var(--s)); transform: translateY(calc(.5px * var(--s))); font-weight: 800; line-height: 1; color: #fff; font-variant-numeric: tabular-nums; }
 .mm-clock .t i { font-style: normal; color: var(--primary-light); }
+.mm-clock .t small { margin-left: calc(3px * var(--s)); font-size: calc(10px * var(--s)); font-weight: 800; letter-spacing: .04em; color: #c9ced8; }
 .mm-clock .d { order: 1; display: flex; gap: calc(5px * var(--s)); font-size: calc(11px * var(--s)); font-weight: 700; letter-spacing: .06em; line-height: 1; color: #c9ced8; }
 .mm-clock .d b { font-weight: 800; color: #fff; letter-spacing: .02em; }
 

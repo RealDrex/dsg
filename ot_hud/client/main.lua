@@ -125,6 +125,7 @@ RegisterNUICallback('ready', function(_, cb)
             colors = Config.Colors,
             speedometerUnit = Config.Vehicle.unit,
             uiScale = Config.UI.scale,
+            clock12h = Config.UI.clock12h,
             invertRoll = Config.Aircraft.invertRoll,
             visibility = {
                 compass = visibilityMode(Config.Compass.show),
@@ -280,7 +281,8 @@ CreateThread(function()
     while true do
         local mode = Config.Minimap.show
         local want = OT.shown and (mode == 'always' or (mode == 'vehicle' and OT.vehicle ~= 0))
-        if want ~= OT.minimapVisible then DisplayRadar(want) end
+        -- enforce every tick, not only on change: spawn / multicharacter scripts turn the radar back on
+        if IsRadarHidden() == want then DisplayRadar(want) end
         OT.minimapVisible = want
 
         if want and mapRect and mapRect ~= appliedRect then

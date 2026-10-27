@@ -51,7 +51,10 @@
   function tick() {
     var d = new Date(), w = S.weather || {};
     var h = w.hour != null ? w.hour : d.getHours(), m = w.minute != null ? w.minute : d.getMinutes();
-    ct.innerHTML = p(h) + '<i>:</i>' + p(m);
+    if (S.config.clock12h) {
+      var ap = h >= 12 ? 'PM' : 'AM', h12 = h % 12 || 12;
+      ct.innerHTML = h12 + '<i>:</i>' + p(m) + '<small>' + ap + '</small>';
+    } else ct.innerHTML = p(h) + '<i>:</i>' + p(m);
     cd.innerHTML = '<b>' + DAYS[w.day != null ? w.day : d.getDay()] + '</b>'; // in-game day when Lua sends it
   }
   tick();

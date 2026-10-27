@@ -35,6 +35,7 @@ Config.Commands = {
 
 Config.UI = {
     scale = 1.0,        -- size multiplier (1.0 = designed size; auto-fits any resolution / ultrawide)
+    clock12h = true,    -- clock under the map: true = 3:08 PM, false = 15:08
 }
 
 -- Colors (#rrggbb only)
