@@ -51,7 +51,6 @@ HUD لـ FiveM — الواجهة (UI) من تصميم **drex**، والـ Lua �
 | `X` | Set / Remove waypoint على البليب القريب اللي تطالعه |
 | `B` | حزام الأمان |
 | `Caps Lock` | الكروز |
-| `/hudmapedit` | ضبط الماب داخل الإطار بالأسهم (Shift + أسهم = تكبير/تصغير، Enter = حفظ) |
 | `/hudmap` | يطبع قيم الماب في F8 |
 
 (الأزرار تتغير من إعدادات GTA → Key Bindings → FiveM)

@@ -59,7 +59,7 @@ Config.Minimap = {
     -- If it is off by a few pixels on your setup, nudge it here (screen fractions, e.g. 0.002)
     offset = { x = 0.0, y = 0.0 },
     -- the drawn map, as multipliers of the frame hole (same proportions as qb-hud).
-    -- Line it up in game with  /hudmapedit  (arrow keys), then paste the printed line here.
+    -- Relative values: the same numbers fit every resolution / ultrawide automatically.
     blur = { x = -0.061, y = 0.393, w = 1.600, h = 1.639 },
     -- clips the blips (qb-hud values; x is added to the radar's x)
     mask = { x = 0.0, y = 0.0, w = 0.128, h = 0.20 },

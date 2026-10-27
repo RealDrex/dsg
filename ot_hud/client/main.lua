@@ -210,7 +210,6 @@ RegisterNUICallback('minimap:rect', function(data, cb)
 end)
 
 local lastMapValues = nil
-local editBlur = nil        -- live copy of Config.Minimap.blur while /hudmapedit is open
 local squareLoaded, squareTried = false, false
 
 -- optional square mask texture: put squaremap.ytd (e.g. from qb-hud) in ot_hud/stream/
@@ -256,7 +255,7 @@ local function applyMinimap(r)
     -- 'minimap'      = player arrow + blips  -> exactly the frame hole
     -- 'minimap_blur' = the drawn map itself  -> bigger than the hole (multipliers of it, same idea as qb-hud)
     -- 'minimap_mask' = clips the blips       -> qb-hud values
-    local b = editBlur or Config.Minimap.blur
+    local b = Config.Minimap.blur
     local bx, by, bw, bh = x + b.x * w, y + b.y * h, w * b.w, h * b.h
     local m = Config.Minimap.mask
 
@@ -275,58 +274,11 @@ end
 
 -- /hudmap -> prints the current values in F8
 RegisterCommand('hudmap', function()
-    local v, b = lastMapValues, editBlur or Config.Minimap.blur
+    local v, b = lastMapValues, Config.Minimap.blur
     if not v then return print('[ot_hud] minimap not placed yet (get in a vehicle)') end
     print(('[ot_hud] screen %dx%d | minimap x=%.4f y=%.4f w=%.4f h=%.4f | squaremap texture: %s'):format(
         v.W, v.H, v.x, v.y, v.w, v.h, v.square and 'yes' or 'no'))
     print(('[ot_hud] Config.Minimap.blur = { x = %.3f, y = %.3f, w = %.3f, h = %.3f }'):format(b.x, b.y, b.w, b.h))
-end, false)
-
--- /hudmapedit -> line the drawn map up with the frame using the keyboard (in a vehicle):
---   arrows = move the map   |   SHIFT + arrows = stretch / shrink   |   ENTER = done (prints the config line)
-RegisterCommand('hudmapedit', function()
-    if editBlur then return end
-    if OT.vehicle == 0 then
-        OT.send('notif', { notifData = { message = 'Get in a vehicle first', type = 'warning' } })
-        return
-    end
-    local c = Config.Minimap.blur
-    editBlur = { x = c.x, y = c.y, w = c.w, h = c.h }
-    OT.send('notif', { notifData = { message = 'Map edit: arrows move, SHIFT + arrows resize, ENTER to finish', type = 'info', duration = 8000 } })
-
-    CreateThread(function()
-        local step, last = 0.005, 0
-        while editBlur do
-            for _, k in ipairs({ 172, 173, 174, 175, 191, 201, 21 }) do DisableControlAction(0, k, true) end
-            local now = GetGameTimer()
-            if now - last > 60 then
-                local shift = IsDisabledControlPressed(0, 21)
-                local up, down = IsDisabledControlPressed(0, 172), IsDisabledControlPressed(0, 173)
-                local left, right = IsDisabledControlPressed(0, 174), IsDisabledControlPressed(0, 175)
-                local changed = up or down or left or right
-                if shift then
-                    if right then editBlur.w = editBlur.w + step * 2 end
-                    if left then editBlur.w = math.max(0.1, editBlur.w - step * 2) end
-                    if up then editBlur.h = editBlur.h + step * 2 end
-                    if down then editBlur.h = math.max(0.1, editBlur.h - step * 2) end
-                else
-                    if right then editBlur.x = editBlur.x + step end
-                    if left then editBlur.x = editBlur.x - step end
-                    if up then editBlur.y = editBlur.y - step end
-                    if down then editBlur.y = editBlur.y + step end
-                end
-                if changed then last = now; appliedRect = nil end
-            end
-            if IsDisabledControlJustPressed(0, 191) or IsDisabledControlJustPressed(0, 201) then
-                Config.Minimap.blur = editBlur
-                local line = ('Config.Minimap.blur = { x = %.3f, y = %.3f, w = %.3f, h = %.3f }'):format(editBlur.x, editBlur.y, editBlur.w, editBlur.h)
-                editBlur = nil
-                print('[ot_hud] put this in config.lua -> ' .. line)
-                OT.send('notif', { notifData = { message = 'Saved for this session. F8 has the line for config.lua', type = 'success', duration = 8000 } })
-            end
-            Wait(0)
-        end
-    end)
 end, false)
 
 CreateThread(function()
