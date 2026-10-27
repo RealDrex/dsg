@@ -63,7 +63,8 @@ Config.Minimap = {
     blur = { x = -0.061, y = 0.393, w = 1.600, h = 1.639 },
     -- clips the blips (qb-hud values; x is added to the radar's x)
     mask = { x = 0.0, y = 0.0, w = 0.128, h = 0.20 },
-    -- optional: put squaremap.ytd (from qb-hud) in ot_hud/stream/ for clean square map edges
+    -- stream/squaremap.ytd replaces GTA's radar clipping texture. REQUIRED for the map to fill the frame
+    -- (same file qb-hud uses). Only set false if another resource already replaces 'radarmasksm'.
     squareTexture = true,
     hideHealthArmour = true,    -- hide GTA's health / armour bars under the radar
 }

@@ -212,7 +212,7 @@ end)
 local lastMapValues = nil
 local squareLoaded, squareTried = false, false
 
--- optional square mask texture: put squaremap.ytd (e.g. from qb-hud) in ot_hud/stream/
+-- square mask texture (stream/squaremap.ytd): without it GTA's default clipping texture hides most of the map
 -- tried once only: when the file is missing we must not wait on every re-apply
 local function loadSquareTexture()
     if squareTried or not Config.Minimap.squareTexture then return end
