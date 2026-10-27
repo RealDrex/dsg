@@ -69,19 +69,34 @@ exports('setStatus', setStatus)
 
 -- ─────────────────────────── voice (pma-voice) ────────────────────
 
+-- natives / state bags can hand back 0/1 instead of booleans, and in Lua 0 is TRUE.
+-- Always normalise, otherwise the mic shows "talking" forever.
+local function isOn(v)
+    return v == true or v == 1
+end
+
 AddEventHandler('pma-voice:radioActive', function(active)
-    voice.radioTalking = active and true or false
+    voice.radioTalking = isOn(active)
 end)
 
+-- another voice script (saltychat, tokovoip...) can drive the mic tile itself
+local externalVoice = false
 exports('setVoice', function(data)
+    externalVoice = true
     for k, v in pairs(data or {}) do voice[k] = v end
 end)
 
 local function updateVoice()
-    voice.talking = NetworkIsPlayerTalking(OT.playerId)
-    local prox = LocalPlayer.state.proximity
+    if externalVoice then return end
+
+    -- same check pma-voice uses for its own UI: only true while your voice is actually sent
+    voice.talking = isOn(MumbleIsConnected()) and isOn(MumbleIsPlayerTalking(OT.playerId))
+
+    local st = LocalPlayer.state
+    if st.radioActive ~= nil then voice.radioTalking = isOn(st.radioActive) end -- set by pma-voice
+    local prox = st.proximity
     if prox and prox.index then voice.level = prox.index end
-    local channel = LocalPlayer.state.radioChannel
+    local channel = st.radioChannel
     voice.radio = channel ~= nil and channel ~= 0
 end
 
@@ -123,7 +138,7 @@ end
 function OT.Player.collectMic()
     updateVoice()
     return {
-        talking = voice.talking or voice.radioTalking,
+        talking = isOn(voice.talking) or isOn(voice.radioTalking),
         radio = voice.radio,
         currentLevel = voice.level,
         maxLevel = math.max(voice.max, 1),
