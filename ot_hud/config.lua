@@ -58,9 +58,13 @@ Config.Minimap = {
     -- the UI measures its map frame and the native radar is placed inside it on any resolution.
     -- If it is off by a few pixels on your setup, nudge it here (screen fractions, e.g. 0.002)
     offset = { x = 0.0, y = 0.0 },
-    -- the clipping area of the radar (relative to the radar, NOT screen space).
-    -- Measured so the map fills the whole frame. Tune live in game with:  /hudmask x y w h
-    mask = { x = -0.035, y = 0.029, w = 0.2415, h = 0.2787 },
+    -- the drawn map, as multipliers of the frame hole (same proportions as qb-hud).
+    -- Line it up in game with  /hudmapedit  (arrow keys), then paste the printed line here.
+    blur = { x = -0.061, y = 0.393, w = 1.600, h = 1.639 },
+    -- clips the blips (qb-hud values; x is added to the radar's x)
+    mask = { x = 0.0, y = 0.0, w = 0.128, h = 0.20 },
+    -- optional: put squaremap.ytd (from qb-hud) in ot_hud/stream/ for clean square map edges
+    squareTexture = true,
     hideHealthArmour = true,    -- hide GTA's health / armour bars under the radar
 }
 

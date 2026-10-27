@@ -209,11 +209,28 @@ RegisterNUICallback('minimap:rect', function(data, cb)
     cb('ok')
 end)
 
-local liveOffset = { x = 0.0, y = 0.0 } -- tweaked in game with /hudmap
-local liveMask = nil                    -- tweaked in game with /hudmask
 local lastMapValues = nil
+local editBlur = nil        -- live copy of Config.Minimap.blur while /hudmapedit is open
+local squareLoaded, squareTried = false, false
+
+-- optional square mask texture: put squaremap.ytd (e.g. from qb-hud) in ot_hud/stream/
+-- tried once only: when the file is missing we must not wait on every re-apply
+local function loadSquareTexture()
+    if squareTried or not Config.Minimap.squareTexture then return end
+    squareTried = true
+    RequestStreamedTextureDict('squaremap', false)
+    local timeout = GetGameTimer() + 1500
+    while not HasStreamedTextureDictLoaded('squaremap') and GetGameTimer() < timeout do Wait(0) end
+    if HasStreamedTextureDictLoaded('squaremap') then
+        AddReplaceTexture('platform:/textures/graphics', 'radarmasksm', 'squaremap', 'radarmasksm')
+        AddReplaceTexture('platform:/textures/graphics', 'radarmask1g', 'squaremap', 'radarmasksm')
+        squareLoaded = true
+    end
+end
 
 local function applyMinimap(r)
+    loadSquareTexture()
+
     -- screen size in pixels (the UI sends it; fall back to the game's resolution)
     local W, H = r.resX, r.resY
     if not W or not H or W <= 0 or H <= 0 then W, H = GetActiveScreenResolution() end
@@ -233,52 +250,83 @@ local function applyMinimap(r)
     -- 'L','B' alignment is relative to the safe zone
     local off = (1.0 - GetSafeZoneSize()) * 0.5
     local o = Config.Minimap.offset or {}
-    local x = (left - originX) / hudW - off + (o.x or 0.0) + liveOffset.x
-    local y = top / H - (1.0 - h) + off + (o.y or 0.0) + liveOffset.y
+    local x = (left - originX) / hudW - off + (o.x or 0.0)
+    local y = top / H - (1.0 - h) + off + (o.y or 0.0)
+
+    -- 'minimap'      = player arrow + blips  -> exactly the frame hole
+    -- 'minimap_blur' = the drawn map itself  -> bigger than the hole (multipliers of it, same idea as qb-hud)
+    -- 'minimap_mask' = clips the blips       -> qb-hud values
+    local b = editBlur or Config.Minimap.blur
+    local bx, by, bw, bh = x + b.x * w, y + b.y * h, w * b.w, h * b.h
+    local m = Config.Minimap.mask
 
     SetMinimapClipType(0)
     SetMinimapComponentPosition('minimap', 'L', 'B', x, y, w, h)
-    -- the mask is NOT in screen space: it is relative to the 'minimap' component (Config.Minimap.mask)
-    local m = liveMask or Config.Minimap.mask or { x = 0.0, y = 0.0, w = 0.128, h = 0.20 }
-    SetMinimapComponentPosition('minimap_mask', 'L', 'B', m.x, m.y, m.w, m.h)
-    SetMinimapComponentPosition('minimap_blur', 'L', 'B', x, y, w, h)
+    SetMinimapComponentPosition('minimap_mask', 'L', 'B', x + m.x, m.y, m.w, m.h)
+    SetMinimapComponentPosition('minimap_blur', 'L', 'B', bx, by, bw, bh)
     SetBlipAlpha(GetNorthRadarBlip(), 0)
 
-    lastMapValues = { W = W, H = H, x = x, y = y, w = w, h = h }
+    lastMapValues = { W = W, H = H, x = x, y = y, w = w, h = h, square = squareLoaded }
     -- toggling the big map forces the radar to pick up the new position
     SetBigmapActive(true, false)
     Wait(0)
     SetBigmapActive(false, false)
 end
 
--- /hudmap            -> prints the values in F8
--- /hudmap 0.005 0    -> moves the radar (x right, y down; screen fractions) to line it up live,
---                       then copy the numbers into Config.Minimap.offset
-RegisterCommand('hudmap', function(_, args)
-    if args[1] then
-        liveOffset.x = tonumber(args[1]) or 0.0
-        liveOffset.y = tonumber(args[2]) or 0.0
-        appliedRect = nil -- re-apply on next tick
-    end
-    local v = lastMapValues
-    if v then
-        print(('[ot_hud] screen %dx%d | minimap x=%.4f y=%.4f w=%.4f h=%.4f | live offset x=%.4f y=%.4f'):format(
-            v.W, v.H, v.x, v.y, v.w, v.h, liveOffset.x, liveOffset.y))
-    else
-        print('[ot_hud] minimap not placed yet (get in a vehicle)')
-    end
+-- /hudmap -> prints the current values in F8
+RegisterCommand('hudmap', function()
+    local v, b = lastMapValues, editBlur or Config.Minimap.blur
+    if not v then return print('[ot_hud] minimap not placed yet (get in a vehicle)') end
+    print(('[ot_hud] screen %dx%d | minimap x=%.4f y=%.4f w=%.4f h=%.4f | squaremap texture: %s'):format(
+        v.W, v.H, v.x, v.y, v.w, v.h, v.square and 'yes' or 'no'))
+    print(('[ot_hud] Config.Minimap.blur = { x = %.3f, y = %.3f, w = %.3f, h = %.3f }'):format(b.x, b.y, b.w, b.h))
 end, false)
 
--- /hudmask                    -> prints the current mask
--- /hudmask -0.035 0.029 0.24 0.28   -> x y w h of the radar clipping area, applied live.
--- Make the map fill the frame, then copy the 4 numbers into Config.Minimap.mask
-RegisterCommand('hudmask', function(_, args)
-    if args[4] then
-        liveMask = { x = tonumber(args[1]) or 0.0, y = tonumber(args[2]) or 0.0, w = tonumber(args[3]) or 0.128, h = tonumber(args[4]) or 0.20 }
-        appliedRect = nil
+-- /hudmapedit -> line the drawn map up with the frame using the keyboard (in a vehicle):
+--   arrows = move the map   |   SHIFT + arrows = stretch / shrink   |   ENTER = done (prints the config line)
+RegisterCommand('hudmapedit', function()
+    if editBlur then return end
+    if OT.vehicle == 0 then
+        OT.send('notif', { notifData = { message = 'Get in a vehicle first', type = 'warning' } })
+        return
     end
-    local m = liveMask or Config.Minimap.mask
-    print(('[ot_hud] mask x=%.4f y=%.4f w=%.4f h=%.4f'):format(m.x, m.y, m.w, m.h))
+    local c = Config.Minimap.blur
+    editBlur = { x = c.x, y = c.y, w = c.w, h = c.h }
+    OT.send('notif', { notifData = { message = 'Map edit: arrows move, SHIFT + arrows resize, ENTER to finish', type = 'info', duration = 8000 } })
+
+    CreateThread(function()
+        local step, last = 0.005, 0
+        while editBlur do
+            for _, k in ipairs({ 172, 173, 174, 175, 191, 201, 21 }) do DisableControlAction(0, k, true) end
+            local now = GetGameTimer()
+            if now - last > 60 then
+                local shift = IsDisabledControlPressed(0, 21)
+                local up, down = IsDisabledControlPressed(0, 172), IsDisabledControlPressed(0, 173)
+                local left, right = IsDisabledControlPressed(0, 174), IsDisabledControlPressed(0, 175)
+                local changed = up or down or left or right
+                if shift then
+                    if right then editBlur.w = editBlur.w + step * 2 end
+                    if left then editBlur.w = math.max(0.1, editBlur.w - step * 2) end
+                    if up then editBlur.h = editBlur.h + step * 2 end
+                    if down then editBlur.h = math.max(0.1, editBlur.h - step * 2) end
+                else
+                    if right then editBlur.x = editBlur.x + step end
+                    if left then editBlur.x = editBlur.x - step end
+                    if up then editBlur.y = editBlur.y - step end
+                    if down then editBlur.y = editBlur.y + step end
+                end
+                if changed then last = now; appliedRect = nil end
+            end
+            if IsDisabledControlJustPressed(0, 191) or IsDisabledControlJustPressed(0, 201) then
+                Config.Minimap.blur = editBlur
+                local line = ('Config.Minimap.blur = { x = %.3f, y = %.3f, w = %.3f, h = %.3f }'):format(editBlur.x, editBlur.y, editBlur.w, editBlur.h)
+                editBlur = nil
+                print('[ot_hud] put this in config.lua -> ' .. line)
+                OT.send('notif', { notifData = { message = 'Saved for this session. F8 has the line for config.lua', type = 'success', duration = 8000 } })
+            end
+            Wait(0)
+        end
+    end)
 end, false)
 
 CreateThread(function()
