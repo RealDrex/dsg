@@ -1,81 +1,31 @@
-// Weapon: type, name, magazine / reserve, round segments, durability, reloading
-(() => {
-    HUD.register('weapon', {
-        mount(root, cfg) {
-            this.root = root;
-            this.cfg = cfg.weapon || {};
-            this.labels = cfg.labels || {};
-            root.innerHTML = '';
+/* ot-hud — by drex */
+/* Weapon HUD: name, mag / total, magazine segments, durability */
+(function () {
+  var S = window.HUD, el = document.getElementById('weapon'), MAXSEG = 12;
+  el.innerHTML = '<div class="wp-top"><span class="wp-name"></span><div class="wp-ammo"><span class="wp-mag"></span><span class="wp-total"></span></div></div>' +
+    '<div class="wp-rounds"></div><div class="wp-dur"><div class="bar"><div></div></div><span></span></div>';
+  var name = el.querySelector('.wp-name'), mag = el.querySelector('.wp-mag'), total = el.querySelector('.wp-total');
+  var rounds = el.querySelector('.wp-rounds'), dur = el.querySelector('.wp-dur'), durFill = dur.querySelector('.bar > div'), durTxt = dur.querySelector('span');
+  var segCount = 0;
 
-            const wp = HUD.el('div', 'wp', root);
-            const head = HUD.el('div', 'wp-head', wp);
-            const title = HUD.el('div', 'wp-title', head);
-            this.typeEl = HUD.el('span', 'wp-type', title);
-            this.nameEl = HUD.el('span', 'wp-name', title);
-
-            this.ammoEl = HUD.el('div', 'wp-ammo', head);
-            this.magEl = HUD.el('span', 'wp-mag', this.ammoEl);
-            this.totalEl = HUD.el('span', 'wp-total', this.ammoEl);
-
-            this.roundsEl = HUD.el('div', 'wp-rounds', wp);
-            this.rounds = [];
-
-            this.durEl = HUD.el('div', 'wp-dur', wp);
-            const bar = HUD.el('div', 'wp-dur-bar', this.durEl);
-            this.durFill = HUD.el('div', 'wp-dur-fill', bar);
-            this.durLabel = HUD.el('span', 'wp-dur-label', this.durEl);
-
-            this.reloadEl = HUD.el('span', 'wp-reload', wp);
-            this.reloadEl.textContent = this.labels.reloading || 'RELOADING';
-        },
-
-        setSegments(n) {
-            if (this.rounds.length === n) return;
-            this.roundsEl.innerHTML = '';
-            this.roundsEl.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
-            this.rounds = Array.from({ length: n }, () => HUD.el('div', '', this.roundsEl));
-        },
-
-        update(d) {
-            HUD.show(this.root, !!d);
-            if (!d) return;
-
-            this.typeEl.textContent = d.type || '';
-            this.nameEl.textContent = d.name || '';
-
-            const gun = d.kind === 'gun';
-            const hasCount = gun || d.kind === 'throwable';
-            this.ammoEl.style.display = hasCount ? '' : 'none';
-            this.roundsEl.style.display = gun ? '' : 'none';
-            this.totalEl.style.display = gun ? '' : 'none';
-
-            if (hasCount) {
-                this.magEl.textContent = d.mag;
-                this.totalEl.textContent = '/ ' + d.total;
-            }
-
-            if (gun) {
-                const cap = Math.max(d.cap || 1, 1);
-                const n = Math.min(cap, this.cfg.maxSegments || 30);
-                this.setSegments(n);
-                const filled = Math.ceil((d.mag / cap) * n);
-                const low = d.mag <= Math.max(1, Math.floor(cap * (this.cfg.lowAmmo ?? 0.25)));
-                this.rounds.forEach((r, i) => r.classList.toggle('on', i < filled));
-                this.roundsEl.classList.toggle('low', low);
-                this.magEl.classList.toggle('low', low);
-            } else {
-                this.magEl.classList.remove('low');
-            }
-
-            const hasDur = d.durability !== undefined && d.durability !== null;
-            this.durEl.style.display = hasDur ? '' : 'none';
-            if (hasDur) {
-                this.durFill.style.width = d.durability + '%';
-                this.durLabel.textContent = `${this.labels.durability || 'DUR'} ${d.durability}%`;
-                this.durEl.classList.toggle('low', d.durability <= 20);
-            }
-
-            this.reloadEl.style.display = d.reloading ? '' : 'none';
-        },
-    });
+  S.subscribe(function () {
+    var w = S.weapon;
+    if (!w) return;
+    var cap = Math.max(1, w.magCapacity || 1), n = Math.min(cap, MAXSEG);
+    if (n !== segCount) {
+      rounds.innerHTML = '<i></i>'.repeat(n);
+      rounds.style.gridTemplateColumns = 'repeat(' + n + ',1fr)';
+      segCount = n;
+    }
+    var filled = Math.ceil((w.magContent / cap) * n), low = w.magContent <= Math.max(1, Math.floor(cap * 0.25));
+    rounds.querySelectorAll('i').forEach(function (s, i) { s.classList.toggle('on', i < filled); });
+    rounds.classList.toggle('low', low);
+    name.textContent = w.name || 'Weapon';
+    mag.textContent = w.magContent;
+    mag.classList.toggle('low', low);
+    total.textContent = '/ ' + w.totalAmmo;
+    dur.style.display = w.durability.active ? '' : 'none';
+    durFill.style.width = w.durability.value + '%';
+    durTxt.textContent = 'DUR ' + Math.round(w.durability.value) + '%';
+  });
 })();

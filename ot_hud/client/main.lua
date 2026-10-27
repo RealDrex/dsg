@@ -2,7 +2,6 @@ OT = {
     ready = false,          -- NUI handshake done
     shown = false,          -- HUD currently rendered
     visible = true,         -- user toggle (/hud)
-    compassVisible = true,  -- user toggle (/compass)
     loaded = false,         -- character loaded
     framework = 'standalone',
     inventory = 'none',
@@ -113,37 +112,43 @@ end)
 
 -- ─────────────────────────── NUI handshake ────────────────────────
 
+local function visibilityMode(v)
+    if v == 'never' then return 'off' end
+    return v
+end
+
 RegisterNUICallback('ready', function(_, cb)
     OT.ready = true
+    local L, dirs = Config.Labels, Config.Labels.directions
     cb({
-        ui = Config.UI,
-        layout = Config.Layout,
-        colors = Config.Colors,
-        labels = Config.Labels,
-        player = {
-            stats = Config.Player.stats,
-            lowThreshold = Config.Player.lowThreshold,
-            stressDanger = Config.Player.stressDanger,
-        },
-        weapon = {
-            maxSegments = Config.Weapon.maxSegments,
-            lowAmmo = Config.Weapon.lowAmmo,
-        },
-        vehicle = {
-            unit = Config.Vehicle.unit,
-            redline = Config.Vehicle.redline,
-            lowFuel = Config.Vehicle.lowFuel,
-            beltWarningSpeed = Config.Vehicle.beltWarningSpeed,
-        },
-        aircraft = {
+        Config = {
+            colors = Config.Colors,
+            speedometerUnit = Config.Vehicle.unit,
+            uiScale = Config.UI.scale,
             invertRoll = Config.Aircraft.invertRoll,
-            pitchScale = Config.Aircraft.pitchScale,
-            lowFuel = Config.Aircraft.lowFuel,
+            visibility = {
+                compass = visibilityMode(Config.Compass.show),
+                map = Config.Minimap.show == 'native' and 'off' or visibilityMode(Config.Minimap.show),
+            },
         },
-        compass = {
-            key = Config.Compass.prompt.key,
+        Labels = {
+            Compass = {
+                north = dirs[1], northEast = dirs[2], east = dirs[3], southEast = dirs[4],
+                south = dirs[5], southWest = dirs[6], west = dirs[7], northWest = dirs[8],
+                key = Config.Compass.prompt.key,
+                setWaypoint = L.setWaypoint,
+                removeWaypoint = L.removeWaypoint,
+            },
         },
+        Perms = {},
     })
+end)
+
+RegisterNUICallback('settings:update', function(_, cb) cb('ok') end)
+RegisterNUICallback('compass:focus', function(_, cb) cb('ok') end) -- focus is decided in Lua
+RegisterNUICallback('close', function(_, cb)
+    SetNuiFocus(false, false)
+    cb('ok')
 end)
 
 -- ─────────────────────────── visibility ───────────────────────────
@@ -173,16 +178,17 @@ CreateThread(function()
         OT.shown = show
         if show ~= lastShown then
             lastShown = show
-            OT.send('visible', { state = show })
+            OT.send('disableAll', { state = not show })
         end
 
         if show then
             OT.send('update', {
-                player = OT.Player.collect(),
-                weapon = OT.Weapon.collect(),
-                vehicle = OT.Vehicle.collect(),
-                aircraft = OT.Aircraft.collect(),
-                minimap = OT.minimapVisible,
+                statusData = OT.Player.collect(),
+                micData = OT.Player.collectMic(),
+                weaponData = OT.Weapon.collect(),
+                vehicleData = OT.Vehicle.collect(),
+                compassData = OT.Compass.collect(),
+                weatherData = { hour = GetClockHours(), minute = GetClockMinutes(), day = GetClockDayOfWeek() },
             })
             Wait(Config.UpdateInterval)
         else
@@ -192,15 +198,64 @@ CreateThread(function()
 end)
 
 -- ─────────────────────────── minimap ──────────────────────────────
+-- The UI measures the hole of its map frame (0..1 screen fractions) and sends it here,
+-- so the native radar sits exactly inside the frame on any resolution.
+
+local mapRect, appliedRect = nil, nil
+
+RegisterNUICallback('minimap:rect', function(data, cb)
+    if data and data.w and data.h then mapRect = data end
+    cb('ok')
+end)
+
+local function applyMinimap(r)
+    local sz = GetSafeZoneSize()
+    local off = (1.0 - sz) * 0.5
+    local o = Config.Minimap.offset or {}
+    local x = r.x - off + (o.x or 0.0)
+    local y = r.y - (1.0 - r.h) + off + (o.y or 0.0)
+    local w, h = r.w, r.h
+
+    SetMinimapClipType(0)
+    SetMinimapComponentPosition('minimap', 'L', 'B', x, y, w, h)
+    SetMinimapComponentPosition('minimap_mask', 'L', 'B', x, y, w, h)
+    SetMinimapComponentPosition('minimap_blur', 'L', 'B', x - w * 0.04, y + h * 0.06, w * 1.12, h * 1.28)
+    SetBlipAlpha(GetNorthRadarBlip(), 0)
+    -- toggling the big map forces the radar to pick up the new position
+    SetBigmapActive(true, false)
+    Wait(0)
+    SetBigmapActive(false, false)
+end
 
 CreateThread(function()
     if Config.Minimap.show == 'native' then return end
+
+    local scaleform = nil
+    if Config.Minimap.hideHealthArmour then
+        scaleform = RequestScaleformMovie('minimap')
+        local timeout = GetGameTimer() + 5000
+        while not HasScaleformMovieLoaded(scaleform) and GetGameTimer() < timeout do Wait(0) end
+    end
+
     while true do
         local mode = Config.Minimap.show
         local want = OT.shown and (mode == 'always' or (mode == 'vehicle' and OT.vehicle ~= 0))
-        DisplayRadar(want)
+        if want ~= OT.minimapVisible then DisplayRadar(want) end
         OT.minimapVisible = want
-        Wait(250)
+
+        if want and mapRect and mapRect ~= appliedRect then
+            appliedRect = mapRect
+            applyMinimap(mapRect)
+        end
+
+        if want and scaleform then
+            BeginScaleformMovieMethod(scaleform, 'SETUP_HEALTH_ARMOUR')
+            ScaleformMovieMethodAddParamInt(3)
+            EndScaleformMovieMethod()
+            Wait(0)
+        else
+            Wait(want and 100 or 250)
+        end
     end
 end)
 
@@ -232,9 +287,41 @@ end
 
 if Config.Commands.toggleCompass then
     RegisterCommand(Config.Commands.toggleCompass, function()
-        OT.compassVisible = not OT.compassVisible
+        OT.compassHidden = not OT.compassHidden
+        OT.send('command:trigger', { command = 'compass' })
     end, false)
 end
 
 exports('toggleHud', setHudVisible)
 exports('isHudVisible', function() return OT.shown end)
+
+-- notifications: exports.ot_hud:notify('Vehicle stored', 'success', 5000)
+-- types: info, success, fail, warning, alert
+local function notify(message, nType, duration, icon)
+    if type(message) == 'table' then
+        OT.send('notif', { notifData = message })
+        return
+    end
+    OT.send('notif', { notifData = { message = message, type = nType or 'info', duration = duration, icon = icon } })
+end
+exports('notify', notify)
+RegisterNetEvent('ot_hud:client:notify', notify)
+
+-- extra status tiles: exports.ot_hud:addStatus('drunk', 'stress', 40, '#a855f7')
+exports('addStatus', function(id, icon, value, color)
+    OT.send('insertStatus', { data = { id = id, icon = icon, value = value, color = color } })
+end)
+exports('updateStatus', function(id, value, icon, color)
+    OT.send('updateStatus', { id = id, data = { value = value, icon = icon, color = color } })
+end)
+exports('removeStatus', function(id)
+    OT.send('removeStatus', { id = id })
+end)
+
+-- slide the right side (speedometer / weapon) when a phone or another UI opens
+-- exports.ot_hud:shiftHud(true, 420)  /  exports.ot_hud:shiftHud(false)
+local function shiftHud(state, offset)
+    OT.send('hud:shift', { state = state and true or false, offset = offset })
+end
+exports('shiftHud', shiftHud)
+RegisterNetEvent('ot_hud:client:shift', shiftHud)

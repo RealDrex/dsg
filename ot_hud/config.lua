@@ -34,40 +34,17 @@ Config.Commands = {
 -- ═══════════════════════════════════════════════════════════════
 
 Config.UI = {
-    scale = 0.85,       -- global multiplier (1.0 = designed size at 1080p)
-    font = 'Satoshi',
-}
-
--- Screen anchors of every panel (CSS values)
--- scale = extra size multiplier for that panel only
-Config.Layout = {
-    compass  = { top = '2.5%', scale = 0.85 },
-    player   = { left = '3%', bottom = '6%', leftWithMinimap = '17.5%', scale = 1.0 },
-    right    = { right = '3%', bottom = '6%', scale = 1.0 },   -- weapon + vehicle column
-    aircraft = { bottom = '5%', scale = 1.0 },
+    scale = 1.0,        -- size multiplier (1.0 = designed size; auto-fits any resolution / ultrawide)
 }
 
 -- Colors (#rrggbb only)
 Config.Colors = {
-    primary      = '#3b82f6',
-    primaryLight = '#60a5fa',
-    primaryDark  = '#1d4ed8',
-    primaryPale  = '#93c5fd',
-    danger       = '#ef4444',
-    warning      = '#facc15',
-    success      = '#4ade80',
-    text         = '#ffffff',
-    muted        = '#7d869a',
-    mutedLight   = '#8fa3c4',
-
-    voice        = '#60a5fa',
-    radio        = '#4ade80',
-    hunger       = '#facc15',
-    thirst       = '#22d3ee',
-    stress       = '#f472b6',
-    stamina      = '#a3e635',
-    oxygen       = '#38bdf8',
-    durability   = '#22d3ee',
+    theme   = '#3b82f6',    -- main color (light / dark / glow variants are generated)
+    danger  = '#ef4444',
+    hunger  = '#facc15',
+    thirst  = '#22d3ee',
+    stress  = '#f472b6',
+    talking = '#60a5fa',
 }
 
 -- ═══════════════════════════════════════════════════════════════
@@ -75,8 +52,12 @@ Config.Colors = {
 -- ═══════════════════════════════════════════════════════════════
 
 Config.Minimap = {
-    -- 'always' | 'vehicle' | 'never' | 'native' (native = do not touch the radar)
+    -- 'always' | 'vehicle' | 'never' | 'native' (native = do not touch the radar, no frame)
     show = 'vehicle',
+    -- the UI measures its map frame and the native radar is placed inside it on any resolution.
+    -- If it is off by a few pixels on your setup, nudge it here (screen fractions, e.g. 0.002)
+    offset = { x = 0.0, y = 0.0 },
+    hideHealthArmour = true,    -- hide GTA's health / armour bars under the radar
 }
 
 -- ═══════════════════════════════════════════════════════════════
@@ -84,12 +65,8 @@ Config.Minimap = {
 -- ═══════════════════════════════════════════════════════════════
 
 Config.Player = {
-    -- order of the small status bars, remove one to hide it
-    stats = { 'voice', 'hunger', 'thirst', 'stress' },
-    lowThreshold = 20,      -- hunger / thirst / stamina / oxygen turn red under this value
-    stressDanger = 80,      -- stress turns red above this value
-    showStamina = true,     -- extra bar appears only while sprinting / tired
-    showOxygen = true,      -- extra bar appears only while under water
+    showStamina = true,     -- extra tile while sprinting / tired (on foot)
+    showOxygen = true,      -- extra tile while under water
 }
 
 Config.Voice = {
@@ -101,11 +78,9 @@ Config.Voice = {
 -- ═══════════════════════════════════════════════════════════════
 
 Config.Compass = {
-    show = 'always',            -- 'always' | 'vehicle' | 'never'
+    show = 'vehicle',           -- 'always' | 'vehicle' | 'never'
     base = 'camera',            -- 'camera' | 'character'
-    hideInAircraft = false,
-    showZone = false,           -- show the zone name next to the street
-    updateInterval = 100,       -- ms (the UI interpolates between updates)
+    showZone = false,           -- show the zone name next to the street (it is always on the minimap tab)
     maxDistance = 2000.0,       -- points further than this are hidden from the tape
     maxPoints = 12,
 
@@ -157,11 +132,7 @@ Config.Compass = {
 
 Config.Weapon = {
     enabled = true,
-    showMelee = true,           -- show name card for melee weapons
     showDurability = true,      -- ox_inventory durability / qb quality
-    hideInAircraft = true,
-    maxSegments = 30,           -- max number of round segments drawn
-    lowAmmo = 0.25,             -- magazine turns red under this ratio
     hidden = {                  -- never show these weapons
         [`WEAPON_UNARMED`] = true,
         [`WEAPON_PARACHUTE`] = true,
@@ -178,9 +149,6 @@ Config.Weapon = {
 Config.Vehicle = {
     enabled = true,
     unit = 'kmh',               -- 'kmh' | 'mph'
-    redline = 0.85,             -- rpm (0-1) where the gear box turns red
-    lowFuel = 20,
-    beltWarningSpeed = 20,      -- belt icon blinks when unbuckled above this speed (in unit above)
     fuel = 'auto',              -- 'auto' | 'ox_fuel' | 'LegacyFuel' | 'cdn-fuel' | 'ps-fuel' | 'lc_fuel' | 'native'
     electric = {
         `airtug`, `caddy`, `caddy2`, `caddy3`, `cyclone`, `cyclone2`, `dilettante`,
@@ -210,8 +178,6 @@ Config.Aircraft = {
     enabled = true,
     altitude = 'asl',           -- 'asl' (sea level) | 'agl' (above ground)
     invertRoll = false,         -- flip the artificial horizon if it feels reversed
-    pitchScale = 1.5,           -- px of horizon movement per degree of pitch
-    lowFuel = 20,
 }
 
 -- ═══════════════════════════════════════════════════════════════
@@ -262,28 +228,7 @@ Config.Labels = {
     setWaypoint = 'Set waypoint',
     removeWaypoint = 'Remove waypoint',
     waypoint = 'Waypoint',
-    reloading = 'RELOADING',
-    durability = 'DUR',
-    kmh = 'KM/H',
-    mph = 'MPH',
-    airspeed = 'AIRSPEED',
-    altitude = 'ALTITUDE',
-    knots = 'KTS',
-    feet = 'FT',
-    fpm = 'FPM',
-    throttle = 'THR',
-    fuel = 'FUEL',
-    engine = 'ENG',
-    gearUp = 'GEAR UP',
-    gearDown = 'GEAR DOWN',
-    gearMoving = 'GEAR ...',
-    rotor = 'ROTOR',
     weaponFallback = 'Weapon',
-    weaponTypes = {
-        pistol = 'PISTOL', smg = 'SMG', rifle = 'RIFLE', mg = 'MACHINE GUN',
-        shotgun = 'SHOTGUN', sniper = 'SNIPER', heavy = 'HEAVY', throwable = 'THROWABLE',
-        melee = 'MELEE', misc = 'EQUIPMENT',
-    },
     keyMaps = {
         waypoint = 'HUD - Set / remove compass waypoint',
         seatbelt = 'HUD - Toggle seatbelt',

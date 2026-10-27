@@ -90,38 +90,42 @@ end
 function OT.Player.collect()
     local ped, pid = OT.ped, OT.playerId
 
-    local maxHealth = GetEntityMaxHealth(ped) - 100
-    local health = maxHealth > 0 and (GetEntityHealth(ped) - 100) / maxHealth * 100 or 0
+    local maxHealth = math.max(GetEntityMaxHealth(ped) - 100, 1)
+    local health = OT.clamp(GetEntityHealth(ped) - 100, 0, maxHealth)
     if IsEntityDead(ped) then health = 0 end
 
-    updateVoice()
-
-    local data = {
-        health = OT.pct(health),
-        armor = OT.pct(GetPedArmour(ped)),
-        hunger = OT.pct(status.hunger),
-        thirst = OT.pct(status.thirst),
-        stress = OT.pct(status.stress),
-        voice = {
-            value = OT.pct(voice.level / math.max(voice.max, 1) * 100),
-            talking = voice.talking,
-            radio = voice.radio,
-            radioTalking = voice.radioTalking,
-        },
-    }
+    local stamina, breath = 100, 100
 
     if Config.Player.showStamina then
         local used = GetPlayerSprintStaminaRemaining(pid) -- returns "used" stamina (0 = full)
-        if used > 0.5 then data.stamina = OT.pct(100 - used) end
+        stamina = OT.pct(100 - used)
     end
 
     if Config.Player.showOxygen then
         local remaining = GetPlayerUnderwaterTimeRemaining(pid)
         if remaining > maxUnderwater then maxUnderwater = remaining end
         if IsPedSwimmingUnderWater(ped) then
-            data.oxygen = OT.pct(remaining / maxUnderwater * 100)
+            breath = OT.pct(remaining / maxUnderwater * 100)
         end
     end
 
-    return data
+    return {
+        health = { current = health, max = maxHealth },
+        armor = { current = OT.pct(GetPedArmour(ped)), max = 100 },
+        hunger = OT.pct(status.hunger),
+        thirst = OT.pct(status.thirst),
+        stress = OT.pct(status.stress),
+        stamina = stamina,
+        breath = breath,
+    }
+end
+
+function OT.Player.collectMic()
+    updateVoice()
+    return {
+        talking = voice.talking or voice.radioTalking,
+        radio = voice.radio,
+        currentLevel = voice.level,
+        maxLevel = math.max(voice.max, 1),
+    }
 end

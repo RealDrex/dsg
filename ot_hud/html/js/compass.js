@@ -1,190 +1,102 @@
-// Compass: heading tape, map points, street name, waypoint + "set waypoint" prompt
-(() => {
-    const PX = 4;          // px per degree
-    const HALF = 320;      // half of the tape width
-    const VIEW = 78;       // visible degrees on each side for points
-    const norm = d => ((d % 360) + 540) % 360 - 180;
-    const fmtDist = m => m >= 1000 ? (m / 1000).toFixed(1) + 'km' : m + 'm';
-    const GIF = new Set([0, 2, 3, 11, 12, 13, 14, 15, 41, 42, 161, 353, 422]);
-    const blipUrl = sprite => `blips/${sprite}.${GIF.has(sprite) ? 'gif' : 'png'}`;
+/* ot-hud — by drex */
+/* Compass bar + blips + "press X" focus prompt.
+   Light version: the tape is built once and moved with a single transform per frame,
+   blips are pooled, the heading is smoothed between Lua updates. */
+(function () {
+  var S = window.HUD, el = document.getElementById('compass');
+  var PX = 4; // px per degree at 1080p (637px tape ≈ 160°)
+  var HALF = 318.6, RANGE = 80;
+  var CARD = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' };
+  var DIRS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
-    // GTA blip image; with a color it is tinted like the in-game blip
-    function setBlip(el, sprite, color) {
-        const url = `url("${blipUrl(sprite)}")`;
-        if (el._key === sprite + '|' + color) return;
-        el._key = sprite + '|' + color;
-        if (color) {
-            el.style.backgroundImage = 'none';
-            el.style.backgroundColor = color;
-            el.style.webkitMaskImage = url;
-        } else {
-            el.style.backgroundImage = url;
-            el.style.backgroundColor = 'transparent';
-            el.style.webkitMaskImage = 'none';
-        }
+  el.innerHTML =
+    '<div class="cmp-tape"><div class="cmp-strip"></div><div class="cmp-blips"></div></div><div class="cmp-needle"></div>' +
+    '<div class="cmp-info"><span class="cmp-dir"></span><span class="cmp-sep"></span><span class="cmp-street"></span>' +
+    '<span class="cmp-sep wp-sep" style="display:none"></span><span class="cmp-wp" style="display:none"></span></div>' +
+    '<div class="cmp-focus" style="display:none"><div class="cmp-pill"></div><div class="cmp-key"><span class="key">X</span><span class="lbl"></span></div></div>';
+  var strip = el.querySelector('.cmp-strip'), blipLayer = el.querySelector('.cmp-blips');
+  var dir = el.querySelector('.cmp-dir'), street = el.querySelector('.cmp-street');
+  var wpSep = el.querySelector('.wp-sep'), wpTxt = el.querySelector('.cmp-wp');
+  var focus = el.querySelector('.cmp-focus'), pill = el.querySelector('.cmp-pill'), lbl = focus.querySelector('.lbl'), keyEl = focus.querySelector('.key');
+
+  var norm = function (d) { return ((d % 360) + 540) % 360 - 180; };
+  var fmt = function (m) { return m >= 1000 ? (m / 1000).toFixed(1) + 'km' : Math.round(m) + 'm'; };
+  var L = function (k, def) { return (S.labels.Compass && S.labels.Compass[k]) || def; };
+  var px = function (v) { return 'calc(' + v.toFixed(1) + 'px * var(--s))'; };
+
+  // static tape from -180° to 540° so any heading 0..360 ± RANGE is covered
+  var names = null;
+  function buildTape() {
+    names = [L('north', 'N'), L('northEast', 'NE'), L('east', 'E'), L('southEast', 'SE'), L('south', 'S'), L('southWest', 'SW'), L('west', 'W'), L('northWest', 'NW')];
+    var html = '';
+    for (var d = -180; d <= 540; d += 5) {
+      var deg = ((d % 360) + 360) % 360, card = CARD[deg] != null, lab = deg % 15 === 0, x = px((d + 180) * PX);
+      html += '<i class="cmp-tick' + (card ? ' card' : lab ? ' lab' : '') + '" style="left:' + x + '"></i>';
+      if (card || lab) html += '<span class="cmp-label' + (card ? ' card' : '') + '" style="left:' + x + '">' + (card ? names[deg / 45] : deg + '°') + '</span>';
     }
+    strip.innerHTML = html;
+  }
+  buildTape();
 
-    HUD.register('compass', {
-        mount(root, cfg) {
-            this.cfg = cfg;
-            this.labels = cfg.labels || {};
-            this.dirs = this.labels.directions || ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-            this.current = null;
-            this.target = 0;
-            this.points = [];
-            this.pool = {};
+  var cur = null, target = 0, pool = {}, lastFocusKey = '', labelsRef = null;
 
-            root.innerHTML = '';
-            root.classList.add('off');
-            const cp = HUD.el('div', 'cp', root);
-            const wrap = HUD.el('div', 'cp-tape-wrap', cp);
-            this.tape = HUD.el('div', 'cp-tape', wrap);
-            this.blips = HUD.el('div', 'cp-blips', wrap);
-            HUD.el('div', 'cp-marker', cp);
+  S.subscribe(function () {
+    var c = S.compass;
+    if (S.labels !== labelsRef) { labelsRef = S.labels; buildTape(); keyEl.textContent = L('key', 'X'); }
+    target = ((c.heading || 0) % 360 + 360) % 360;
+    if (cur === null) cur = target;
 
-            const info = HUD.el('div', 'cp-info', cp);
-            this.dirEl = HUD.el('span', 'cp-dir', info);
-            HUD.el('span', 'cp-sep', info);
-            this.streetEl = HUD.el('span', 'cp-street', info);
-            this.zoneEl = HUD.el('span', 'cp-zone', info);
-            this.wpSep = HUD.el('span', 'cp-sep', info);
-            this.wpEl = HUD.el('span', 'cp-wp', info);
+    street.textContent = c.street ? (c.area ? c.street + ' / ' + c.area : c.street) : (c.area || '');
 
-            this.promptEl = HUD.el('div', 'cp-prompt', cp);
-            const pill = HUD.el('div', 'cp-pill', this.promptEl);
-            this.promptIcon = HUD.el('div', 'cp-blip-img', pill);
-            this.promptText = HUD.el('span', '', pill);
-            const act = HUD.el('div', 'cp-action', this.promptEl);
-            const key = HUD.el('span', 'cp-key', act);
-            key.textContent = (cfg.compass && cfg.compass.key) || 'E';
-            this.promptLabel = HUD.el('span', 'cp-action-label', act);
-            this.promptEl.style.display = 'none';
-            this.promptKey = null;
+    // blips (pooled)
+    var seen = {}, blips = c.blips || [];
+    for (var i = 0; i < blips.length; i++) {
+      var b = blips[i], key = String(b.id), n = pool[key];
+      var look = (b.sprite || '') + '|' + (b.spriteName || '') + '|' + (b.color || '') + '|' + (b.icon || '');
+      if (!n) { n = document.createElement('div'); n.className = 'cmp-blip'; blipLayer.appendChild(n); pool[key] = n; }
+      if (n._look !== look) { n.innerHTML = window.blipIcon(b); n._look = look; }
+      n._b = b;
+      n.classList.toggle('wp', c.waypoint != null && b.id === c.waypoint);
+      n.classList.toggle('focus', c.focus != null && b.id === c.focus);
+      seen[key] = true;
+    }
+    for (var k in pool) if (!seen[k]) { pool[k].remove(); delete pool[k]; }
 
-            this.buildTape();
-            if (!this.raf) this.loop();
-        },
+    var wp = blips.find(function (b) { return c.waypoint != null && b.id === c.waypoint; });
+    wpSep.style.display = wpTxt.style.display = wp ? '' : 'none';
+    if (wp) wpTxt.textContent = (wp.name || '') + ' · ' + fmt(wp.distance || 0);
 
-        buildTape() {
-            const card = {};
-            [0, 45, 90, 135, 180, 225, 270, 315].forEach((deg, i) => { card[deg] = this.dirs[i]; });
-            const frag = document.createDocumentFragment();
-            for (let d = -180; d <= 540; d += 5) {
-                const deg = ((d % 360) + 360) % 360;
-                const c = card[deg];
-                const lab = deg % 15 === 0;
-                const x = (d + 180) * PX + 'px';
+    // focus is decided in Lua (close + aimed for a moment), the UI only shows it
+    var f = c.focus != null ? blips.find(function (b) { return b.id === c.focus; }) : null;
+    focus.style.display = f ? '' : 'none';
+    if (f) {
+      var fk = f.id + '|' + f.sprite + '|' + f.color;
+      if (fk !== lastFocusKey) { pill.innerHTML = window.blipIcon(f) + '<span></span>'; lastFocusKey = fk; }
+      pill.lastChild.textContent = (f.name || '') + ' · ' + fmt(f.distance || 0);
+      lbl.textContent = c.waypoint === f.id ? L('removeWaypoint', 'Remove waypoint') : L('setWaypoint', 'Set waypoint');
+    } else lastFocusKey = '';
+    S.focusedBlip = f ? f.id : null;
+  });
 
-                const t = document.createElement('div');
-                t.className = 'cp-tick';
-                t.style.left = x;
-                t.style.width = c ? '2px' : '1px';
-                t.style.height = c ? '16px' : (lab ? '12px' : '7px');
-                t.style.background = c ? 'var(--primary)' : (lab ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.22)');
-                if (c) t.style.boxShadow = '0 0 6px var(--primary)';
-                frag.appendChild(t);
-
-                if (c || lab) {
-                    const s = document.createElement('span');
-                    s.className = 'cp-label';
-                    s.style.left = x;
-                    s.style.fontSize = c ? '14px' : '11px';
-                    s.style.fontWeight = c ? '800' : '500';
-                    s.style.color = c ? 'var(--text)' : 'var(--muted)';
-                    s.textContent = c || deg + '°';
-                    frag.appendChild(s);
-                }
-            }
-            this.tape.innerHTML = '';
-            this.tape.appendChild(frag);
-        },
-
-        update(d) {
-            const root = document.getElementById('compass');
-            if (!d || d.hidden) { HUD.show(root, false); return; }
-            HUD.show(root, true);
-
-            this.target = d.heading || 0;
-            if (this.current === null) this.current = this.target;
-
-            this.streetEl.textContent = d.street || '';
-            this.zoneEl.textContent = d.zone || '';
-            this.zoneEl.style.display = d.zone ? '' : 'none';
-
-            const wp = d.waypoint;
-            this.wpSep.style.display = wp ? '' : 'none';
-            this.wpEl.style.display = wp ? '' : 'none';
-            if (wp) this.wpEl.textContent = `${wp.label} · ${fmtDist(wp.dist)}`;
-
-            this.points = d.points || [];
-            this.syncBlips();
-
-            const p = d.prompt;
-            if (p) {
-                const key = p.label + p.active;
-                if (key !== this.promptKey) {
-                    this.promptKey = key;
-                    this.promptEl.style.animation = 'none';
-                    void this.promptEl.offsetWidth;
-                    this.promptEl.style.animation = '';
-                }
-                setBlip(this.promptIcon, p.sprite, p.color);
-                this.promptText.textContent = `${p.label} · ${fmtDist(p.dist)}`;
-                this.promptLabel.textContent = p.active ? this.labels.removeWaypoint : this.labels.setWaypoint;
-                this.promptEl.style.display = '';
-            } else {
-                this.promptKey = null;
-                this.promptEl.style.display = 'none';
-            }
-        },
-
-        syncBlips() {
-            const seen = {};
-            this.points.forEach(p => {
-                seen[p.id] = true;
-                let b = this.pool[p.id];
-                if (!b) {
-                    b = HUD.el('div', 'cp-blip', this.blips);
-                    b.img = HUD.el('div', 'cp-blip-img', b);
-                    this.pool[p.id] = b;
-                }
-                setBlip(b.img, p.sprite, p.color);
-                b.data = p;
-                b.classList.toggle('active', !!p.active);
-                b.classList.toggle('aimed', !!p.aimed);
-            });
-            for (const id in this.pool) {
-                if (!seen[id]) { this.pool[id].remove(); delete this.pool[id]; }
-            }
-        },
-
-        loop() {
-            let last = performance.now();
-            const frame = now => {
-                const dt = Math.min((now - last) / 1000, 0.1);
-                last = now;
-                if (this.current !== null) {
-                    this.current += norm(this.target - this.current) * Math.min(1, dt * 12);
-                    this.current = ((this.current % 360) + 360) % 360;
-                    const h = this.current;
-
-                    this.tape.style.transform = `translateX(${HALF - (h + 180) * PX}px)`;
-                    this.dirEl.textContent = this.dirs[Math.round(h / 45) % 8];
-
-                    for (const id in this.pool) {
-                        const b = this.pool[id];
-                        const rel = norm(b.data.bearing - h);
-                        if (Math.abs(rel) > VIEW) {
-                            b.style.display = 'none';
-                        } else {
-                            b.style.display = '';
-                            b.style.left = (HALF + rel * PX) + 'px';
-                        }
-                    }
-                }
-                this.raf = requestAnimationFrame(frame);
-            };
-            this.raf = requestAnimationFrame(frame);
-        },
-    });
+  var last = performance.now();
+  function frame(now) {
+    var dt = Math.min((now - last) / 1000, 0.1);
+    last = now;
+    if (cur !== null && !el.classList.contains('off')) {
+      var diff = norm(target - cur);
+      if (Math.abs(diff) > 0.01) {
+        cur = ((cur + diff * Math.min(1, dt * 12)) % 360 + 360) % 360;
+      }
+      strip.style.transform = 'translateX(' + px(HALF - (cur + 180) * PX) + ')';
+      dir.textContent = names[Math.round(cur / 45) % 8] || DIRS[Math.round(cur / 45) % 8];
+      for (var k in pool) {
+        var n = pool[k], dl = norm(n._b.bearing - cur);
+        if (Math.abs(dl) > RANGE - 2) { if (n.style.display !== 'none') n.style.display = 'none'; continue; }
+        if (n.style.display) n.style.display = '';
+        n.style.left = px(HALF + dl * PX);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
 })();

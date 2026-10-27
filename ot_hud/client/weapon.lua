@@ -37,18 +37,15 @@ local function oxAmmoCount(item)
 end
 
 function OT.Weapon.collect()
-    if not cfg.enabled then return nil end
-    if cfg.hideInAircraft and OT.isAircraft then return nil end
+    if not cfg.enabled or OT.isAircraft then return nil end
 
     local ped = OT.ped
     local hash = GetSelectedPedWeapon(ped)
     if hash == 0 or cfg.hidden[hash] then return nil end
 
-    local group = GROUPS[u32(GetWeapontypeGroup(hash))] or 'misc'
-    local kind = 'gun'
-    if group == 'melee' or group == 'misc' then kind = 'melee'
-    elseif group == 'throwable' then kind = 'throwable' end
-    if kind == 'melee' and not cfg.showMelee then return nil end
+    -- the weapon HUD is an ammo display: melee / tools are not shown
+    local group = GROUPS[u32(GetWeapontypeGroup(hash))]
+    if not group or group == 'melee' then return nil end
 
     local name = cfg.names[hash] or WeaponNames[hash] or Config.Labels.weaponFallback
     local durability, ammoItem = nil, nil
@@ -69,27 +66,26 @@ function OT.Weapon.collect()
         end
     end
 
-    local data = {
-        kind = kind,
-        type = Config.Labels.weaponTypes[group] or '',
-        name = name,
-        durability = (cfg.showDurability and durability) and OT.pct(durability) or nil,
-    }
-
-    if kind == 'gun' then
-        local cap = GetMaxAmmoInClip(ped, hash, true) or 0
-        local _, mag = GetAmmoInClip(ped, hash)
-        mag = mag or 0
-        local reserve = (GetAmmoInPedWeapon(ped, hash) or 0) - mag
+    local cap, mag, reserve
+    if group == 'throwable' then
+        mag = GetAmmoInPedWeapon(ped, hash) or 0
+        cap, reserve = math.max(mag, 1), 0
+    else
+        cap = GetMaxAmmoInClip(ped, hash, true) or 0
+        local _, clip = GetAmmoInClip(ped, hash)
+        mag = clip or 0
+        reserve = (GetAmmoInPedWeapon(ped, hash) or 0) - mag
         if ammoItem then reserve = oxAmmoCount(ammoItem) end
-
-        data.cap = math.max(cap, 1)
-        data.mag = math.max(mag, 0)
-        data.total = math.max(reserve, 0)
-        data.reloading = IsPedReloading(ped)
-    elseif kind == 'throwable' then
-        data.mag = GetAmmoInPedWeapon(ped, hash) or 0
     end
 
-    return data
+    return {
+        name = name,
+        magCapacity = math.max(cap, 1),
+        magContent = math.max(mag, 0),
+        totalAmmo = math.max(reserve, 0),
+        durability = {
+            active = cfg.showDurability and durability ~= nil,
+            value = durability and OT.pct(durability) or 100,
+        },
+    }
 end

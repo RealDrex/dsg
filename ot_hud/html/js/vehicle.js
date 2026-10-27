@@ -1,99 +1,96 @@
-// Vehicle: speed, gear, RPM bars, engine / body / fuel, lights / cruise / seatbelt / lock
-(() => {
-    HUD.register('vehicle', {
-        mount(root, cfg) {
-            this.root = root;
-            this.cfg = cfg.vehicle || {};
-            this.labels = cfg.labels || {};
-            this.colors = cfg.colors || {};
-            root.innerHTML = '';
+/* ot-hud — by drex */
+/* Vehicle HUD: one bent RPM line (dot start), RPM numbers along it, inner fuel line, big speed, icons */
+(function () {
+  var S = window.HUD, el = document.getElementById('vehicle');
+  var NS = 'http://www.w3.org/2000/svg';
+  var MAIN = 'M14 138 L78 64 Q96 44 124 41 L346 20';
+  var FUEL = 'M66 118 L92 88';
+  el.innerHTML =
+    '<svg class="vh-svg" viewBox="0 0 360 150">' +
+    '<g class="marks"></g>' +
+    '<path class="trk draw" d="' + MAIN + '" stroke-width="13" pathLength="100"></path>' +
+    '<path class="fill" d="' + MAIN + '" stroke-width="7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"></path>' +
+    '<circle class="dot" cx="14" cy="138" r="7.5"></circle>' +
+    '<path class="trk draw" d="' + FUEL + '" stroke-width="6" pathLength="100"></path>' +
+    '<path class="fuelf" d="' + FUEL + '" stroke-width="3" pathLength="100" stroke-dasharray="100" stroke-dashoffset="0"></path>' +
+    '</svg>' +
+    window.svgIcon('gas', 'vh-fuel-ic') +
+    '<div class="vh-speed"><div class="vh-meta"><span class="unit"></span><div class="vh-gear">N</div></div><b>0</b></div>' +
+    '<div class="vh-icons">' +
+    window.svgIcon('car-body', 'ic engine') + window.svgIcon('seatbelt', 'ic belt') + window.svgIcon('light-low', 'ic lights') +
+    window.svgIcon('lock', 'ic lock') + window.svgIcon('cruise-control', 'ic cruise') + window.svgIcon('nos', 'ic nos') + window.svgIcon('harness', 'ic harness') +
+    '</div>';
+  var svg = el.querySelector('svg'), marks = el.querySelector('.marks'), fill = el.querySelector('.fill'), fuelf = el.querySelector('.fuelf');
+  var fuelIc = el.querySelector('.vh-fuel-ic');
+  fuelIc.style.left = (100 / 360 * 100) + '%'; fuelIc.style.top = (84 / 150 * 100) + '%';
+  var speedEl = el.querySelector('.vh-speed b'), unitEl = el.querySelector('.unit'), gearEl = el.querySelector('.vh-gear');
+  var q = function (c) { return el.querySelector('.vh-icons .' + c); };
+  var I = { engine: q('engine'), belt: q('belt'), lights: q('lights'), lock: q('lock'), cruise: q('cruise'), nos: q('nos'), harness: q('harness') };
+  var shown = 0, target = 0, raf = null, lastLights = 'low', labels = [];
 
-            this.vh = HUD.el('div', 'vh', root);
-            const head = HUD.el('div', 'vh-head', this.vh);
-            const sw = HUD.el('div', 'vh-speed-wrap', head);
-            this.speedEl = HUD.el('span', 'vh-speed', sw);
-            const unit = HUD.el('span', 'vh-unit', sw);
-            unit.textContent = this.cfg.unit === 'mph' ? (this.labels.mph || 'MPH') : (this.labels.kmh || 'KM/H');
-            this.gearEl = HUD.el('div', 'vh-gear', head);
-            this.gearText = HUD.el('span', '', this.gearEl);
+  // RPM numbers 1..8 along the outside of the line
+  (function () {
+    var path = fill, len = path.getTotalLength(), N = 8;
+    for (var i = 1; i <= N; i++) {
+      var at = (0.1 + (i - 1) / (N - 1) * 0.88) * len;
+      var p = path.getPointAtLength(at), p2 = path.getPointAtLength(Math.min(len, at + 1));
+      var tx = p2.x - p.x, ty = p2.y - p.y, m = Math.hypot(tx, ty) || 1, nx = ty / m, ny = -tx / m; // left normal (outside)
+      var red = i >= 7;
+      var tk = document.createElementNS(NS, 'line');
+      tk.setAttribute('x1', p.x + nx * 9); tk.setAttribute('y1', p.y + ny * 9); tk.setAttribute('x2', p.x + nx * 12); tk.setAttribute('y2', p.y + ny * 12);
+      tk.setAttribute('class', 'tick' + (red ? ' red' : ''));
+      var t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', (p.x + nx * 19).toFixed(1)); t.setAttribute('y', (p.y + ny * 19).toFixed(1));
+      t.setAttribute('class', red ? 'red' : ''); t.textContent = i;
+      marks.appendChild(tk); marks.appendChild(t); labels.push({ t: t, red: red, v: (i - 1) / (N - 1) });
+    }
+  })();
 
-            const rpm = HUD.el('div', 'vh-rpm', this.vh);
-            this.rpm = Array.from({ length: 16 }, (_, i) => {
-                const b = HUD.el('div', i >= 13 ? 'zone' : '', rpm);
-                b.style.height = (6 + i * 0.6) + 'px';
-                return b;
-            });
+  function tween() {
+    shown += (target - shown) * 0.25;
+    if (Math.abs(target - shown) < 0.5) shown = target;
+    speedEl.textContent = Math.round(shown);
+    raf = shown !== target ? requestAnimationFrame(tween) : null;
+  }
+  var unitLabel = function (u) { u = String(u || 'KMH').toUpperCase(); return u === 'MPH' ? 'MPH' : 'KM/H'; };
 
-            const foot = HUD.el('div', 'vh-foot', this.vh);
-            const sys = HUD.el('div', 'vh-sys', foot);
-            this.sys = {};
-            ['engine', 'body', 'fuel'].forEach(k => {
-                const st = HUD.el('div', 'stat', sys);
-                const bar = HUD.el('div', 'stat-bar', st);
-                const fill = HUD.el('div', 'stat-fill', bar);
-                const icon = makeIcon(k === 'fuel' ? 'gas' : k === 'body' ? 'car-body' : 'engine', 20);
-                st.appendChild(icon);
-                this.sys[k] = { fill, icon };
-            });
+  S.subscribe(function () {
+    var v = S.vehicle;
+    if (!S.inVehicle || v.aircraft) return;
+    target = Math.max(0, v.speed || 0);
+    if (!raf) raf = requestAnimationFrame(tween);
+    unitEl.textContent = unitLabel(S.config.speedometerUnit);
 
-            const flags = HUD.el('div', 'vh-flags', foot);
-            this.flags = {};
-            [['lights', 'light-low'], ['cruise', 'cruise-control'], ['belt', 'seatbelt'], ['lock', 'lock']].forEach(([k, ic]) => {
-                const f = HUD.el('div', 'vh-flag', flags);
-                const icon = makeIcon(ic, 16);
-                f.appendChild(icon);
-                this.flags[k] = { f, icon };
-            });
-        },
+    var r = Math.max(0, Math.min(100, v.RPM || 0));
+    fill.setAttribute('stroke-dashoffset', (100 - r).toFixed(1));
+    fill.classList.toggle('red', r >= 92);
+    labels.forEach(function (l) { l.t.classList.toggle('on', !l.red && r / 100 >= l.v); });
 
-        setSys(key, value, low) {
-            const s = this.sys[key];
-            const isLow = value <= low;
-            const c = isLow ? (this.colors.danger || '#ef4444') : (this.colors.primary || '#3b82f6');
-            s.fill.style.height = Math.max(value, 4) + '%';
-            s.fill.style.background = c;
-            s.fill.style.boxShadow = `0 0 6px ${c}`;
-            s.icon.setAttribute('fill', isLow ? c : '#ffffff');
-            s.icon.style.filter = `drop-shadow(0 0 6px ${HUD.rgba(c, .55)})`;
-        },
+    var fl = Math.max(0, Math.min(100, v.fuel.level)), electric = v.fuel && v.fuel.type !== 'gasoline';
+    fuelf.setAttribute('stroke-dashoffset', (100 - fl).toFixed(1));
+    fuelf.classList.toggle('low', fl <= 20);
+    fuelIc.classList.toggle('low', fl <= 20);
+    if (electric !== fuelIc._el) { fuelIc._el = electric; var d0 = document.createElement('div'); d0.innerHTML = window.svgIcon(electric ? 'bolt' : 'gas', 'vh-fuel-ic'); fuelIc.querySelector('path').setAttribute('d', d0.querySelector('path').getAttribute('d')); }
 
-        setFlag(key, on, color, icon) {
-            const f = this.flags[key];
-            if (icon) f.icon.setIcon(icon);
-            f.icon.setAttribute('fill', on ? color : 'rgba(255,255,255,.28)');
-            f.icon.style.filter = on ? `drop-shadow(0 0 5px ${HUD.rgba(color, .6)})` : 'none';
-        },
+    gearEl.style.display = electric ? 'none' : '';
+    gearEl.textContent = v.gear === -1 ? 'R' : v.gear === 0 ? 'N' : v.gear;
+    gearEl.classList.toggle('r', v.gear === -1);
 
-        update(d) {
-            HUD.show(this.root, !!d);
-            if (!d) return;
-            const C = this.colors;
-
-            this.vh.classList.toggle('cycle', !!d.cycle);
-            this.speedEl.textContent = d.speed;
-            this.gearText.textContent = d.gear;
-            this.gearEl.classList.toggle('red', d.rpm > (this.cfg.redline ?? 0.85));
-
-            const lit = Math.round(d.rpm * 16);
-            this.rpm.forEach((b, i) => b.classList.toggle('on', i < lit));
-
-            this.setSys('engine', d.engine, 20);
-            this.setSys('body', d.body, 20);
-            this.sys.fuel.icon.setIcon(d.electric ? 'bolt' : 'gas');
-            this.setSys('fuel', d.fuel, this.cfg.lowFuel ?? 20);
-
-            const light = C.primaryLight || '#60a5fa';
-            this.setFlag('lights', !!d.lights, light, d.lights === 'high' ? 'light-high' : 'light-low');
-            this.setFlag('cruise', d.cruise, light);
-
-            const belt = this.flags.belt;
-            belt.f.classList.toggle('hide', !d.hasBelt);
-            const warn = d.hasBelt && !d.belt && d.speed >= (this.cfg.beltWarningSpeed ?? 20);
-            belt.f.classList.toggle('warn', warn);
-            if (warn) this.setFlag('belt', true, C.danger || '#ef4444');
-            else this.setFlag('belt', d.belt, C.success || '#4ade80');
-
-            this.setFlag('lock', d.locked, C.warning || '#facc15');
-        },
-    });
+    if (v.lights !== lastLights) {
+      var d = document.createElement('div');
+      d.innerHTML = window.svgIcon(v.lights === 'high' ? 'light-high' : 'light-low', 'ic lights');
+      I.lights.replaceWith(d.firstChild); I.lights = q('lights'); lastLights = v.lights;
+    }
+    var set = function (n, state) { n.classList.remove('on', 'off', 'warn'); if (state) n.classList.add(state); };
+    set(I.engine, !v.engine.active || v.engine.durability <= 30 || v.body <= 30 ? 'warn' : '');
+    set(I.belt, v.seatbelt ? 'on' : (target > 10 ? 'warn' : 'off'));
+    set(I.lights, v.lights && v.lights !== 'off' ? 'on' : 'off');
+    set(I.lock, v.locked ? 'on' : 'off');
+    set(I.cruise, v.cruiseControl ? 'on' : 'off');
+    I.cruise.style.display = v.cruiseControl ? '' : 'none';
+    I.nos.style.display = v.NOS && v.NOS.active ? '' : 'none';
+    set(I.nos, v.NOS && v.NOS.level > 0 ? 'on' : 'off');
+    I.harness.style.display = v.harness && v.harness.active ? '' : 'none';
+    set(I.harness, 'on');
+  });
 })();

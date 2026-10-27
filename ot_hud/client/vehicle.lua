@@ -137,46 +137,70 @@ function OT.Vehicle.isBelted()
     return seatbelt
 end
 
+-- ─────────────────────────── harness / nitro (qb / qbx scripts) ───
+
+local harness, nitro = { active = false, durability = 0 }, { active = false, level = 0 }
+
+RegisterNetEvent('hud:client:UpdateHarness', function(hp)
+    hp = tonumber(hp) or 0
+    harness.active, harness.durability = hp > 0, OT.pct(hp)
+end)
+
+RegisterNetEvent('hud:client:UpdateNitrous', function(_, level, active)
+    nitro.level, nitro.active = OT.pct(level), active and true or false
+end)
+
+exports('setHarness', function(active, durability)
+    harness.active, harness.durability = active and true or false, OT.pct(durability or 100)
+end)
+exports('setNitro', function(level, active)
+    nitro.level, nitro.active = OT.pct(level), active and true or false
+end)
+
 -- ─────────────────────────── collect ──────────────────────────────
 
+local ON_FOOT = { onFoot = true } -- no `speed` key = not in a vehicle for the UI
+
 function OT.Vehicle.collect()
-    if not cfg.enabled then return nil end
     local veh = OT.vehicle
-    if veh == 0 or OT.isAircraft then return nil end
+    if not cfg.enabled or veh == 0 then return ON_FOOT end
 
     local class = OT.vehClass
     local speedMs = GetEntitySpeed(veh)
-    local speed = math.floor(speedMs * (cfg.unit == 'mph' and 2.236936 or 3.6))
     local running = GetIsVehicleEngineRunning(veh)
-    local rpm = running and GetVehicleCurrentRpm(veh) or 0.0
 
     local gear
     if speedMs < 0.5 then
-        gear = 'N'
+        gear = 0
     elseif GetEntitySpeedVector(veh, true).y < -0.5 then
-        gear = 'R'
+        gear = -1
     else
-        local g = GetVehicleCurrentGear(veh)
-        gear = g == 0 and 'R' or tostring(g)
+        gear = GetVehicleCurrentGear(veh)
+        if gear == 0 then gear = -1 end
     end
 
     local _, lightsOn, highBeams = GetVehicleLightsState(veh)
-    local lights = false
+    local lights = 'off'
     if highBeams == 1 then lights = 'high' elseif lightsOn == 1 then lights = 'low' end
 
+    local isElectric = electric[GetEntityModel(veh)] == true or class == 13
+
+    local hasHarness = harness.active or LocalPlayer.state.harness == true
+
     return {
-        speed = speed,
-        rpm = class == 13 and 0 or rpm,
-        gear = class == 13 and '-' or gear,
-        engine = OT.pct(GetVehicleEngineHealth(veh) / 10),
+        speed = math.floor(speedMs * (cfg.unit == 'mph' and 2.236936 or 3.6)),
+        RPM = (running and class ~= 13) and OT.pct(GetVehicleCurrentRpm(veh) * 100) or 0,
+        gear = gear,
+        maxGear = GetVehicleHighGear(veh),
+        fuel = { type = isElectric and 'electric' or 'gasoline', level = OT.pct(getFuel(veh)) },
+        engine = { active = running, durability = OT.pct(GetVehicleEngineHealth(veh) / 10) },
         body = OT.pct(GetVehicleBodyHealth(veh) / 10),
-        fuel = OT.pct(getFuel(veh)),
-        electric = electric[GetEntityModel(veh)] == true,
-        cycle = class == 13,
-        lights = lights,
-        cruise = cruise,
-        belt = seatbelt,
-        hasBelt = not NO_BELT[class],
+        seatbelt = seatbelt,
         locked = GetVehicleDoorLockStatus(veh) >= 2,
+        lights = lights,
+        cruiseControl = cruise,
+        harness = { active = hasHarness, durability = hasHarness and math.max(harness.durability, 1) or 0 },
+        NOS = { active = nitro.active or nitro.level > 0, level = nitro.level },
+        aircraft = OT.Aircraft.collect() or false,
     }
 end

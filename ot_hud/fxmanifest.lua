@@ -4,7 +4,7 @@ lua54 'yes'
 
 name 'ot_hud'
 description 'OT HUD - compass, player status, weapon, vehicle & aircraft HUD'
-version '1.0.0'
+version '2.0.0'
 
 shared_scripts {
     'config.lua',
@@ -29,9 +29,11 @@ ui_page 'html/index.html'
 
 files {
     'html/index.html',
+    'html/fonts.css',
     'html/css/*.css',
     'html/js/*.js',
-    'html/fonts/*.woff2',
-    'html/blips/*.png',
-    'html/blips/*.gif',
+    'html/assets/fonts/*.woff2',
+    'html/assets/sounds/notifications/*.mp3',
+    'html/assets/blips/*.png',
+    'html/assets/blips/*.gif',
 }

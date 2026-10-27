@@ -59,13 +59,6 @@ local function blipColor(blip)
     return ('#%02x%02x%02x'):format(r, g, b)
 end
 
-local function isEnabled()
-    if not OT.compassVisible or cfg.show == 'never' then return false end
-    if cfg.show == 'vehicle' and OT.vehicle == 0 then return false end
-    if cfg.hideInAircraft and OT.isAircraft then return false end
-    return true
-end
-
 -- ─────────────────────────── map blips scan ───────────────────────
 
 CreateThread(function()
@@ -138,92 +131,84 @@ local function updateAim(list, heading, now)
     end
 end
 
--- ─────────────────────────── main loop ────────────────────────────
+-- ─────────────────────────── collect (called by the main loop) ───
 
+local street, zone, lastStreet = '', '', 0
+
+function OT.Compass.collect()
+    local ped = OT.ped
+    local pos = GetEntityCoords(ped)
+    local heading = getHeading(ped)
+    local now = GetGameTimer()
+
+    if now - lastStreet > 500 then
+        lastStreet = now
+        street, zone = getStreet(pos)
+    end
+
+    -- current GPS waypoint (set by us or from the map)
+    local wp = nil
+    if IsWaypointActive() then
+        local b = GetFirstBlipInfoId(WAYPOINT_SPRITE)
+        if DoesBlipExist(b) then wp = GetBlipInfoIdCoord(b) end
+    end
+
+    local list, wpPoint = {}, nil
+    local function consider(id, p)
+        local dx, dy = p.coords.x - pos.x, p.coords.y - pos.y
+        local dist = math.sqrt(dx * dx + dy * dy)
+        local active = wp ~= nil and math.abs(p.coords.x - wp.x) < 3.0 and math.abs(p.coords.y - wp.y) < 3.0
+        if active or dist <= cfg.maxDistance then
+            local item = {
+                id = id, label = p.label, sprite = p.sprite, color = p.color, coords = p.coords,
+                bearing = bearing(dx, dy), dist = math.floor(dist + 0.5), active = active,
+            }
+            list[#list + 1] = item
+            if active and not wpPoint then wpPoint = item end
+        end
+    end
+
+    for id, p in pairs(points) do consider(id, p) end
+    for id, p in pairs(blipPoints) do consider(id, p) end
+
+    if wp and not wpPoint then
+        consider('__waypoint', { label = Config.Labels.waypoint, sprite = WAYPOINT_SPRITE, coords = wp })
+        wpPoint = list[#list]
+    end
+
+    table.sort(list, function(a, b)
+        if a.active ~= b.active then return a.active end
+        return a.dist < b.dist
+    end)
+
+    if OT.compassAllowed ~= false then
+        updateAim(list, heading, now)
+    else
+        aimed, pending.id = nil, nil
+    end
+
+    local out = {}
+    for i = 1, math.min(#list, cfg.maxPoints) do
+        local p = list[i]
+        out[i] = { id = p.id, name = p.label, sprite = p.sprite, color = p.color, bearing = p.bearing, distance = p.dist }
+    end
+
+    return {
+        heading = heading,
+        street = street,
+        area = cfg.showZone and zone or '',
+        zone = zone,
+        blips = out,
+        waypoint = wpPoint and wpPoint.id or nil,
+        focus = aimed and aimed.id or nil,
+    }
+end
+
+-- the prompt only works when the compass is actually on screen
 CreateThread(function()
-    while not OT.ready do Wait(250) end
-
-    local street, zone, lastStreet, wasEnabled = '', '', 0, nil
-
     while true do
-        local enabled = OT.shown and isEnabled()
-        if enabled ~= wasEnabled then
-            wasEnabled = enabled
-            if not enabled then
-                aimed, pending.id = nil, nil
-                OT.send('compass', { hidden = true })
-            end
-        end
-
-        if enabled then
-            local ped = OT.ped
-            local pos = GetEntityCoords(ped)
-            local heading = getHeading(ped)
-            local now = GetGameTimer()
-
-            if now - lastStreet > 500 then
-                lastStreet = now
-                street, zone = getStreet(pos)
-            end
-
-            -- current GPS waypoint (set by us or from the map)
-            local wp = nil
-            if IsWaypointActive() then
-                local b = GetFirstBlipInfoId(WAYPOINT_SPRITE)
-                if DoesBlipExist(b) then wp = GetBlipInfoIdCoord(b) end
-            end
-
-            local list, wpPoint = {}, nil
-            local function consider(id, p)
-                local dx, dy = p.coords.x - pos.x, p.coords.y - pos.y
-                local dist = math.sqrt(dx * dx + dy * dy)
-                local active = wp ~= nil and math.abs(p.coords.x - wp.x) < 3.0 and math.abs(p.coords.y - wp.y) < 3.0
-                if active or dist <= cfg.maxDistance then
-                    local item = {
-                        id = id, label = p.label, sprite = p.sprite, color = p.color, coords = p.coords,
-                        bearing = bearing(dx, dy), dist = math.floor(dist + 0.5), active = active,
-                    }
-                    list[#list + 1] = item
-                    if active and not wpPoint then wpPoint = item end
-                end
-            end
-
-            for id, p in pairs(points) do consider(id, p) end
-            for id, p in pairs(blipPoints) do consider(id, p) end
-
-            if wp and not wpPoint then
-                consider('__waypoint', { label = Config.Labels.waypoint, sprite = WAYPOINT_SPRITE, coords = wp })
-                wpPoint = list[#list]
-            end
-
-            table.sort(list, function(a, b)
-                if a.active ~= b.active then return a.active end
-                return a.dist < b.dist
-            end)
-
-            updateAim(list, heading, now)
-
-            local out = {}
-            for i = 1, math.min(#list, cfg.maxPoints) do
-                local p = list[i]
-                out[i] = {
-                    id = p.id, sprite = p.sprite, color = p.color, bearing = p.bearing, active = p.active,
-                    aimed = aimed ~= nil and aimed.id == p.id,
-                }
-            end
-
-            OT.send('compass', {
-                heading = heading,
-                street = street,
-                zone = cfg.showZone and zone or nil,
-                points = out,
-                waypoint = wpPoint and { label = wpPoint.label, dist = wpPoint.dist } or nil,
-                prompt = aimed and {
-                    label = aimed.label, dist = aimed.dist, sprite = aimed.sprite, color = aimed.color, active = aimed.active,
-                } or nil,
-            })
-        end
-
-        Wait(enabled and cfg.updateInterval or 500)
+        local show = cfg.show
+        OT.compassAllowed = OT.shown and not OT.compassHidden and show ~= 'never' and (show ~= 'vehicle' or OT.vehicle ~= 0)
+        Wait(250)
     end
 end)
