@@ -252,19 +252,20 @@ local function applyMinimap(r)
     local x = (left - originX) / hudW - off + (o.x or 0.0)
     local y = top / H - (1.0 - h) + off + (o.y or 0.0)
 
-    -- 'minimap'      = player arrow + blips  -> exactly the frame hole
-    -- 'minimap_blur' = the drawn map itself  -> bigger than the hole (multipliers of it, same idea as qb-hud)
-    -- 'minimap_mask' = clips the blips       -> qb-hud values
-    local b = Config.Minimap.blur
-    local bx, by, bw, bh = x + b.x * w, y + b.y * h, w * b.w, h * b.h
-    local m = Config.Minimap.mask
-
+    -- Last layout that was confirmed visible in game (+ the squaremap texture):
+    --   'minimap' and 'minimap_blur' = the frame hole
+    --   'minimap_mask' = FIXED (0, 0, 0.128, 0.20). It is relative to the radar, so it must NOT
+    --   follow the radar's x / y (ayc-hud does the same; moving it hid the whole map, worst on ultrawide)
     SetMinimapClipType(0)
     SetMinimapComponentPosition('minimap', 'L', 'B', x, y, w, h)
-    SetMinimapComponentPosition('minimap_mask', 'L', 'B', x + m.x, m.y, m.w, m.h)
-    SetMinimapComponentPosition('minimap_blur', 'L', 'B', bx, by, bw, bh)
+    SetMinimapComponentPosition('minimap_mask', 'L', 'B', 0.0, 0.0, 0.128, 0.20)
+    SetMinimapComponentPosition('minimap_blur', 'L', 'B', x, y, w, h)
     SetBlipAlpha(GetNorthRadarBlip(), 0)
 
+    if not lastMapValues then
+        print(('[ot_hud] minimap placed | screen %dx%d | x=%.4f y=%.4f w=%.4f h=%.4f | squaremap: %s'):format(
+            W, H, x, y, w, h, squareLoaded and 'yes' or 'NO'))
+    end
     lastMapValues = { W = W, H = H, x = x, y = y, w = w, h = h, square = squareLoaded }
     -- toggling the big map forces the radar to pick up the new position
     SetBigmapActive(true, false)
@@ -274,11 +275,10 @@ end
 
 -- /hudmap -> prints the current values in F8
 RegisterCommand('hudmap', function()
-    local v, b = lastMapValues, Config.Minimap.blur
+    local v = lastMapValues
     if not v then return print('[ot_hud] minimap not placed yet (get in a vehicle)') end
     print(('[ot_hud] screen %dx%d | minimap x=%.4f y=%.4f w=%.4f h=%.4f | squaremap texture: %s'):format(
         v.W, v.H, v.x, v.y, v.w, v.h, v.square and 'yes' or 'no'))
-    print(('[ot_hud] Config.Minimap.blur = { x = %.3f, y = %.3f, w = %.3f, h = %.3f }'):format(b.x, b.y, b.w, b.h))
 end, false)
 
 CreateThread(function()
