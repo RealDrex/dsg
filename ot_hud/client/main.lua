@@ -208,24 +208,64 @@ RegisterNUICallback('minimap:rect', function(data, cb)
     cb('ok')
 end)
 
+local liveOffset = { x = 0.0, y = 0.0 } -- tweaked in game with /hudmap
+local lastMapValues = nil
+
 local function applyMinimap(r)
-    local sz = GetSafeZoneSize()
-    local off = (1.0 - sz) * 0.5
+    -- screen size in pixels (the UI sends it; fall back to the game's resolution)
+    local W, H = r.resX, r.resY
+    if not W or not H or W <= 0 or H <= 0 then W, H = GetActiveScreenResolution() end
+
+    -- GTA lays out HUD components inside a centered 16:9 area on wider screens
+    -- (ultrawide). Convert the UI's pixel rect into that space.
+    local hudW, originX = W, 0.0
+    if W / H > 16 / 9 + 0.01 then
+        hudW = H * 16 / 9
+        originX = (W - hudW) * 0.5
+    end
+
+    local left, top = r.x * W, r.y * H
+    local w = (r.w * W) / hudW
+    local h = r.h
+
+    -- 'L','B' alignment is relative to the safe zone
+    local off = (1.0 - GetSafeZoneSize()) * 0.5
     local o = Config.Minimap.offset or {}
-    local x = r.x - off + (o.x or 0.0)
-    local y = r.y - (1.0 - r.h) + off + (o.y or 0.0)
-    local w, h = r.w, r.h
+    local x = (left - originX) / hudW - off + (o.x or 0.0) + liveOffset.x
+    local y = top / H - (1.0 - h) + off + (o.y or 0.0) + liveOffset.y
 
     SetMinimapClipType(0)
     SetMinimapComponentPosition('minimap', 'L', 'B', x, y, w, h)
-    SetMinimapComponentPosition('minimap_mask', 'L', 'B', x, y, w, h)
-    SetMinimapComponentPosition('minimap_blur', 'L', 'B', x - w * 0.04, y + h * 0.06, w * 1.12, h * 1.28)
+    -- the mask is NOT in screen space: it is relative to the 'minimap' component,
+    -- and (0, 0, 0.128, 0.20) means "cover the whole map" (same values qb-hud uses)
+    SetMinimapComponentPosition('minimap_mask', 'L', 'B', 0.0, 0.0, 0.128, 0.20)
+    SetMinimapComponentPosition('minimap_blur', 'L', 'B', x, y, w, h)
     SetBlipAlpha(GetNorthRadarBlip(), 0)
+
+    lastMapValues = { W = W, H = H, x = x, y = y, w = w, h = h }
     -- toggling the big map forces the radar to pick up the new position
     SetBigmapActive(true, false)
     Wait(0)
     SetBigmapActive(false, false)
 end
+
+-- /hudmap            -> prints the values in F8
+-- /hudmap 0.005 0    -> moves the radar (x right, y down; screen fractions) to line it up live,
+--                       then copy the numbers into Config.Minimap.offset
+RegisterCommand('hudmap', function(_, args)
+    if args[1] then
+        liveOffset.x = tonumber(args[1]) or 0.0
+        liveOffset.y = tonumber(args[2]) or 0.0
+        appliedRect = nil -- re-apply on next tick
+    end
+    local v = lastMapValues
+    if v then
+        print(('[ot_hud] screen %dx%d | minimap x=%.4f y=%.4f w=%.4f h=%.4f | live offset x=%.4f y=%.4f'):format(
+            v.W, v.H, v.x, v.y, v.w, v.h, liveOffset.x, liveOffset.y))
+    else
+        print('[ot_hud] minimap not placed yet (get in a vehicle)')
+    end
+end, false)
 
 CreateThread(function()
     if Config.Minimap.show == 'native' then return end
