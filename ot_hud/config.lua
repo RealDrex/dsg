@@ -58,7 +58,25 @@ Config.Minimap = {
     -- the UI measures its map frame and the native radar is placed inside it on any resolution.
     -- If it is off by a few pixels on your setup, nudge it here (screen fractions, e.g. 0.002)
     offset = { x = 0.0, y = 0.0 },
+    -- the clipping area of the radar (relative to the radar, NOT screen space).
+    -- Measured so the map fills the whole frame. Tune live in game with:  /hudmask x y w h
+    mask = { x = -0.035, y = 0.029, w = 0.2415, h = 0.2787 },
     hideHealthArmour = true,    -- hide GTA's health / armour bars under the radar
+}
+
+-- ═══════════════════════════════════════════════════════════════
+--  Shift (phone)
+-- ═══════════════════════════════════════════════════════════════
+
+-- the speedometer / weapon slide left while a phone (or another UI) is open on the right
+Config.Shift = {
+    offset = 420,           -- px at 1080p
+    onNuiFocus = true,      -- any UI that takes the mouse (phone, menus, inventory) = shift. Works with every phone
+    -- exact phone checks: { resource, export } -> export must return true while the phone is open
+    exports = {
+        { 'npwd', 'isPhoneVisible' },
+        -- { 'lb-phone', 'IsOpen' },   -- add your phone's "is open" export here
+    },
 }
 
 -- ═══════════════════════════════════════════════════════════════

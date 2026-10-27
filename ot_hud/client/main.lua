@@ -210,6 +210,7 @@ RegisterNUICallback('minimap:rect', function(data, cb)
 end)
 
 local liveOffset = { x = 0.0, y = 0.0 } -- tweaked in game with /hudmap
+local liveMask = nil                    -- tweaked in game with /hudmask
 local lastMapValues = nil
 
 local function applyMinimap(r)
@@ -237,9 +238,9 @@ local function applyMinimap(r)
 
     SetMinimapClipType(0)
     SetMinimapComponentPosition('minimap', 'L', 'B', x, y, w, h)
-    -- the mask is NOT in screen space: it is relative to the 'minimap' component,
-    -- and (0, 0, 0.128, 0.20) means "cover the whole map" (same values qb-hud uses)
-    SetMinimapComponentPosition('minimap_mask', 'L', 'B', 0.0, 0.0, 0.128, 0.20)
+    -- the mask is NOT in screen space: it is relative to the 'minimap' component (Config.Minimap.mask)
+    local m = liveMask or Config.Minimap.mask or { x = 0.0, y = 0.0, w = 0.128, h = 0.20 }
+    SetMinimapComponentPosition('minimap_mask', 'L', 'B', m.x, m.y, m.w, m.h)
     SetMinimapComponentPosition('minimap_blur', 'L', 'B', x, y, w, h)
     SetBlipAlpha(GetNorthRadarBlip(), 0)
 
@@ -266,6 +267,18 @@ RegisterCommand('hudmap', function(_, args)
     else
         print('[ot_hud] minimap not placed yet (get in a vehicle)')
     end
+end, false)
+
+-- /hudmask                    -> prints the current mask
+-- /hudmask -0.035 0.029 0.24 0.28   -> x y w h of the radar clipping area, applied live.
+-- Make the map fill the frame, then copy the 4 numbers into Config.Minimap.mask
+RegisterCommand('hudmask', function(_, args)
+    if args[4] then
+        liveMask = { x = tonumber(args[1]) or 0.0, y = tonumber(args[2]) or 0.0, w = tonumber(args[3]) or 0.128, h = tonumber(args[4]) or 0.20 }
+        appliedRect = nil
+    end
+    local m = liveMask or Config.Minimap.mask
+    print(('[ot_hud] mask x=%.4f y=%.4f w=%.4f h=%.4f'):format(m.x, m.y, m.w, m.h))
 end, false)
 
 CreateThread(function()
@@ -362,8 +375,38 @@ end)
 
 -- slide the right side (speedometer / weapon) when a phone or another UI opens
 -- exports.ot_hud:shiftHud(true, 420)  /  exports.ot_hud:shiftHud(false)
+local manualShift, manualOffset = false, nil
+
 local function shiftHud(state, offset)
-    OT.send('hud:shift', { state = state and true or false, offset = offset })
+    manualShift = state and true or false
+    manualOffset = offset
 end
 exports('shiftHud', shiftHud)
 RegisterNetEvent('ot_hud:client:shift', shiftHud)
+
+-- automatic: a phone (or any UI) that takes the mouse slides the speedometer / weapon to the left
+local function phoneOpen()
+    for _, e in ipairs(Config.Shift.exports or {}) do
+        local res, fn = e[1], e[2]
+        if GetResourceState(res) == 'started' then
+            local ok, open = pcall(function() return exports[res][fn]() end)
+            if ok and open then return true end
+        end
+    end
+    return false
+end
+
+CreateThread(function()
+    while not OT.ready do Wait(250) end
+    local last = nil
+    while true do
+        local shift = manualShift
+            or (Config.Shift.onNuiFocus and IsNuiFocused())
+            or phoneOpen()
+        if shift ~= last then
+            last = shift
+            OT.send('hud:shift', { state = shift, offset = manualOffset or Config.Shift.offset })
+        end
+        Wait(200)
+    end
+end)
