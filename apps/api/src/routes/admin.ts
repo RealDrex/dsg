@@ -9,6 +9,7 @@ import {
 } from '../db/schema';
 import { badRequest, conflict, notFound } from '../lib/errors';
 import { fetchPublicJson } from '../lib/http';
+import { isValidAffiliate } from '../lib/affiliate';
 import { importListings, Listing, matchKey } from '../ingest/pipeline';
 
 const IdParam = z.object({ id: z.string().uuid() });
@@ -41,6 +42,7 @@ const StoreIn = z.object({
   website: z.string().url().startsWith('https://').nullable().optional(),
   allowedDomains: z.array(domain).max(10).default([]),
   country: z.string().regex(/^[A-Z]{2}$/).default('SA'),
+  affiliate: z.string().trim().max(600).refine(isValidAffiliate, 'Use query parameters like tag=yourid-21, or an https template from a known affiliate network containing {url}').nullable().optional(),
   active: z.boolean().optional(),
 });
 const BranchIn = z.object({ name: z.string().max(80), nameAr: z.string().max(80), city: z.string().max(60), lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) });

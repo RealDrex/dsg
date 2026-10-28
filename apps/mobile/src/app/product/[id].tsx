@@ -320,6 +320,7 @@ export default function Product() {
             {offers && offers.offers.length === 0 ? <Txt color={C.textMute}>{t('noOffers')}</Txt> : null}
             {offers?.offers.map((o, i) => renderOffer(o, i === 0))}
             {hasUnknown ? <Txt size={11.5} color={C.textDim} lh={1.6}>{`${t('unknownSeller')}: ${t('unknownSellerNote')}`}</Txt> : null}
+            {offers && offers.offers.length > 0 ? <Txt size={11} color={C.textDim} lh={1.6}>{t('affiliateNote')}</Txt> : null}
             {more.state.phase === 'running' ? <LiveSearchPanel state={more.state} /> : (
               <GhostButton label={t('moreSellers')} onPress={() => findMore('all')} />
             )}

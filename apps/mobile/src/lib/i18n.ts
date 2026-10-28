@@ -280,6 +280,7 @@ const S = {
   photoSearching: ['أتعرّف على المنتج من الصورة وأدوّر عليه…', 'Recognising the item and searching for it…'],
   photoDenied: ['نحتاج إذن الكاميرا أو الصور للبحث بالصورة.', 'Camera or photo access is needed to search by photo.'],
   unknownSeller: ['بائع غير معروف', 'Unknown seller'],
+  affiliateNote: ['بعض روابط الشراء تكسبنا عمولة صغيرة من المتجر بدون أي زيادة عليك، وما تأثر أبدًا على ترتيب الأسعار.', 'Some Buy links earn us a small commission from the store at no extra cost to you. It never affects how prices are ranked.'],
   unknownSellerNote: ['متجر خارج قائمة المتاجر المعروفة عندنا. تأكد من التقييمات وسياسة الاسترجاع، وادفع بطريقة فيها حماية.', 'Not in our list of known stores. Check reviews and the return policy, and pay with buyer protection.'],
   fromAbroad: ['شحن من الخارج', 'Ships from abroad'],
   suspiciousPrice: ['السعر أقل من السوق بكثير — ممكن يكون منتج مختلف أو مقلّد. تأكد قبل الشراء.', 'Far below other sellers — may be a different, used or fake item. Check before buying.'],

@@ -56,6 +56,8 @@ export const stores = pgTable('stores', {
   /** In the curated store directory. Sellers created from web search results are not, and the apps say so. */
   known: boolean('known').notNull().default(true),
   kind: text('kind', { enum: ['retailer', 'global', 'classifieds'] }).notNull().default('retailer'),
+  /** Affiliate setting for "Buy" links: query parameters ("tag=x-21") or a network template containing {url}. */
+  affiliate: text('affiliate'),
   active: boolean('active').notNull().default(true),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex('stores_slug_uq').on(t.slug)]);

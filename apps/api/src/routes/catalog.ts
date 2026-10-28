@@ -8,6 +8,7 @@ import { checkWatches } from '../services/alerts';
 import { notFound } from '../lib/errors';
 import { safeOutboundUrl } from '../lib/net';
 import { toStoreDTO } from '../services/catalog';
+import { withAffiliate } from '../lib/affiliate';
 
 const IdParam = z.object({ id: z.string().uuid() });
 const JobParam = z.object({ jobId: z.string().uuid() });
@@ -164,7 +165,9 @@ export async function catalogRoutes(app: FastifyInstance, ctx: Ctx) {
     const url = r ? safeOutboundUrl(r.o.url, r.s.allowedDomains) : null;
     if (!r || !url) throw notFound('link_not_available');
     await db.insert(clickEvents).values({ offerId: id, userId: req.user?.id ?? null });
-    return reply.header('referrer-policy', 'no-referrer').redirect(url, 302);
+    // Affiliate code (store's own setting, else the Amazon Associates tag for Amazon stores). Ranking never sees it.
+    const amazonTag = ctx.cfg.AMAZON_ASSOCIATE_TAG && /^amazon-/.test(r.s.slug) ? `tag=${ctx.cfg.AMAZON_ASSOCIATE_TAG}` : null;
+    return reply.header('referrer-policy', 'no-referrer').redirect(withAffiliate(url, r.s.affiliate ?? amazonTag), 302);
   });
 
   app.get('/r/s/:id', async (req, reply) => {

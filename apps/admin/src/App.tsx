@@ -217,12 +217,18 @@ function ProductForm({ id, onClose }: { id: string; onClose: () => void }) {
 
 /* -------------------------------- Stores -------------------------------- */
 
-interface Store { id: string; slug: string; name: string; nameAr: string; brandColor: string | null; website: string | null; allowedDomains: string[]; active: boolean; branches: { id: string; name: string; nameAr: string; city: string; lat: number; lng: number }[] }
+interface Store { id: string; slug: string; name: string; nameAr: string; brandColor: string | null; website: string | null; allowedDomains: string[]; affiliate: string | null; active: boolean; branches: { id: string; name: string; nameAr: string; city: string; lat: number; lng: number }[] }
 function Stores() {
   const { data, error, reload } = useLoad(() => get<Store[]>('/v1/admin/stores'));
   const [f, setF] = useState({ slug: '', name: '', nameAr: '', website: '', allowedDomains: '', brandColor: '#3EE09A' });
   const [b, setB] = useState<Record<string, { name: string; nameAr: string; city: string; lat: string; lng: string }>>({});
   const [err, setErr] = useState<string | null>(null);
+  const [aff, setAff] = useState<Record<string, string>>({});
+  const saveAffiliate = async (s: Store) => {
+    setErr(null);
+    const v = (aff[s.id] ?? s.affiliate ?? '').trim();
+    try { await patch(`/v1/admin/stores/${s.id}`, { affiliate: v || null }); reload(); } catch (e) { setErr(errMsg(e)); }
+  };
   const create = async () => {
     setErr(null);
     try {
@@ -238,7 +244,7 @@ function Stores() {
   };
   return (
     <>
-      <Header title="Stores & branches" sub="Outbound links only open on a store's allow-listed domains. Branch coordinates power the 'nearest' ranking." />
+      <Header title="Stores & branches" sub="Outbound links only open on a store's allow-listed domains. Branch coordinates power the 'nearest' ranking. Affiliate codes are added to 'Buy' links only; they never change which price ranks first." />
       {(error || err) && <div className="err">{error || err}</div>}
       <div className="card">
         <div className="form">
@@ -258,6 +264,13 @@ function Stores() {
             <b>{s.name}</b><span className="muted">{s.nameAr}</span><span className="mono muted">{s.allowedDomains.join(', ')}</span>
             <div className="spacer" />
             <button onClick={async () => { await patch(`/v1/admin/stores/${s.id}`, { active: !s.active }).catch((e) => setErr(errMsg(e))); reload(); }}>{s.active ? 'Deactivate' : 'Activate'}</button>
+          </div>
+          <div className="row" style={{ marginTop: 10 }}>
+            <label style={{ flex: 1 }}>Affiliate code (query like <span className="mono">tag=yourid-21</span>, or a network link with <span className="mono">{'{url}'}</span>)
+              <input className="mono" value={aff[s.id] ?? s.affiliate ?? ''} onChange={(e) => setAff({ ...aff, [s.id]: e.target.value })} placeholder="tag=bestprice-21" />
+            </label>
+            <button onClick={() => saveAffiliate(s)}>Save</button>
+            {s.affiliate ? <span className="pill green">earning</span> : <span className="pill">no code</span>}
           </div>
           <table style={{ marginTop: 10 }}>
             <thead><tr><th>Branch</th><th>City</th><th>Coordinates</th><th /></tr></thead>

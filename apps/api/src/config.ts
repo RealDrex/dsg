@@ -21,6 +21,8 @@ const Env = z.object({
   BRAVE_SEARCH_API_KEY: z.string().optional(),
   /** Optional: sharper brand/store logos from logo.dev. Without it, each site's own icon is used. */
   LOGO_DEV_TOKEN: z.string().optional(),
+  /** Amazon Associates tracking id (e.g. "bestprice-21"); used for Amazon stores that have no affiliate setting of their own. */
+  AMAZON_ASSOCIATE_TAG: z.string().regex(/^[A-Za-z0-9_-]{2,40}$/).optional().or(z.literal('')),
   /** Where logos found are kept between restarts. */
   LOGO_CACHE_DIR: z.string().default('.cache/logos'),
   ADMIN_EMAIL: z.string().email().optional(),
