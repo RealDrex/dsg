@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import {
   brandDomain, effectivePriceMarket, expandSearchQuery, isExactRate, rankOffers, buyTiming, siteDomain,
-  type CurrencyCode, type HistoryResponse, type OfferDTO, type OfferInput, type OffersResponse,
+  type BuyOptionDTO, type CurrencyCode, type HistoryResponse, type OfferDTO, type OfferInput, type OffersResponse,
   type ProductDTO, type ProductSummaryDTO, type SortMode, type SponsoredDTO, type StoreDTO,
 } from '@bestprice/core';
 import type { DB } from '../db/client';
@@ -31,6 +31,8 @@ function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): nu
   const h = Math.sin(dLat / 2) ** 2 + Math.cos((aLat * Math.PI) / 180) * Math.cos((bLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
+
+interface BestInfo { minor: number; storeName: string; offerCount: number; maxMinor: number; best: BuyOptionDTO; fastest: BuyOptionDTO | null }
 
 export interface LoadedOffer extends OfferInput {
   row: typeof offers.$inferSelect;
@@ -150,18 +152,34 @@ export class CatalogService {
   }
 
   /**
-   * Lowest trustworthy final price per product: new items only, not stale,
-   * not out of stock, and never a price flagged as suspiciously low.
+   * Per product, from new items that are not stale, out of stock or suspiciously cheap:
+   * the lowest final price, the price range, the best overall choice (price, delivery
+   * time, seller) and the fastest delivery.
    */
-  async bestPrices(productIds: string[], market: string): Promise<Map<string, { minor: number; storeName: string; offerCount: number }>> {
+  async bestPrices(productIds: string[], market: string): Promise<Map<string, BestInfo>> {
     const loaded = (await this.loadOffers(productIds, market)).filter((o) => o.row.condition === 'new');
     const byProduct = new Map<string, LoadedOffer[]>();
     for (const o of loaded) byProduct.set(o.row.productId, [...(byProduct.get(o.row.productId) ?? []), o]);
-    const out = new Map<string, { minor: number; storeName: string; offerCount: number }>();
+    const out = new Map<string, BestInfo>();
+    const option = (r: ReturnType<typeof rankOffers<LoadedOffer>>[number]): BuyOptionDTO => ({
+      storeName: r.offer.store.name, storeNameAr: r.offer.store.nameAr, finalMinor: r.finalMinor, finalIsEstimate: r.finalIsEstimate,
+      etaHours: r.offer.etaHours, fromAbroad: r.offer.store.kind === 'global',
+    });
     for (const [pid, list] of byProduct) {
-      const ok = rankOffers(list, 'cheapest').filter((r) => r.confidence !== 'stale' && r.offer.stock !== 'out_of_stock');
-      const best = ok.find((r) => !r.reasons.includes('suspicious_price'));
-      if (best) out.set(pid, { minor: best.finalMinor, storeName: best.offer.store.name, offerCount: ok.length });
+      const usable = (rs: ReturnType<typeof rankOffers<LoadedOffer>>) => rs.filter((r) => r.confidence !== 'stale' && r.offer.stock !== 'out_of_stock' && !r.reasons.includes('suspicious_price'));
+      const ranked = rankOffers(list, 'cheapest');
+      const cheap = usable(ranked);
+      if (!cheap.length) continue;
+      // Sellers shown (a suspiciously cheap one is listed with a warning, so it counts).
+      const shown = ranked.filter((r) => r.confidence !== 'stale' && r.offer.stock !== 'out_of_stock').length;
+      const value = usable(rankOffers(list, 'value'));
+      const fast = usable(rankOffers(list, 'fastest')).filter((r) => r.offer.etaHours !== null);
+      const best = value[0] ?? cheap[0]!;
+      const fastest = fast[0] && fast[0].offer.id !== best.offer.id && (best.offer.etaHours === null || fast[0].offer.etaHours! < best.offer.etaHours) ? fast[0] : null;
+      out.set(pid, {
+        minor: cheap[0]!.finalMinor, storeName: cheap[0]!.offer.store.name, offerCount: shown,
+        maxMinor: Math.max(...cheap.map((r) => r.finalMinor)), best: option(best), fastest: fastest ? option(fastest) : null,
+      });
     }
     return out;
   }
@@ -179,6 +197,9 @@ export class CatalogService {
       imageUrl: p.imageUrl,
       brandLogoUrl: logoUrlFor(this.publicBaseUrl, p.brandDomain ?? brandDomain(p.brand)),
       bestPriceMinor: best.get(p.id)?.minor ?? null,
+      priceRange: best.get(p.id) ? { minMinor: best.get(p.id)!.minor, maxMinor: best.get(p.id)!.maxMinor } : null,
+      best: best.get(p.id)?.best ?? null,
+      fastest: best.get(p.id)?.fastest ?? null,
       currency: market.currency,
       offerCount: best.get(p.id)?.offerCount ?? 0,
     }));

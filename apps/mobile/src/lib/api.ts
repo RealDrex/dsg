@@ -141,9 +141,12 @@ class Client {
   me = () => this.get<UserDTO>('/v1/me');
   updateMe = (p: Partial<UserDTO>) => this.patch<UserDTO>('/v1/me', p);
   home = () => this.get<HomeResponse>('/v1/home');
+  /** Whether the server can search the web (AI key configured). */
+  canDiscover = async () => (await this.get<{ discovery?: boolean }>('/health')).discovery === true;
+  categoryProducts = (id: string) => this.get<ProductSummaryDTO[]>(`/v1/categories/${id}/products`);
   search = (q: string) => this.get<SearchResponse>(`/v1/products/search?q=${encodeURIComponent(q)}`);
   /** Starts a web search (text, barcode or photo); poll the job with discoverJob. */
-  discover = (b: { q: string } | { gtin: string } | { image: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string }; q?: string }) =>
+  discover = (b: ({ q: string } | { gtin: string } | { url: string } | { image: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string }; q?: string }) & { category?: string }) =>
     this.request<DiscoverJobDTO>('POST', '/v1/products/discover', b, 60_000);
   discoverJob = (jobId: string) => this.get<DiscoverJobDTO>(`/v1/products/discover/${jobId}`);
   /** More sellers, or used listings, for a product. */

@@ -231,6 +231,27 @@ const S = {
   oneSeller: ['بائع واحد', '1 seller'],
   targetTitle: ['حدد سعرك المستهدف', 'Set your target price'],
   targetNow: ['أرخص سعر الحين', 'Lowest price now'],
+  searchPh2: ['منتج، أو رابط تيك توك', 'Product or TikTok link'],
+  categories: ['الفئات', 'Categories'],
+  catIdeas: ['أفكار للبحث', 'Ideas'],
+  linkSearching: ['أقرأ الرابط وأتعرّف على المنتج…', 'Reading the link and identifying the product…'],
+  linkCta: ['ابحث عن المنتج اللي في الرابط', 'Find the product in this link'],
+  bestOption: ['أفضل خيار', 'Best option'],
+  fastestOption: ['الأسرع', 'Fastest'],
+  cheapestOption: ['الأرخص', 'Cheapest'],
+  priceRange: ['يتراوح سعره', 'Price range'],
+  priceFromTo: ['من', 'from'],
+  priceTo: ['إلى', 'to'],
+  summaryTitle: ['الخلاصة', 'In short'],
+  whatIsIt: ['وش هو', 'What it is'],
+  madeOf: ['وش فيه', "What's in it"],
+  soldAt: ['يُباع في', 'Sold at'],
+  arrives: ['يوصلك', 'arrives'],
+  etaToday: ['اليوم', 'today'],
+  etaTomorrow: ['بكرة', 'tomorrow'],
+  etaDays: ['خلال', 'in'],
+  etaDaysUnit: ['أيام', 'days'],
+  shipIncluded: ['شامل الشحن', 'incl. shipping'],
   lastKnownPrice: ['آخر سعر عرفناه (يحتاج تحديث)', 'Last known price (needs updating)'],
   targetYours: ['سعرك المستهدف', 'Your target price'],
   targetCheaper: ['أرخص من الحين بـ', 'cheaper than now by'],
@@ -344,4 +365,13 @@ export function ago(lang: Lang, iso: string): string {
   if (h < 24) return h === 1 ? '1 hour ago' : `${h} hours ago`;
   const d = Math.round(h / 24);
   return d === 1 ? 'Yesterday' : `${d} days ago`;
+}
+
+/** "today" / "tomorrow" / "in 5 days" for a delivery estimate in hours. */
+export function etaText(lang: Lang, hours: number | null): string | null {
+  if (hours === null) return null;
+  if (hours <= 12) return tr(lang, 'etaToday');
+  if (hours <= 36) return tr(lang, 'etaTomorrow');
+  const d = Math.ceil(hours / 24);
+  return `${tr(lang, 'etaDays')} ${d} ${tr(lang, 'etaDaysUnit')}`;
 }

@@ -34,6 +34,12 @@ const STORES = [
   { slug: 'blackbox', name: 'Black Box', nameAr: 'بلاك بوكس', brandColor: '#2B2B2B', website: 'https://www.blackbox.com.sa', allowedDomains: ['blackbox.com.sa'] },
   { slug: 'stc', name: 'stc', nameAr: 'stc', brandColor: '#4F008C', website: 'https://www.stc.com.sa', allowedDomains: ['stc.com.sa'] },
   { slug: 'namshi', name: 'Namshi', nameAr: 'نمشي', brandColor: '#111111', website: 'https://www.namshi.com', allowedDomains: ['namshi.com'] },
+  { slug: 'sephora', name: 'Sephora', nameAr: 'سيفورا', brandColor: '#000000', website: 'https://www.sephora.sa', allowedDomains: ['sephora.sa'] },
+  { slug: 'niceone', name: 'Nice One', nameAr: 'نايس ون', brandColor: '#E6007E', website: 'https://niceonesa.com', allowedDomains: ['niceonesa.com'] },
+  { slug: 'goldenscent', name: 'Golden Scent', nameAr: 'قولدن سنت', brandColor: '#C9A45C', website: 'https://www.goldenscent.com', allowedDomains: ['goldenscent.com'] },
+  { slug: 'nana', name: 'Nana', nameAr: 'نعناع', brandColor: '#1FB46B', website: 'https://www.nana.sa', allowedDomains: ['nana.sa'] },
+  { slug: 'tamimi', name: 'Tamimi Markets', nameAr: 'أسواق التميمي', brandColor: '#D2232A', website: 'https://www.tamimimarkets.com', allowedDomains: ['tamimimarkets.com'] },
+  { slug: 'geekay', name: 'Geekay', nameAr: 'جي كاي', brandColor: '#E30613', website: 'https://www.geekay.com', allowedDomains: ['geekay.com'] },
   { slug: 'syarah', name: 'Syarah', nameAr: 'سيارة', brandColor: '#0A7CFF', website: 'https://syarah.com', allowedDomains: ['syarah.com'] },
   // Ship from abroad: shown with a "from abroad" label; prices may be converted from another currency.
   { slug: 'aliexpress', name: 'AliExpress', nameAr: 'علي إكسبريس', brandColor: '#E62E04', website: 'https://ar.aliexpress.com', allowedDomains: ['aliexpress.com', 'aliexpress.us'], kind: 'global' },

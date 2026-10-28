@@ -105,6 +105,9 @@ function valueScore(o: OfferInput, final: number, cheapest: number, conf: Confid
   const warranty = o.warrantyMonths ?? 12;
   s -= Math.min(24, Math.max(0, warranty - 12)) * 0.0015; // up to ~3.6% credit for +24 months
   if (o.etaHours !== null) s -= o.etaHours <= 6 ? 0.01 : o.etaHours <= 30 ? 0.005 : 0;
+  // Waiting costs too: beyond two days, each day counts like 1.5 % of the price (up to 20 %),
+  // so a much cheaper offer from abroad still wins, but not a slightly cheaper one that takes weeks.
+  if (o.etaHours !== null && o.etaHours > 48) s += Math.min(0.2, ((o.etaHours - 48) / 24) * 0.015);
   s += CONF_PENALTY[conf] + STOCK_PENALTY[o.stock];
   if (o.shippingMinor === null) s += 0.02;
   if (o.sellerKnown === false) s += 0.08; // a known store up to ~8% dearer is usually the safer buy

@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, View } from 'react-native';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
-import { currencySymbol, formatAmount, type DiscoveredDTO, type ProductSummaryDTO } from '@bestprice/core';
+import { currencySymbol, formatAmount, type BuyOptionDTO, type CurrencyCode, type DiscoveredDTO, type ProductSummaryDTO } from '@bestprice/core';
 import { API_URL } from '../lib/api';
+import { etaText } from '../lib/i18n';
 import { useApp } from '../lib/store';
 import type { DiscoveryState } from '../lib/useDiscovery';
 import { Badge, BrandLine, Chevron, Glass, Memoji, ProductThumb, Press, Row, StoreMark, Txt } from './kit';
@@ -60,26 +61,43 @@ export function LiveSearchPanel({ state, photoUri }: { state: Extract<DiscoveryS
   );
 }
 
-/** A product result: photo, maker, name, lowest new price and how many sellers. */
+/** "649 ر.س · أمازون · يوصلك بكرة" — one buying option in one line. */
+export function OptionLine({ label, o, currency, strong }: { label: string; o: BuyOptionDTO; currency: CurrencyCode; strong?: boolean }) {
+  const { t, L, lang } = useApp();
+  const eta = etaText(lang, o.etaHours);
+  return (
+    <Row style={{ gap: 6, flexWrap: 'wrap' }}>
+      <View style={{ paddingVertical: 2, paddingHorizontal: 7, borderRadius: 7, backgroundColor: strong ? 'rgba(62,224,154,.16)' : 'rgba(56,189,248,.14)' }}>
+        <Txt size={10.5} weight="700" color={strong ? C.greenSoft : '#9BDCFB'}>{label}</Txt>
+      </View>
+      <Txt size={strong ? 14 : 12.5} weight="700" color={C.text}>{`${o.finalIsEstimate ? '≥ ' : ''}${formatAmount(o.finalMinor, currency)} ${currencySymbol(currency, lang)}`}</Txt>
+      <Txt size={12} color={C.textMute} numberOfLines={1} style={{ flexShrink: 1 }}>{[L(o.storeNameAr, o.storeName), eta ? `${t('arrives')} ${eta}` : null].filter(Boolean).join(' · ')}</Txt>
+    </Row>
+  );
+}
+
+/** A product result: photo, maker, name, the best option (and the fastest), price range and sellers. */
 export function ProductResult({ p, big }: { p: ProductSummaryDTO | DiscoveredDTO; big?: boolean }) {
   const { t, L, lang } = useApp();
-  const size = big ? 88 : 56;
+  const size = big ? 92 : 64;
   const similar = 'match' in p && p.match === 'similar';
+  const range = p.priceRange && p.priceRange.maxMinor > p.priceRange.minMinor ? p.priceRange : null;
   return (
     <Press onPress={() => router.push(`/product/${p.id}`)}>
       <Glass style={{ borderRadius: 20, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <ProductThumb uri={p.imageUrl} category={p.category} size={size} radius={big ? 16 : 12} />
-        <View style={{ flex: 1, gap: 4 }}>
+        <ProductThumb uri={p.imageUrl} category={p.category} size={size} radius={big ? 16 : 14} />
+        <View style={{ flex: 1, gap: 5 }}>
           {similar ? <Badge label={t('similarItem')} bg="rgba(139,92,246,.2)" fg="#D0B8FF" /> : null}
-          {big ? <BrandLine brand={p.brand} logoUrl={p.brandLogoUrl} /> : null}
+          <BrandLine brand={p.brand} logoUrl={p.brandLogoUrl} />
           <Txt size={big ? 15 : 14} weight="600" numberOfLines={2}>{L(p.nameAr ?? p.name, p.name)}</Txt>
-          {p.bestPriceMinor !== null ? (
-            <Txt size={12.5} color={C.textMute}>
-              {`${t('from')} `}
-              <Txt size={big ? 16 : 14} weight="700" color={C.text}>{formatAmount(p.bestPriceMinor, p.currency)}</Txt>
-              {` ${currencySymbol(p.currency, lang)} · ${p.offerCount === 1 ? t('oneSeller') : `${p.offerCount} ${t('sellers')}`}`}
+          {p.best ? <OptionLine label={t('bestOption')} o={p.best} currency={p.currency} strong /> : <Txt size={12} color={C.textMute}>{t('noPrice')}</Txt>}
+          {p.fastest ? <OptionLine label={t('fastestOption')} o={p.fastest} currency={p.currency} /> : null}
+          {p.best ? (
+            <Txt size={11.5} color={C.textDim}>
+              {[range ? `${t('priceRange')} ${formatAmount(range.minMinor, p.currency)}–${formatAmount(range.maxMinor, p.currency)}` : null,
+                p.offerCount === 1 ? t('oneSeller') : `${p.offerCount} ${t('sellers')}`].filter(Boolean).join(' · ')}
             </Txt>
-          ) : <Txt size={12} color={C.textMute}>{t('noPrice')}</Txt>}
+          ) : null}
         </View>
         <Chevron />
       </Glass>

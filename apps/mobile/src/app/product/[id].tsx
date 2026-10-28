@@ -12,7 +12,7 @@ import { ago, type StrKey } from '../../lib/i18n';
 import { registerForPush } from '../../lib/push';
 import { useApp } from '../../lib/store';
 import { useDiscovery } from '../../lib/useDiscovery';
-import { LiveSearchPanel } from '../../ui/live';
+import { LiveSearchPanel, OptionLine } from '../../ui/live';
 import { TargetProgress, TargetSheet } from '../../ui/target';
 import { IconBack, IconBookmark, Sparkle } from '../../ui/icons';
 import { Badge, BrandLine, Glass, GhostButton, GradientButton, ProductThumb, Press, Row, Segmented, Spinner, StoreMark, Txt, Screen } from '../../ui/kit';
@@ -219,6 +219,48 @@ export default function Product() {
             </Row>
             {product.specSource ? <Txt size={11} color={C.textDim}>{`${t('specSource')}: ${product.specSource.label}`}</Txt> : null}
           </View>
+
+          {product.best || product.description ? (
+            <Glass style={{ borderRadius: 22, padding: 16, gap: 12 }}>
+              <Txt size={16} weight="800">{t('summaryTitle')}</Txt>
+              {product.description ? (
+                <View style={{ gap: 2 }}>
+                  <Txt size={11.5} color={C.textDim}>{t('whatIsIt')}</Txt>
+                  <Txt size={13.5} lh={1.6}>{product.description}</Txt>
+                </View>
+              ) : null}
+              {typeof product.attributes.components === 'string' ? (
+                <View style={{ gap: 2 }}>
+                  <Txt size={11.5} color={C.textDim}>{t('madeOf')}</Txt>
+                  <Txt size={13} color={C.textSoft} lh={1.6}>{product.attributes.components}</Txt>
+                </View>
+              ) : null}
+              {product.priceRange ? (
+                <View style={{ gap: 2 }}>
+                  <Txt size={11.5} color={C.textDim}>{t('priceRange')}</Txt>
+                  <Txt size={15} weight="700">{product.priceRange.maxMinor > product.priceRange.minMinor
+                    ? `${t('priceFromTo')} ${formatAmount(product.priceRange.minMinor, cur)} ${t('priceTo')} ${formatAmount(product.priceRange.maxMinor, cur)} ${sym}`
+                    : `${formatAmount(product.priceRange.minMinor, cur)} ${sym}`}</Txt>
+                </View>
+              ) : null}
+              {product.best ? <OptionLine label={t('bestOption')} o={product.best} currency={cur} strong /> : null}
+              {product.fastest ? <OptionLine label={t('fastestOption')} o={product.fastest} currency={cur} /> : null}
+              {offers && offers.offers.length ? (
+                <View style={{ gap: 6 }}>
+                  <Txt size={11.5} color={C.textDim}>{t('soldAt')}</Txt>
+                  <Row style={{ gap: 6, flexWrap: 'wrap' }}>
+                    {[...new Map(offers.offers.map((o) => [o.store.id, o.store])).values()].slice(0, 10).map((st) => <StoreMark key={st.id} store={st} size={30} />)}
+                  </Row>
+                </View>
+              ) : null}
+              {product.brand ? (
+                <Row style={{ gap: 8 }}>
+                  <Txt size={11.5} color={C.textDim}>{t('madeBy')}</Txt>
+                  <BrandLine brand={product.brand} logoUrl={product.brandLogoUrl} />
+                </Row>
+              ) : null}
+            </Glass>
+          ) : null}
 
           {hasWebPrices ? (
             <View style={{ backgroundColor: C.amberBg, borderRadius: 14, padding: 12 }}>

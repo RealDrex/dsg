@@ -39,6 +39,7 @@ export const ProfileBody = z.object({
 
 export const SearchQuery = z.object({
   q: z.string().trim().min(1).max(120),
+  category: z.string().regex(/^[a-z]{2,20}$/).optional(),
   country: CountrySchema.optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
@@ -57,7 +58,11 @@ export const DiscoverBody = z.object({
   q: z.string().trim().min(2).max(120).optional(),
   gtin: z.string().regex(/^\d{8,14}$/).optional(),
   image: DiscoverImage.optional(),
-}).refine((b) => (b.gtin ? !b.q && !b.image : !!(b.q || b.image)), { message: 'send q, gtin or image' });
+  /** A TikTok video or any product page the shopper pasted. */
+  url: z.string().trim().url().max(2048).refine((u) => /^https?:\/\//i.test(u), 'http(s) links only').optional(),
+  /** Shopping category id (see SHOP_CATEGORIES): tells the search where to look first. */
+  category: z.string().regex(/^[a-z]{2,20}$/).optional(),
+}).refine((b) => [b.gtin, b.image || b.q, b.url].filter(Boolean).length === 1 || (!!b.image && !!b.q && !b.gtin && !b.url), { message: 'send q, gtin, image or url' });
 
 /** More sellers for a product we already know: everything, or used / refurbished only. */
 export const ProductDiscoverBody = z.object({ focus: z.enum(['all', 'used']).default('all') });
@@ -144,8 +149,24 @@ export interface ProductSummaryDTO {
   /** Maker's logo (its site icon), when we know the brand's website. */
   brandLogoUrl: string | null;
   bestPriceMinor: number | null;
+  /** Lowest and highest current price (new, delivered to the shopper's market). */
+  priceRange: { minMinor: number; maxMinor: number } | null;
+  /** Best overall choice (price, delivery time and seller), and the fastest one when it differs. */
+  best: BuyOptionDTO | null;
+  fastest: BuyOptionDTO | null;
   currency: CurrencyCode;
   offerCount: number;
+}
+
+export interface BuyOptionDTO {
+  storeName: string;
+  storeNameAr: string;
+  finalMinor: number;
+  /** Price plus shipping is a lower bound (shipping unknown). */
+  finalIsEstimate: boolean;
+  /** Fastest delivery estimate in hours, when the store shows one. */
+  etaHours: number | null;
+  fromAbroad: boolean;
 }
 
 export interface SearchResponse {

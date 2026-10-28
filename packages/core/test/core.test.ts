@@ -183,6 +183,14 @@ describe('sellers, currencies and suspicious prices', () => {
     const far = rankOffers([{ ...base, id: 'known', priceMinor: 100000 }, { ...base, id: 'unknown', priceMinor: 85000, sellerKnown: false }], 'value');
     expect(far[0]!.offer.id).toBe('unknown');
   });
+  it('weighs delivery time: weeks of waiting beat only a much lower price', () => {
+    const fast = { ...base, id: 'tomorrow', priceMinor: 64900, etaHours: 24 };
+    const slow = { ...base, id: 'abroad', priceMinor: 54400, etaHours: 288, fromAbroad: true };
+    expect(rankOffers([fast, slow], 'value')[0]!.offer.id).toBe('tomorrow');
+    const muchCheaper = { ...slow, priceMinor: 30000 };
+    expect(rankOffers([fast, muchCheaper], 'value')[0]!.offer.id).toBe('abroad');
+    expect(rankOffers([fast, slow], 'fastest')[0]!.offer.id).toBe('tomorrow');
+  });
   it('converts foreign prices; pegged pairs are exact', () => {
     expect(convertToMinor(199, 'USD', 'SAR')).toBe(74625);
     expect(convertToMinor(100, 'AED', 'SAR')).toBe(10211);

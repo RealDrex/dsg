@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
-import { classifyScan, DiscoverBody, effectivePriceMarket, OffersQuery, ProductDiscoverBody, PurchaseBody, ScanBody, SearchQuery, siteDomain, type DiscoverJobDTO, type RefreshResponse, type ScanResponse, type SearchResponse } from '@bestprice/core';
+import { classifyScan, DiscoverBody, shopCategory, effectivePriceMarket, OffersQuery, ProductDiscoverBody, PurchaseBody, ScanBody, SearchQuery, siteDomain, type DiscoverJobDTO, type RefreshResponse, type ScanResponse, type SearchResponse } from '@bestprice/core';
 import { parse, requireUser, type Ctx } from '../app';
 import { clickEvents, offers, products, purchases, searchHistory, sponsoredPlacements, stores } from '../db/schema';
 import { checkWatches } from '../services/alerts';
@@ -108,6 +108,15 @@ export async function catalogRoutes(app: FastifyInstance, ctx: Ctx) {
   app.get('/v1/products/:id/history', async (req) => {
     const { id } = parse(IdParam, req.params);
     return catalog.history(id, countryOf(req));
+  });
+
+  /** A category's products in our catalog (newest first), for browsing before typing anything. */
+  app.get('/v1/categories/:id/products', async (req) => {
+    const { id } = parse(z.object({ id: z.string().regex(/^[a-z]{2,20}$/) }), req.params);
+    const cat = shopCategory(id);
+    if (!cat) throw notFound('category_not_found');
+    const rows = await db.select().from(products).where(and(inArray(products.category, cat.catalog), eq(products.status, 'active'))).orderBy(desc(products.createdAt)).limit(30);
+    return catalog.summaries(rows, countryOf(req));
   });
 
   app.get('/v1/stores', async () => {

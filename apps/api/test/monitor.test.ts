@@ -24,8 +24,8 @@ beforeAll(async () => {
     () => msg([{ type: 'web_search_tool_result', tool_use_id: 's', content: [AMAZON, JARIR].map((url) => ({ type: 'web_search_result', url, title: 't', encrypted_content: 'x' })) }], 'pause_turn'),
     () => msg([{ type: 'tool_use', id: 't', name: 'submit_products', input: { products: [{
       name: 'Elgato Stream Deck MK.2', name_ar: 'ستريم ديك', brand: 'Elgato', brand_website: 'elgato.com', model: '10GBA9901', category: 'gaming', gtin: null,
-      image_url: null, spec_source_url: null, match: 'exact', specs: [],
-      listings: [AMAZON, JARIR].map((url, i) => ({ url, seller_name: null, title: null, price: i ? 699 : 649, currency: 'SAR', condition: 'new', in_stock: true })),
+      image_url: null, spec_source_url: null, match: 'exact', summary_ar: null, components_ar: [], specs: [],
+      listings: [AMAZON, JARIR].map((url, i) => ({ url, seller_name: null, title: null, price: i ? 699 : 649, currency: 'SAR', condition: 'new', in_stock: true, shipping: null, delivery_days: null, ships_to_market: null })),
     }] } }]),
   ];
   (ctx.discovery as any).client = { beta: { messages: { create: async () => script.shift()!() } } };

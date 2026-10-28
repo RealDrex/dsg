@@ -80,9 +80,9 @@ const discover = async (h: Record<string, string>, payload: object) => poll(h, (
 const submit = (products: any[]) => msg([{ type: 'tool_use', id: 't1', name: 'submit_products', input: { products } }]);
 const product = (over: object) => ({
   name: 'X', name_ar: null, brand: null, brand_website: null, model: null, category: 'other', gtin: null, image_url: null, spec_source_url: null,
-  match: 'exact', specs: [], listings: [], ...over,
+  match: 'exact', summary_ar: null, components_ar: [], specs: [], listings: [], ...over,
 });
-const listing = (url: string, price: number, over: object = {}) => ({ url, seller_name: null, title: null, price, currency: 'SAR', condition: 'new', in_stock: true, ...over });
+const listing = (url: string, price: number, over: object = {}) => ({ url, seller_name: null, title: null, price, currency: 'SAR', condition: 'new', in_stock: true, shipping: null, delivery_days: null, ships_to_market: null, ...over });
 
 describe('online discovery (scripted model)', () => {
   it('reports unavailable without an API key', async () => {
@@ -231,6 +231,81 @@ describe('online discovery (scripted model)', () => {
 
 const png = (w: number) => { const b = Buffer.alloc(40); b.writeUInt32BE(0x89504e47, 0); b.writeUInt32BE(w, 16); return b; };
 const res = (url: string, status: number, contentType: string, body: Buffer | string) => ({ status, url, contentType, body: Buffer.isBuffer(body) ? body : Buffer.from(body) });
+
+describe('best option, delivery and links', () => {
+  it('stores shipping and delivery time, drops sellers that cannot deliver, and picks best / fastest / range', async () => {
+    const urls = ['https://www.amazon.sa/dp/B0BLEND1', 'https://www.noon.com/saudi-ar/blender/p/1', 'https://ar.aliexpress.com/item/77.html', 'https://ukshop.example/blender'];
+    (ctx.discovery as any).client = fakeClient([
+      () => msg([searchResult(...urls)], 'pause_turn'),
+      () => submit([product({
+        name: 'Portable Blender 380ml', name_ar: 'خلاط محمول', category: 'home', summary_ar: 'خلاط صغير يشحن بـ USB لتحضير العصير في أي مكان.',
+        components_ar: ['كوب 380 مل', '6 شفرات ستانلس', 'كيبل USB-C'],
+        listings: [
+          listing(urls[0]!, 119, { shipping: 0, delivery_days: 1 }),                         // tomorrow
+          listing(urls[1]!, 109, { shipping: 9, delivery_days: 0 }),                         // noon Minutes, today
+          listing(urls[2]!, 19, { currency: 'USD', shipping: 2, delivery_days: 14 }),         // cheap but two weeks
+          listing(urls[3]!, 15, { currency: 'GBP', ships_to_market: false }),                // UK only → dropped
+        ],
+      })]),
+    ]);
+    (ctx.discovery as any).fetchPage = async () => null;
+    const g = await guest(app);
+    const r = await discover(g.h, { q: 'خلاط محمول' });
+    expect(r.status).toBe('found');
+    const p = r.results[0];
+    expect(p.offerCount).toBe(3);
+    expect(p.priceRange).toEqual({ minMinor: 7875, maxMinor: 11900 }); // 21 USD = 78.75 SAR … 119 SAR
+    expect(p.fastest).toMatchObject({ storeName: 'noon', etaHours: 2, finalMinor: 11800 });
+    expect(p.best).not.toBeNull();
+    const o = (await app.inject({ method: 'GET', url: `/v1/products/${p.id}/offers?sort=fastest` })).json();
+    expect(o.offers[0]).toMatchObject({ store: { domain: 'noon.com' }, shippingMinor: 900, etaHours: 2, finalMinor: 11800 });
+    expect(o.offers.some((x: any) => x.store.domain === 'ukshop.example')).toBe(false);
+    const full = (await app.inject({ method: 'GET', url: `/v1/products/${p.id}` })).json();
+    expect(full.description).toBe('خلاط صغير يشحن بـ USB لتحضير العصير في أي مكان.');
+    expect(full.attributes.components).toBe('كوب 380 مل · 6 شفرات ستانلس · كيبل USB-C');
+  });
+
+  it('identifies the product in a pasted TikTok link from its caption and cover frame', async () => {
+    const fake = fakeClient([
+      () => msg([searchResult('https://www.amazon.sa/dp/B0LAMP1')], 'pause_turn'),
+      () => submit([product({ name: 'Sunset projection lamp', name_ar: 'إضاءة الغروب', category: 'home', listings: [listing('https://www.amazon.sa/dp/B0LAMP1', 49)] })]),
+    ]);
+    (ctx.discovery as any).client = fake;
+    const asked: string[] = [];
+    (ctx.discovery as any).opts.fetchUrl = async (url: string) => {
+      asked.push(url);
+      if (url.startsWith('https://www.tiktok.com/oembed?url=')) return { status: 200, url, contentType: 'application/json', body: Buffer.from(JSON.stringify({ title: 'This sunset lamp changed my room 🌅 #tiktokmademebuyit', thumbnail_url: 'https://p16-sign.tiktokcdn.com/cover.jpeg' })) };
+      if (url === 'https://p16-sign.tiktokcdn.com/cover.jpeg') return { status: 200, url, contentType: 'image/jpeg', body: Buffer.from([0xff, 0xd8, ...Array(200).fill(1)]) };
+      return { status: 404, url, contentType: 'text/plain', body: Buffer.alloc(0) };
+    };
+    const g = await guest(app);
+    const r = await discover(g.h, { url: 'https://www.tiktok.com/@someone/video/7400000000000000001' });
+    expect(r.status).toBe('found');
+    expect(r.results[0].name).toBe('Sunset projection lamp');
+    const first = fake.calls[0].messages[0].content;
+    expect(first[0]).toMatchObject({ type: 'image', source: { media_type: 'image/jpeg' } });
+    expect(first[1].text).toContain('sunset lamp changed my room');
+    expect(fake.calls[0].system[0].text).toContain('frame from a TikTok video');
+    expect(asked[0]).toContain(encodeURIComponent('https://www.tiktok.com/@someone/video/7400000000000000001'));
+    // unreadable link → not found, no model call
+    (ctx.discovery as any).client = fakeClient([]);
+    (ctx.discovery as any).opts.fetchUrl = async (url: string) => ({ status: 404, url, contentType: 'text/plain', body: Buffer.alloc(0) });
+    expect((await discover(g.h, { url: 'https://www.tiktok.com/@x/video/1' })).status).toBe('not_found');
+    expect((await post('/v1/products/discover', g.h, { url: 'javascript:alert(1)' })).statusCode).toBe(400);
+  });
+
+  it('sends the category\'s stores to the search and lists the category\'s catalog', async () => {
+    const fake = fakeClient([() => submit([])]);
+    (ctx.discovery as any).client = fake;
+    const g = await guest(app);
+    await discover(g.h, { q: 'روج مات', category: 'beauty' });
+    expect(fake.calls[0].system[0].text).toContain('sephora.sa');
+    expect(fake.calls[0].system[0].text).toContain('Riyadh');
+    const list = (await app.inject({ method: 'GET', url: '/v1/categories/gaming/products' })).json();
+    expect(list.map((p: any) => p.category).every((c: string) => c === 'gaming')).toBe(true);
+    expect((await app.inject({ method: 'GET', url: '/v1/categories/nope/products' })).statusCode).toBe(404);
+  });
+});
 
 describe('logos', () => {
   it('uses the icon the site declares, caches it, and refuses tiny or invalid ones', async () => {

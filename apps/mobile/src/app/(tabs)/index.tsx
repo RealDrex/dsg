@@ -3,7 +3,7 @@ import { RefreshControl, ScrollView, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { formatAmount, currencySymbol, getMarket, type HomeResponse } from '@bestprice/core';
+import { SHOP_CATEGORIES, formatAmount, currencySymbol, getMarket, type HomeResponse } from '@bestprice/core';
 import { api } from '../../lib/api';
 import { useApp } from '../../lib/store';
 import { IconBell, IconCamera, IconHeart, IconScan, IconSearch, IconTag, Sparkle } from '../../ui/icons';
@@ -111,6 +111,20 @@ export default function Home() {
             <Txt size={12.5} color={C.amberText} lh={1.7}>{t('coverageNote')}</Txt>
           </View>
         ) : null}
+
+        {/* Categories: one tap to browse an interest */}
+        <View style={{ gap: 10 }}>
+          <SectionTitle title={t('categories')} />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
+            {SHOP_CATEGORIES.map((c) => (
+              <Press key={c.id} onPress={() => router.push(`/search?cat=${c.id}`)} accessibilityLabel={L(c.ar, c.en)}
+                style={{ width: 92, paddingVertical: 12, borderRadius: 18, backgroundColor: C.glass, borderWidth: 1, borderColor: C.line, alignItems: 'center', gap: 6 }}>
+                <Txt size={26}>{c.emoji}</Txt>
+                <Txt center size={11.5} weight="600" numberOfLines={2}>{L(c.ar, c.en)}</Txt>
+              </Press>
+            ))}
+          </ScrollView>
+        </View>
 
         {/* Quick actions */}
         <View style={{ gap: 12 }}>
