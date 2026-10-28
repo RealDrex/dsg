@@ -198,6 +198,8 @@ export interface DiscoveryOptions {
   dailyBudgetUsd?: number;
   /** Web searches the price monitor may run per day (for watched products whose pages can't be read). */
   monitorDaily?: number;
+  /** Days a found result is reused for the same search (default 30). */
+  cacheDays?: number;
   /** Fetches TikTok oEmbed data and pictures for identification. Tests replace it. */
   fetchUrl?: (url: string) => Promise<SafeResponse>;
   /** Reads product pages for their photo and published price. Tests replace it. */
@@ -218,6 +220,9 @@ const defaultFetchPage = async (url: string): Promise<PageFacts | null> => {
 export class DiscoveryService {
   private client: Anthropic | null;
   private fetchPage: (url: string) => Promise<PageFacts | null>;
+
+  /** Called with the products a cached search answered with, so their prices can be re-checked (set by the app). */
+  onReuse?: (productIds: string[]) => void;
 
   constructor(private db: DB, private catalog: CatalogService, private opts: DiscoveryOptions, private media?: MediaService) {
     this.client = opts.apiKey ? new Anthropic({ apiKey: opts.apiKey, maxRetries: 1, timeout: 150_000 }) : null;
@@ -324,15 +329,19 @@ export class DiscoveryService {
   }
 
   private async run(user: { id: string | null; plan: string }, subject: Subject, key: string, market: Market, country: string, progress?: Progress, cat: ShopCategory | null = null): Promise<Result> {
-    // Cache: a found result is reused for 24 h (12 h for "more sellers"), a miss for 1 h, for any user.
+    // Cache: a found product is reused for the same search for weeks (12 h for "more sellers"), a miss
+    // for 1 h, for any user. Its prices don't go stale meanwhile: the price monitor re-reads the store pages.
     const now = Date.now();
-    const foundTtl = subject.kind === 'product' ? 12 * 3_600_000 : 24 * 3_600_000;
+    const foundTtl = subject.kind === 'product' ? 12 * 3_600_000 : (this.opts.cacheDays ?? 30) * 86_400_000;
     const [cached] = await this.db.select().from(discoveryRuns)
       .where(and(eq(discoveryRuns.key, key), eq(discoveryRuns.market, market.code), gte(discoveryRuns.createdAt, new Date(now - foundTtl))))
       .orderBy(desc(discoveryRuns.createdAt)).limit(1);
     if (cached?.status === 'found') {
       const results = await this.results(cached.productIds, cached.similarIds, country);
-      if (results.length) return { status: 'found', results };
+      if (results.length) {
+        this.onReuse?.(results.map((r) => r.id));
+        return { status: 'found', results };
+      }
     } else if (cached?.status === 'not_found' && cached.createdAt.getTime() > now - 3_600_000) {
       return { status: 'not_found', results: [] };
     }

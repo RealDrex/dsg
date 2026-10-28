@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import type { Ctx } from '../src/app';
 import type { DB } from '../src/db/client';
-import { notifications, priceObservations, products } from '../src/db/schema';
+import { discoveryRuns, notifications, priceObservations, products } from '../src/db/schema';
 import { checkWatches } from '../src/services/alerts';
 import { guest, setup } from './helpers';
 
@@ -88,8 +88,21 @@ describe('price monitor', () => {
     expect((await mine()).map((n) => n.kind).sort()).toEqual(['price_drop', 'price_target']);
   });
 
+  it('answers the same search weeks later from the saved product, with its prices re-checked', async () => {
+    pagePrices = { [AMAZON]: { amount: 459, currency: 'SAR' } };
+    await db.update(discoveryRuns).set({ createdAt: new Date(Date.now() - 20 * 86_400_000) });
+    await db.update(products).set({ pricesCheckedAt: new Date(Date.now() - 3 * 3_600_000) }).where(eq(products.id, productId));
+    const g = await guest(app);
+    // the scripted model has no answers left: a web search here would throw
+    const r = await ctx.discovery.discover({ id: g.user.id, plan: 'free' }, { q: 'stream deck mk2' }, 'SA');
+    expect(r.status).toBe('found');
+    expect(r.results[0]!.id).toBe(productId);
+    for (let i = 0; i < 50 && (await offersOf()).offers.find((x: any) => x.store.domain === 'amazon.sa').priceMinor !== 45900; i++) await new Promise((res) => setTimeout(res, 20));
+    expect((await offersOf()).offers.find((x: any) => x.store.domain === 'amazon.sa').priceMinor).toBe(45900);
+  });
+
   it('checks watched products on its own when they are due', async () => {
-    pagePrices = { [AMAZON]: { amount: 479, currency: 'SAR' } };
+    pagePrices = { [AMAZON]: { amount: 449, currency: 'SAR' } };
     await db.update(products).set({ pricesCheckedAt: new Date(Date.now() - 2 * 3_600_000) }).where(eq(products.id, productId));
     const lines: string[] = [];
     expect(await ctx.monitor.tick((m) => lines.push(m))).toBeGreaterThanOrEqual(1);

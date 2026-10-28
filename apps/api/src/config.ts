@@ -15,6 +15,8 @@ const Env = z.object({
   DISCOVERY_EFFORT: z.enum(['low', 'medium', 'high']).default('low'),
   /** Web searches the model may run per product search (each costs about $0.01). */
   DISCOVERY_MAX_SEARCHES: z.coerce.number().int().min(1).max(15).default(5),
+  /** Days a found product is reused for the same search before searching the web again. The price monitor keeps its prices current meanwhile. */
+  DISCOVERY_CACHE_DAYS: z.coerce.number().min(1).max(365).default(30),
   /** Hard ceiling on what web search may cost per day, all users together (USD). Reached → only the catalog until tomorrow. */
   DISCOVERY_DAILY_BUDGET_USD: z.coerce.number().min(0).default(5),
   /** Optional: image search for product photos (Brave Search API). Without it, photos come from store pages and Wikipedia. */

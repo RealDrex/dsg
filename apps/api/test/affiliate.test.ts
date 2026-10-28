@@ -40,9 +40,9 @@ describe('affiliate settings', () => {
     expect(bad.statusCode).toBe(400);
     const ok = await app.inject({ method: 'PATCH', url: `/v1/admin/stores/${o!.storeId}`, headers: h, payload: { affiliate: 'ref=bestprice' } });
     expect(ok.statusCode).toBe(200);
-    const u = new URL(await go());
+    const u = new URL((await go())!);
     expect(u.searchParams.get('ref')).toBe('bestprice');
-    expect(u.hostname).toBe(new URL(o!.url).hostname);
+    expect(u.hostname).toBe(new URL(o!.url!).hostname);
   });
 
   it('uses the Amazon Associates tag for Amazon stores without their own code', async () => {

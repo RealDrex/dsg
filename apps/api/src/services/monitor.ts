@@ -29,6 +29,18 @@ export class PriceMonitor {
   constructor(private db: DB, private discovery: DiscoveryService, private opts: MonitorOptions) {}
 
   /** Re-checks one product's prices now. */
+  private recheck = new Set<string>();
+
+  /** Re-reads a product's store pages in the background if its prices are older than `maxAgeMin` (no AI, no web search). */
+  refreshIfStale(productId: string, maxAgeMin = 60): void {
+    if (this.recheck.has(productId)) return;
+    this.recheck.add(productId);
+    void (async () => {
+      const p = await this.db.query.products.findFirst({ where: eq(products.id, productId), columns: { pricesCheckedAt: true } });
+      if (p && (!p.pricesCheckedAt || Date.now() - p.pricesCheckedAt.getTime() > maxAgeMin * 60_000)) await this.refreshProduct(productId);
+    })().catch(() => {}).finally(() => this.recheck.delete(productId));
+  }
+
   async refreshProduct(productId: string, { search = false }: { search?: boolean } = {}): Promise<RefreshResponse> {
     const rows = await this.db
       .select({ o: offers, s: stores, src: dataSources })

@@ -68,8 +68,11 @@ export async function buildApp(cfg: Config, db: DB): Promise<{ app: FastifyInsta
     freeDaily: cfg.FREE_DISCOVERY_DAILY,
     proDaily: cfg.PRO_DISCOVERY_DAILY,
     monitorDaily: cfg.MONITOR_SEARCH_DAILY,
+    cacheDays: cfg.DISCOVERY_CACHE_DAYS,
   }, media);
   const monitor = new PriceMonitor(db, discovery, { watchedEveryMin: cfg.WATCHED_REFRESH_MINUTES, viewedEveryMin: cfg.VIEWED_REFRESH_MINUTES });
+  // A saved search answer keeps its prices current: re-read the store pages when they're over an hour old.
+  discovery.onReuse = (ids) => ids.forEach((id) => monitor.refreshIfStale(id));
   const assistant = new AssistantService(db, catalog, {
     apiKey: cfg.ANTHROPIC_API_KEY || undefined,
     model: cfg.ASSISTANT_MODEL,
