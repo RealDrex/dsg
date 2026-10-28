@@ -13,6 +13,10 @@ const Env = z.object({
   /** Online product search: a faster model answers sooner; claude-opus-5-5 searches deeper. */
   DISCOVERY_MODEL: z.string().default('claude-sonnet-5-5'),
   DISCOVERY_EFFORT: z.enum(['low', 'medium', 'high']).default('low'),
+  /** Web searches the model may run per product search (each costs about $0.01). */
+  DISCOVERY_MAX_SEARCHES: z.coerce.number().int().min(1).max(15).default(5),
+  /** Hard ceiling on what web search may cost per day, all users together (USD). Reached → only the catalog until tomorrow. */
+  DISCOVERY_DAILY_BUDGET_USD: z.coerce.number().min(0).default(5),
   /** Optional: image search for product photos (Brave Search API). Without it, photos come from store pages and Wikipedia. */
   BRAVE_SEARCH_API_KEY: z.string().optional(),
   /** Optional: sharper brand/store logos from logo.dev. Without it, each site's own icon is used. */

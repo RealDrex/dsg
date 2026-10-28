@@ -187,7 +187,7 @@ export default function Scan() {
             <Txt size={12} weight="600" color={C.green}>{t('identified')}</Txt>
           </Row>
           <Row style={{ gap: 12 }}>
-            <ProductThumb uri={p.imageUrl} category={p.category} size={60} radius={16} />
+            <ProductThumb uri={p.imageUrl} brand={p.brand} size={60} radius={16} />
             <View style={{ flex: 1, gap: 3 }}>
               <Txt size={15} weight="600">{L(p.nameAr ?? p.name, p.name)}</Txt>
               <Txt size={11.5} color={C.textMute} ltr>{[p.brand, p.model].filter(Boolean).join(' · ')}</Txt>

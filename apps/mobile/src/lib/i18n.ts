@@ -263,7 +263,7 @@ const S = {
   targetStop: ['إيقاف المتابعة', 'Stop watching'],
   targetLowest: ['أقل سعر من بدأت', 'Lowest since you started'],
   targetLeft: ['باقي على هدفك', 'Left to your target'],
-  targetReached: ['وصل لهدفك! 🎉', 'Target reached! 🎉'],
+  targetReached: ['وصل لهدفك!', 'Target reached!'],
   pricesUpdated: ['آخر تحديث للأسعار', 'Prices updated'],
   pricesUpdating: ['نحدّث الأسعار من المتاجر…', 'Updating prices from the stores…'],
   pricesNever: ['ما تحدّثت بعد', 'not checked yet'],

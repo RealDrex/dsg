@@ -307,6 +307,29 @@ describe('best option, delivery and links', () => {
   });
 });
 
+describe('web search budget', () => {
+  it('records what each search cost and stops at the daily ceiling for everyone', async () => {
+    const withUsage = (m: any) => ({ ...m, model: 'claude-sonnet-5-5', usage: { input_tokens: 10_000, output_tokens: 1_000, server_tool_use: { web_search_requests: 3 } } });
+    (ctx.discovery as any).client = fakeClient([
+      () => withUsage(msg([searchResult('https://www.amazon.sa/dp/B0COST1')], 'pause_turn')),
+      () => withUsage(submit([product({ name: 'Budget test lamp', listings: [listing('https://www.amazon.sa/dp/B0COST1', 59)] })])),
+    ]);
+    (ctx.discovery as any).fetchPage = async () => null;
+    const g = await guest(app);
+    const h = await (await import('./helpers')).admin(app);
+    const before = (await app.inject({ method: 'GET', url: '/v1/admin/stats', headers: h })).json().webSearch.costTodayUsd;
+    expect((await discover(g.h, { q: 'budget test lamp' })).status).toBe('found');
+    // 2 × (10k in × $2/M + 1k out × $10/M + 3 searches × $0.01) = 2 × $0.06
+    const after = (await app.inject({ method: 'GET', url: '/v1/admin/stats', headers: h })).json().webSearch;
+    expect(after.costTodayUsd - before).toBeCloseTo(0.12, 5);
+    expect(after.dailyBudgetUsd).toBe(5);
+    (ctx.discovery as any).opts.dailyBudgetUsd = after.costTodayUsd; // ceiling reached
+    const r = await discover(g.h, { q: 'another new thing' });
+    expect(r).toMatchObject({ status: 'failed', error: { code: 'discovery_budget' } });
+    (ctx.discovery as any).opts.dailyBudgetUsd = 5;
+  });
+});
+
 describe('logos', () => {
   it('uses the icon the site declares, caches it, and refuses tiny or invalid ones', async () => {
     const asked: string[] = [];
@@ -410,13 +433,34 @@ describe('warm-up', () => {
       ? res(url, 200, 'application/json', JSON.stringify({ query: { pages: [{ title: 'AirPods 4', index: 1, thumbnail: { source: 'https://upload.wikimedia.org/airpods4.jpg' } }] } }))
       : url === 'https://upload.wikimedia.org/airpods4.jpg' ? res(url, 200, 'image/png', png(800)) : res(url, 404, 'text/plain', '');
     await warmUp(db, new LogoService(fetcher, { dir }), ctx.media, (m) => lines.push(m));
-    expect(lines[0]).toMatch(/^warm-up: (\d+)\/\1 store logos, \d+\/\d+ product photos found$/);
+    expect(lines[0]).toMatch(/^warm-up: (\d+)\/\1 store logos, \d+\/\d+ product photos, \d+ category photos found$/);
     expect((await db.query.products.findFirst({ where: eq(products.id, photo.id) }))!.imageUrl).toBe('https://upload.wikimedia.org/airpods4.jpg');
     // a "restarted" server reads logos from disk instead of fetching again
     const before = calls;
     const again = new LogoService(fetcher, { dir });
     expect(imageWidth((await again.get('jarir.com'))!.body)).toBe(128);
     expect(calls).toBe(before);
+  });
+});
+
+describe('category photos', () => {
+  it('uses a product photo from the category, else an encyclopedia photo, never an emoji', async () => {
+    (ctx.media as any).covers.clear();
+    (ctx.media as any).opts.fetcher = async (url: string) => {
+      if (url.startsWith('https://en.wikipedia.org/') && decodeURIComponent(url).includes('gsrsearch=Lipstick')) {
+        return res(url, 200, 'application/json', JSON.stringify({ query: { pages: [{ title: 'Lipstick', index: 1, thumbnail: { source: 'https://upload.wikimedia.org/lipstick.jpg' } }] } }));
+      }
+      if (url === 'https://upload.wikimedia.org/lipstick.jpg') return res(url, 200, 'image/png', png(800));
+      return res(url, 404, 'text/plain', '');
+    };
+    const ps5 = (await db.query.products.findFirst({ where: eq(products.name, 'PlayStation 5 Slim · Disc Edition') }))!;
+    await db.update(products).set({ imageUrl: 'https://m.media-amazon.com/images/I/ps5.jpg', createdAt: new Date() }).where(eq(products.id, ps5.id));
+    const list = (await app.inject({ method: 'GET', url: '/v1/categories' })).json();
+    const by = (id: string) => list.find((c: any) => c.id === id);
+    expect(list).toHaveLength(12);
+    expect(by('gaming').imageUrl).toBe('https://m.media-amazon.com/images/I/ps5.jpg');
+    expect(by('beauty').imageUrl).toBe('https://upload.wikimedia.org/lipstick.jpg');
+    expect(by('tools').imageUrl).toBeNull();
   });
 });
 

@@ -29,6 +29,13 @@
       "when": 1792621581981,
       "tag": "0003_price_monitor",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793178226572,
+      "tag": "0004_search_cost",
+      "breakpoints": true
     }
   ]
 }

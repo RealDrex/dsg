@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,11 +7,13 @@ import { SHOP_CATEGORIES, formatAmount, currencySymbol, getMarket, type HomeResp
 import { api } from '../../lib/api';
 import { useApp } from '../../lib/store';
 import { IconBell, IconCamera, IconHeart, IconScan, IconSearch, IconTag, Sparkle } from '../../ui/icons';
-import { avatarGlow, Chevron, Glass, GradientButton, Halo, Hero, Memoji, Press, ProductThumb, Row, SectionTitle, StoreMark, Txt, Screen } from '../../ui/kit';
+import { avatarGlow, CategoryTile, Chevron, Glass, GradientButton, Halo, Hero, Memoji, Press, ProductThumb, Row, SectionTitle, StoreMark, Txt, Screen } from '../../ui/kit';
 import { C, GLOWS } from '../../ui/theme';
 
 export default function Home() {
   const { t, L, lang, user, dataVersion, newChat, sendChat } = useApp();
+  const [covers, setCovers] = useState<Record<string, string | null>>({});
+  useEffect(() => { api.categories().then((list) => setCovers(Object.fromEntries(list.map((c) => [c.id, c.imageUrl])))).catch(() => {}); }, []);
   const insets = useSafeAreaInsets();
   const [data, setData] = useState<HomeResponse | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -117,11 +119,7 @@ export default function Home() {
           <SectionTitle title={t('categories')} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
             {SHOP_CATEGORIES.map((c) => (
-              <Press key={c.id} onPress={() => router.push(`/search?cat=${c.id}`)} accessibilityLabel={L(c.ar, c.en)}
-                style={{ width: 92, paddingVertical: 12, borderRadius: 18, backgroundColor: C.glass, borderWidth: 1, borderColor: C.line, alignItems: 'center', gap: 6 }}>
-                <Txt size={26}>{c.emoji}</Txt>
-                <Txt center size={11.5} weight="600" numberOfLines={2}>{L(c.ar, c.en)}</Txt>
-              </Press>
+              <CategoryTile key={c.id} name={L(c.ar, c.en)} imageUrl={covers[c.id] ?? null} width={112} height={128} onPress={() => router.push(`/search?cat=${c.id}`)} />
             ))}
           </ScrollView>
         </View>
@@ -184,7 +182,7 @@ export default function Home() {
                   <Press key={w.id} onPress={() => router.push(`/product/${w.product.id}`)} style={{ width: 210, height: 260, borderRadius: 30, overflow: 'hidden', backgroundColor: C.card, borderWidth: 1, borderColor: C.line }}>
                     <LinearGradient colors={[GLOWS[i % 4]!, 'transparent']} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 200, opacity: 0.6 }} />
                     <View style={{ position: 'absolute', top: 30, left: 0, right: 0, alignItems: 'center' }}>
-                      <ProductThumb uri={w.product.imageUrl} category={w.product.category} size={120} radius={22} />
+                      <ProductThumb uri={w.product.imageUrl} brand={w.product.brand} size={120} radius={22} />
                     </View>
                     <Row style={{ position: 'absolute', top: 12, left: 12, right: 12, justifyContent: 'flex-end' }}>
                       <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,.35)', alignItems: 'center', justifyContent: 'center' }}><IconHeart size={16} color="#fff" width={2} /></View>

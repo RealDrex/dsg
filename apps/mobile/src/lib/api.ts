@@ -143,6 +143,8 @@ class Client {
   home = () => this.get<HomeResponse>('/v1/home');
   /** Whether the server can search the web (AI key configured). */
   canDiscover = async () => (await this.get<{ discovery?: boolean }>('/health')).discovery === true;
+  /** Categories with a real cover photo each. */
+  categories = () => this.get<{ id: string; imageUrl: string | null }[]>('/v1/categories');
   categoryProducts = (id: string) => this.get<ProductSummaryDTO[]>(`/v1/categories/${id}/products`);
   search = (q: string) => this.get<SearchResponse>(`/v1/products/search?q=${encodeURIComponent(q)}`);
   /** Starts a web search (text, barcode or photo); poll the job with discoverJob. */

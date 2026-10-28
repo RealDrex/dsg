@@ -1,10 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { and, count, desc, eq, ilike, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, ilike, isNull, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { normalizeGtin } from '@bestprice/core';
 import { parse, requireAdmin, noStore, type Ctx } from '../app';
 import {
-  assistantUsage, auditLogs, branches, clickEvents, dataSources, offers, priceObservations, productGtins, products,
+  assistantUsage, auditLogs, branches, clickEvents, dataSources, discoveryRuns, offers, priceObservations, productGtins, products,
   sponsoredPlacements, stores, unmatchedListings, users, watches,
 } from '../db/schema';
 import { badRequest, conflict, notFound } from '../lib/errors';
@@ -65,7 +65,7 @@ const SponsoredIn = z.object({
 });
 
 export async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
-  const { db } = ctx;
+  const { db, cfg } = ctx;
   app.addHook('onRequest', async (req) => { requireAdmin(req); });
   app.addHook('onSend', async (_req, reply) => { noStore(reply); });
 
@@ -73,6 +73,19 @@ export async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
     db.insert(auditLogs).values({ actorId: req.user!.id, action, entity, entityId, data: data as object });
 
   /* ------------------------------ Overview ------------------------------ */
+  /** Web search runs and their estimated cost: today, this month, and how many were answered from cache. */
+  const webSearchSpend = async () => {
+    const day = new Date(); day.setUTCHours(0, 0, 0, 0);
+    const month = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), 1));
+    const agg = (since: Date) => db.select({ runs: sql<number>`count(*)`.mapWith(Number), micros: sql<number>`coalesce(sum(${discoveryRuns.costMicros}), 0)`.mapWith(Number) })
+      .from(discoveryRuns).where(gte(discoveryRuns.createdAt, since));
+    const [[t], [m]] = await Promise.all([agg(day), agg(month)]);
+    return {
+      runsToday: t?.runs ?? 0, costTodayUsd: (t?.micros ?? 0) / 1e6, runsMonth: m?.runs ?? 0, costMonthUsd: (m?.micros ?? 0) / 1e6,
+      dailyBudgetUsd: cfg.DISCOVERY_DAILY_BUDGET_USD, model: cfg.DISCOVERY_MODEL, available: ctx.discovery.available,
+    };
+  };
+
   app.get('/stats', async () => {
     const staleBefore = new Date(Date.now() - 7 * 86_400_000);
     const weekAgo = new Date(Date.now() - 7 * 86_400_000);
@@ -97,6 +110,7 @@ export async function adminRoutes(app: FastifyInstance, ctx: Ctx) {
       products: productsN, productsWithFreshPrices: covered, priceCoverage: productsN ? covered / productsN : 0,
       offers: offersN, flaggedOffers: flagged, staleOffers: stale, unmatchedListings: unmatched, activeSources: sourcesActive,
       members, guests, watches: watchesN, clicks7d, assistantMessagesToday: assistantToday, assistantMode: ctx.assistant.mode,
+      webSearch: await webSearchSpend(),
     };
   });
 

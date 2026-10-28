@@ -86,7 +86,7 @@ export default function Watch() {
               <Row style={{ gap: 12 }}>
                 <View style={{ borderRadius: 18, overflow: 'hidden' }}>
                   <LinearGradient colors={[GLOWS[i % 4]!, 'transparent']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={{ position: 'absolute', inset: 0, opacity: 0.5 }} />
-                  <ProductThumb uri={w.product.imageUrl} category={w.product.category} size={84} radius={18} />
+                  <ProductThumb uri={w.product.imageUrl} brand={w.product.brand} size={84} radius={18} />
                 </View>
                 <View style={{ flex: 1, gap: 4 }}>
                   <BrandLine brand={w.product.brand} logoUrl={w.product.brandLogoUrl} />

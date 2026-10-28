@@ -82,6 +82,7 @@ function Header({ title, sub, children }: { title: string; sub?: string; childre
 interface Stats {
   products: number; productsWithFreshPrices: number; priceCoverage: number; offers: number; flaggedOffers: number; staleOffers: number;
   unmatchedListings: number; activeSources: number; members: number; guests: number; watches: number; clicks7d: number; assistantMessagesToday: number; assistantMode: string;
+  webSearch: { runsToday: number; costTodayUsd: number; runsMonth: number; costMonthUsd: number; dailyBudgetUsd: number; model: string; available: boolean };
 }
 function Dashboard({ go }: { go: (p: Page) => void }) {
   const { data: s, error } = useLoad(() => get<Stats>('/v1/admin/stats'));
@@ -106,6 +107,12 @@ function Dashboard({ go }: { go: (p: Page) => void }) {
       <div className="grid">
         {k(s.members, 'Members')}{k(s.guests, 'Guest sessions')}{k(s.watches, 'Price watches')}{k(s.clicks7d, 'Store click-outs (7d)')}
         {k(s.assistantMessagesToday, 'Assistant messages today')}{k(s.assistantMode === 'ai' ? 'AI' : 'Rules', 'Assistant mode', s.assistantMode === 'ai' ? 'good' : 'warn')}
+      </div>
+      <h2>Web search spend (estimated)</h2>
+      <div className="grid">
+        {k(`$${s.webSearch.costTodayUsd.toFixed(2)} / $${s.webSearch.dailyBudgetUsd}`, `Today · ${s.webSearch.runsToday} searches`, s.webSearch.costTodayUsd >= s.webSearch.dailyBudgetUsd ? 'bad' : s.webSearch.costTodayUsd >= s.webSearch.dailyBudgetUsd * 0.8 ? 'warn' : 'good')}
+        {k(`$${s.webSearch.costMonthUsd.toFixed(2)}`, `This month · ${s.webSearch.runsMonth} searches`)}
+        {k(s.webSearch.available ? s.webSearch.model : 'Off', 'Search model (no key = off)', s.webSearch.available ? 'good' : 'warn')}
       </div>
     </>
   );

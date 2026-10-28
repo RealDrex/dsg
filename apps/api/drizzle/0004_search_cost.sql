@@ -1,0 +1,1 @@
+ALTER TABLE "discovery_runs" ADD COLUMN "cost_micros" integer DEFAULT 0 NOT NULL;

@@ -12,6 +12,7 @@ import { importListings, matchKey } from '../ingest/pipeline';
 import { HttpError, notFound, tooMany } from '../lib/errors';
 import { safeGet, type SafeResponse } from '../lib/http';
 import { hostAllowed } from '../lib/net';
+import { costMicros, type UsageLike } from '../lib/pricing';
 import { extractPageFacts, type PageFacts } from '../lib/page';
 import type { CatalogService } from './catalog';
 import type { MediaService } from './media';
@@ -192,6 +193,9 @@ export interface DiscoveryOptions {
   effort: 'low' | 'medium' | 'high';
   freeDaily: number;
   proDaily: number;
+  /** Web searches per run (default 5) and the daily spending ceiling for all users together (USD; unset = no ceiling). */
+  maxSearches?: number;
+  dailyBudgetUsd?: number;
   /** Web searches the price monitor may run per day (for watched products whose pages can't be read). */
   monitorDaily?: number;
   /** Fetches TikTok oEmbed data and pictures for identification. Tests replace it. */
@@ -340,15 +344,21 @@ export class DiscoveryService {
     const [usage] = await this.db.select({ n: sql<number>`count(*)`.mapWith(Number) }).from(discoveryRuns)
       .where(and(user.id === null ? isNull(discoveryRuns.userId) : eq(discoveryRuns.userId, user.id), gte(discoveryRuns.createdAt, today)));
     if ((usage?.n ?? 0) >= limit) throw tooMany('discovery_daily_limit', `Daily limit of ${limit} online searches reached`);
+    // Spending ceiling for everyone together: once today's estimated cost reaches it, only the catalog answers until tomorrow.
+    if (this.opts.dailyBudgetUsd !== undefined) {
+      const [spent] = await this.db.select({ m: sql<number>`coalesce(sum(${discoveryRuns.costMicros}), 0)`.mapWith(Number) }).from(discoveryRuns).where(gte(discoveryRuns.createdAt, today));
+      if ((spent?.m ?? 0) >= this.opts.dailyBudgetUsd * 1e6) throw tooMany('discovery_budget', 'Online search has reached today\'s budget');
+    }
 
     const storeRows = await this.db.select().from(stores).where(eq(stores.country, market.code));
     const directory = storeRows.filter((s) => s.known && s.active && s.allowedDomains.length > 0);
     let submitted: Submitted[] | null = null;
     let seen = new Map<string, string>();
+    const spend = { micros: 0 };
     try {
-      ({ submitted, seen } = await this.runModel(subject, market, directory, progress, cat));
+      ({ submitted, seen } = await this.runModel(subject, market, directory, progress, cat, spend));
     } catch (e) {
-      await this.db.insert(discoveryRuns).values({ userId: user.id, key, market: market.code, status: 'failed' });
+      await this.db.insert(discoveryRuns).values({ userId: user.id, key, market: market.code, status: 'failed', costMicros: spend.micros });
       throw e;
     }
 
@@ -364,7 +374,7 @@ export class DiscoveryService {
       ids.push(id);
       if (p.match === 'similar') similar.push(id);
     }
-    await this.db.insert(discoveryRuns).values({ userId: user.id, key, market: market.code, status: ids.length ? 'found' : 'not_found', productIds: ids, similarIds: similar });
+    await this.db.insert(discoveryRuns).values({ userId: user.id, key, market: market.code, status: ids.length ? 'found' : 'not_found', productIds: ids, similarIds: similar, costMicros: spend.micros });
     if (!ids.length) return { status: 'not_found', results: [] };
     return { status: 'found', results: await this.results(ids, similar, country) };
   }
@@ -391,7 +401,7 @@ export class DiscoveryService {
   }
 
   /** Web search (server tool) until the model calls submit_products. */
-  private async runModel(subject: Subject, market: Market, directory: StoreRow[], progress?: Progress, cat: ShopCategory | null = null) {
+  private async runModel(subject: Subject, market: Market, directory: StoreRow[], progress?: Progress, cat: ShopCategory | null = null, spend: { micros: number } = { micros: 0 }) {
     const storeList = directory.map((s) => `- ${s.name} (${s.nameAr})${s.kind === 'global' ? ' [ships from abroad]' : s.kind === 'classifieds' ? ' [used listings]' : ''}: ${s.allowedDomains.join(', ')}`).join('\n');
     let content: Anthropic.Beta.BetaContentBlockParam[];
     switch (subject.kind) {
@@ -437,7 +447,7 @@ export class DiscoveryService {
           output_config: { effort: this.opts.effort },
           system: [{ type: 'text', text: systemPrompt(market, storeList, subject, cat) }],
           tools: [
-            { type: 'web_search_20260209', name: 'web_search', max_uses: subject.kind === 'product' ? 6 : 8, user_location: { type: 'approximate', country: market.code } },
+            { type: 'web_search_20260209', name: 'web_search', max_uses: this.opts.maxSearches ?? 5, user_location: { type: 'approximate', country: market.code } },
             SUBMIT_TOOL,
           ],
           messages,
@@ -446,6 +456,7 @@ export class DiscoveryService {
         if (err instanceof Anthropic.RateLimitError) throw tooMany('discovery_busy', 'Online search is busy, try again shortly');
         throw err;
       }
+      spend.micros += costMicros(res.model ?? this.opts.model, res.usage as UsageLike);
       if (res.stop_reason === 'refusal') return { submitted: null, seen };
       const submit = res.content.find((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use' && b.name === 'submit_products');
       if (submit) {

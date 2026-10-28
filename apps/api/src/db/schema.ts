@@ -288,5 +288,7 @@ export const discoveryRuns = pgTable('discovery_runs', {
   productIds: uuid('product_ids').array().notNull().default(sql`'{}'::uuid[]`),
   /** Of productIds, the ones that are alternatives rather than the item searched for. */
   similarIds: uuid('similar_ids').array().notNull().default(sql`'{}'::uuid[]`),
+  /** Estimated cost of this run (model tokens + web searches), in millionths of a dollar. */
+  costMicros: integer('cost_micros').notNull().default(0),
   createdAt: createdAt(),
 }, (t) => [index('discovery_key_idx').on(t.key, t.market, t.createdAt), index('discovery_user_idx').on(t.userId, t.createdAt)]);

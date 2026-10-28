@@ -88,7 +88,7 @@ export function TargetSheet({ visible, currentMinor, currentIsOld, currency, ini
           </View>
 
           <View style={{ backgroundColor: 'rgba(62,224,154,.08)', borderRadius: 14, padding: 12 }}>
-            <Txt size={12.5} color={C.textSoft} lh={1.7}>{`🔔 ${t('targetHow')}`}</Txt>
+            <Txt size={12.5} color={C.textSoft} lh={1.7}>{t('targetHow')}</Txt>
           </View>
 
           <GradientButton label={editing ? t('targetSave') : t('targetStart')} disabled={targetMinor === null} onPress={() => targetMinor !== null && onSave(targetMinor)} />

@@ -192,7 +192,7 @@ export default function Product() {
             <LinearGradient colors={['rgba(62,224,154,.38)', 'transparent']} start={{ x: 0.5, y: 0.25 }} end={{ x: 0.5, y: 0.8 }} style={{ position: 'absolute', inset: 0 }} />
             <LinearGradient colors={['transparent', 'rgba(139,92,246,.34)']} start={{ x: 0.3, y: 0.6 }} end={{ x: 0.9, y: 1 }} style={{ position: 'absolute', inset: 0 }} />
             <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' }}>
-              <ProductThumb uri={product.imageUrl} category={product.category} size={product.imageUrl ? 220 : 150} radius={28} />
+              <ProductThumb uri={product.imageUrl} brand={product.brand} size={product.imageUrl ? 220 : 150} radius={28} />
             </View>
             <Row style={{ justifyContent: 'space-between', padding: 14 }}>
               <View />
@@ -319,9 +319,9 @@ export default function Product() {
             </Row>
             {offers && offers.offers.length === 0 ? <Txt color={C.textMute}>{t('noOffers')}</Txt> : null}
             {offers?.offers.map((o, i) => renderOffer(o, i === 0))}
-            {hasUnknown ? <Txt size={11.5} color={C.textDim} lh={1.6}>{`⚠️ ${t('unknownSeller')}: ${t('unknownSellerNote')}`}</Txt> : null}
+            {hasUnknown ? <Txt size={11.5} color={C.textDim} lh={1.6}>{`${t('unknownSeller')}: ${t('unknownSellerNote')}`}</Txt> : null}
             {more.state.phase === 'running' ? <LiveSearchPanel state={more.state} /> : (
-              <GhostButton label={`🌐 ${t('moreSellers')}`} onPress={() => findMore('all')} />
+              <GhostButton label={t('moreSellers')} onPress={() => findMore('all')} />
             )}
             {offers?.sponsored.map((s) => (
               <Press key={s.id} onPress={() => WebBrowser.openBrowserAsync(s.clickUrl).catch(() => {})}>
@@ -378,7 +378,7 @@ export default function Product() {
           ) : (
             <Press onPress={() => setSheet(true)}>
               <View style={{ borderRadius: 20, padding: 16, gap: 6, backgroundColor: 'rgba(62,224,154,.08)', borderWidth: 1, borderColor: 'rgba(62,224,154,.3)' }}>
-                <Txt size={15} weight="700" color={C.greenSoft}>{`🎯 ${t('targetTitle')}`}</Txt>
+                <Txt size={15} weight="700" color={C.greenSoft}>{t('targetTitle')}</Txt>
                 <Txt size={12.5} color={C.textSoft} lh={1.6}>{t('targetHow')}</Txt>
               </View>
             </Press>
@@ -422,7 +422,7 @@ export default function Product() {
                 : <View style={{ paddingVertical: 2, paddingHorizontal: 7, borderRadius: 7, backgroundColor: local ? 'rgba(90,140,255,.16)' : 'rgba(170,120,255,.16)' }}>
                     <Txt size={10.5} weight="600" color={local ? '#A9C4FF' : '#D0B8FF'}>{local ? t('local') : t('online')}</Txt>
                   </View>}
-              {!o.store.known ? <Badge label={`⚠️ ${t('unknownSeller')}`} bg={C.amberBg} fg={C.amberText} /> : null}
+              {!o.store.known ? <Badge label={t('unknownSeller')} bg={C.amberBg} fg={C.amberText} /> : null}
             </Row>
             {o.title ? <Txt size={12} color={C.textSoft} numberOfLines={1}>{o.title}</Txt> : null}
             {meta ? <Txt size={12} color={C.textMute} numberOfLines={1}>{meta}</Txt> : null}
@@ -432,7 +432,11 @@ export default function Product() {
             <Txt size={11} color={C.textDim}>{o.original ? origLabel(o) : ship}</Txt>
           </View>
         </Row>
-        {o.reasons.includes('suspicious_price') ? <Txt size={11.5} color={C.coral} lh={1.5}>{`⚠️ ${t('suspiciousPrice')}`}</Txt> : null}
+        {o.reasons.includes('suspicious_price') ? (
+          <View style={{ backgroundColor: 'rgba(255,107,107,.12)', borderRadius: 10, paddingVertical: 6, paddingHorizontal: 10 }}>
+            <Txt size={11.5} color={C.coral} lh={1.5}>{t('suspiciousPrice')}</Txt>
+          </View>
+        ) : null}
         <Row style={{ flexWrap: 'wrap', gap: 6, columnGap: 12 }}>
           <Txt size={11.5} color={C.textMute}>{stock}</Txt>
           <Txt size={11.5} color={C.textMute}>·</Txt>

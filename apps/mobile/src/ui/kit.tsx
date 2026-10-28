@@ -7,7 +7,7 @@ import Svg, { Circle, Defs, Path, RadialGradient, Rect, Stop } from 'react-nativ
 import { useApp } from '../lib/store';
 import { AVATAR_GLOW, C, CTA, HERO, HERO_LOC, R } from './theme';
 import { MEMOJI } from './memoji';
-import { IconChevron } from './icons';
+import { IconChevron, IconGallery } from './icons';
 import { brandMarkFor, storeMarkFor, type BrandMark } from './brandMarks';
 
 /* --------------------------------- Text --------------------------------- */
@@ -344,13 +344,8 @@ function isLightColor(hex: string): boolean {
   return 0.299 * r + 0.587 * g + 0.114 * b > 186;
 }
 
-const CATEGORY_GLYPH: Record<string, string> = {
-  laptop: '💻', phone: '📱', tablet: '📲', headphones: '🎧', watch: '⌚', tv: '📺', camera: '📷', gaming: '🎮',
-  coffee: '☕', home: '🏠', beauty: '🧴', grocery: '🛒', fashion: '👜', car: '🚗',
-};
-
-/** Product photo when we have one, otherwise a category glyph tile. */
-export function ProductThumb({ uri, category, size, radius = 12 }: { uri?: string | null; category?: string | null; size: number; radius?: number }) {
+/** Product photo when we have one; until then the maker's logo, or a quiet photo placeholder. */
+export function ProductThumb({ uri, size, radius = 12, brand }: { uri?: string | null; category?: string | null; size: number; radius?: number; brand?: string | null }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [uri]);
   if (uri && !failed) {
@@ -362,9 +357,35 @@ export function ProductThumb({ uri, category, size, radius = 12 }: { uri?: strin
   }
   return (
     <View style={{ width: size, height: size, borderRadius: radius, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
-      <LinearGradient colors={['rgba(62,224,154,.16)', 'rgba(139,92,246,.18)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
-      <Text style={{ fontSize: size * 0.46 }}>{CATEGORY_GLYPH[category ?? ''] ?? '📦'}</Text>
+      <LinearGradient colors={['rgba(255,255,255,.10)', 'rgba(255,255,255,.04)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      {brandMarkFor(brand) ? (
+        <View style={{ width: size * 0.56, height: size * 0.56, borderRadius: size * 0.14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+          <MarkIcon mark={brandMarkFor(brand)!} size={size * 0.36} />
+        </View>
+      ) : (
+        <IconGallery size={size * 0.38} color="rgba(255,255,255,.35)" width={1.4} />
+      )}
     </View>
+  );
+}
+
+/** A category tile: a real photo of something from the category, its name over a dark fade. */
+export function CategoryTile({ name, imageUrl, width, height, onPress }: { name: string; imageUrl: string | null; width: number | `${number}%`; height: number; onPress: () => void }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <Press onPress={onPress} accessibilityLabel={name} style={{ width, height, borderRadius: 18, overflow: 'hidden', backgroundColor: '#1A1F25', borderWidth: 1, borderColor: C.line }}>
+      {imageUrl && !failed ? (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff' }]}>
+          <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" transition={150} onError={() => setFailed(true)} />
+        </View>
+      ) : (
+        <LinearGradient colors={['rgba(62,224,154,.18)', 'rgba(139,92,246,.22)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      )}
+      <LinearGradient colors={['transparent', 'rgba(0,0,0,.78)']} start={{ x: 0.5, y: 0.35 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
+      <View style={{ flex: 1, justifyContent: 'flex-end', padding: 9 }}>
+        <Txt size={12.5} weight="700" color="#fff" numberOfLines={2}>{name}</Txt>
+      </View>
+    </Press>
   );
 }
 

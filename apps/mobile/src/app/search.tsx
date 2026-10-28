@@ -9,8 +9,8 @@ import { MAX_PHOTO_BASE64, mediaTypeOf, takePendingPhoto, type PhotoQuery } from
 import { useApp } from '../lib/store';
 import { useDiscovery } from '../lib/useDiscovery';
 import type { StrKey } from '../lib/i18n';
-import { IconBack, IconGallery, IconScan, IconSearch } from '../ui/icons';
-import { GhostButton, Glass, Press, Row, Screen, Spinner, SuggestChip, Txt } from '../ui/kit';
+import { IconBack, IconCamera, IconClose, IconGallery, IconGlobe, IconScan, IconSearch } from '../ui/icons';
+import { CategoryTile, GhostButton, Glass, Press, Row, Screen, Spinner, SuggestChip, Txt } from '../ui/kit';
 import { LiveSearchPanel, ProductResult } from '../ui/live';
 import { C } from '../ui/theme';
 
@@ -40,7 +40,11 @@ export default function Search() {
   const v = q.trim();
   const link = isLink(v);
 
-  useEffect(() => { api.canDiscover().then(setCanDiscover).catch(() => setCanDiscover(false)); }, []);
+  const [covers, setCovers] = useState<Record<string, string | null>>({});
+  useEffect(() => {
+    api.canDiscover().then(setCanDiscover).catch(() => setCanDiscover(false));
+    api.categories().then((list) => setCovers(Object.fromEntries(list.map((c) => [c.id, c.imageUrl])))).catch(() => {});
+  }, []);
   useEffect(() => {
     setCatProducts(null);
     if (cat) api.categoryProducts(cat.id).then(setCatProducts).catch(() => setCatProducts([]));
@@ -151,9 +155,8 @@ export default function Search() {
         <View style={{ paddingHorizontal: 16, paddingBottom: 8, gap: 8 }}>
           <Row style={{ gap: 8 }}>
             <Press onPress={() => setCat(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 14, backgroundColor: 'rgba(62,224,154,.16)', borderWidth: 1, borderColor: 'rgba(62,224,154,.4)' }}>
-              <Txt size={14}>{cat.emoji}</Txt>
               <Txt size={13} weight="700" color={C.greenSoft}>{L(cat.ar, cat.en)}</Txt>
-              <Txt size={13} color={C.textMute}>✕</Txt>
+              <IconClose size={13} color={C.textMute} width={2} />
             </Press>
           </Row>
           {empty ? (
@@ -168,10 +171,12 @@ export default function Search() {
         {showCta ? (
           <Press onPress={() => searchWeb(v)}>
             <Glass style={{ borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderColor: 'rgba(62,224,154,.45)' }}>
-              <Txt size={22}>{link ? '🔗' : '🌐'}</Txt>
+              <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(62,224,154,.14)', alignItems: 'center', justifyContent: 'center' }}>
+                <IconGlobe size={20} color={C.green} width={1.8} />
+              </View>
               <View style={{ flex: 1, gap: 2 }}>
                 <Txt size={14} weight="700" numberOfLines={2}>{link ? t('linkCta') : `${t('liveSearchCta')} «${v}»`}</Txt>
-                <Txt size={11.5} color={C.textMute}>{cat ? `${cat.emoji} ${L(cat.ar, cat.en)}` : t('liveSearchTitle')}</Txt>
+                <Txt size={11.5} color={C.textMute}>{cat ? L(cat.ar, cat.en) : t('liveSearchTitle')}</Txt>
               </View>
             </Glass>
           </Press>
@@ -218,17 +223,14 @@ export default function Search() {
             <Txt size={13} weight="700" color={C.textMute}>{t('categories')}</Txt>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
               {SHOP_CATEGORIES.map((c) => (
-                <Press key={c.id} onPress={() => setCat(c)} style={{ width: '31%', flexGrow: 1 }} accessibilityLabel={L(c.ar, c.en)}>
-                  <Glass style={{ borderRadius: 18, paddingVertical: 14, paddingHorizontal: 8, alignItems: 'center', gap: 6 }}>
-                    <Txt size={26}>{c.emoji}</Txt>
-                    <Txt center size={12.5} weight="600" numberOfLines={2}>{L(c.ar, c.en)}</Txt>
-                  </Glass>
-                </Press>
+                <CategoryTile key={c.id} name={L(c.ar, c.en)} imageUrl={covers[c.id] ?? null} width="31%" height={112} onPress={() => setCat(c)} />
               ))}
             </View>
             <Press onPress={choosePhoto}>
               <Glass style={{ borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 }}>
-                <Txt size={24}>📷</Txt>
+                <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,.08)', alignItems: 'center', justifyContent: 'center' }}>
+                  <IconCamera size={20} color={C.text} width={1.8} />
+                </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Txt size={14} weight="700">{t('photoSearch')}</Txt>
                   <Txt size={12} color={C.textMute} lh={1.5}>{t('photoHint')}</Txt>

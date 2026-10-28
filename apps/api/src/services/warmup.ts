@@ -24,5 +24,6 @@ export async function warmUp(db: DB, logos: LogoService, media: MediaService, lo
   await Promise.all(Array.from({ length: 3 }, async () => {
     for (let p = queue.shift(); p; p = queue.shift()) if (await media.ensureImage(p.id)) photos++;
   }));
-  log(`warm-up: ${logosFound}/${storeRows.length} store logos, ${photos}/${missing.length} product photos found`);
+  const covers = (await media.categoryCovers()).filter((c) => c.imageUrl).length;
+  log(`warm-up: ${logosFound}/${storeRows.length} store logos, ${photos}/${missing.length} product photos, ${covers} category photos found`);
 }

@@ -7,6 +7,7 @@ import { API_URL } from '../lib/api';
 import { etaText } from '../lib/i18n';
 import { useApp } from '../lib/store';
 import type { DiscoveryState } from '../lib/useDiscovery';
+import { IconSearch } from './icons';
 import { Badge, BrandLine, Chevron, Glass, Memoji, ProductThumb, Press, Row, StoreMark, Txt } from './kit';
 import { C } from './theme';
 
@@ -45,7 +46,12 @@ export function LiveSearchPanel({ state, photoUri }: { state: Extract<DiscoveryS
         )}
         <View style={{ flex: 1, gap: 4 }}>
           <Txt size={14} weight="700">{reading ? t('liveReading') : state.label}</Txt>
-          {last ? <Txt size={12.5} color={C.greenSoft} numberOfLines={2}>{`🔎 ${last}`}</Txt> : null}
+          {last ? (
+            <Row style={{ gap: 6 }}>
+              <IconSearch size={13} color={C.greenSoft} width={2} />
+              <Txt size={12.5} color={C.greenSoft} numberOfLines={2} style={{ flexShrink: 1 }}>{last}</Txt>
+            </Row>
+          ) : null}
           <Txt size={11.5} color={C.textDim}>{`${secs} ${t('liveSeconds')}${sites.length ? ` · ${sites.length} ${t('liveSites')}` : ''}`}</Txt>
         </View>
       </Row>
@@ -85,7 +91,7 @@ export function ProductResult({ p, big }: { p: ProductSummaryDTO | DiscoveredDTO
   return (
     <Press onPress={() => router.push(`/product/${p.id}`)}>
       <Glass style={{ borderRadius: 20, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <ProductThumb uri={p.imageUrl} category={p.category} size={size} radius={big ? 16 : 14} />
+        <ProductThumb uri={p.imageUrl} brand={p.brand} size={size} radius={big ? 16 : 14} />
         <View style={{ flex: 1, gap: 5 }}>
           {similar ? <Badge label={t('similarItem')} bg="rgba(139,92,246,.2)" fg="#D0B8FF" /> : null}
           <BrandLine brand={p.brand} logoUrl={p.brandLogoUrl} />

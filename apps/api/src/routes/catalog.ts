@@ -110,6 +110,9 @@ export async function catalogRoutes(app: FastifyInstance, ctx: Ctx) {
     return catalog.history(id, countryOf(req));
   });
 
+  /** Shopping categories with a real cover photo each. */
+  app.get('/v1/categories', async () => ctx.media.categoryCovers());
+
   /** A category's products in our catalog (newest first), for browsing before typing anything. */
   app.get('/v1/categories/:id/products', async (req) => {
     const { id } = parse(z.object({ id: z.string().regex(/^[a-z]{2,20}$/) }), req.params);

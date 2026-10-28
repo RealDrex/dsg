@@ -63,6 +63,8 @@ export async function buildApp(cfg: Config, db: DB): Promise<{ app: FastifyInsta
     apiKey: cfg.ANTHROPIC_API_KEY || undefined,
     model: cfg.DISCOVERY_MODEL,
     effort: cfg.DISCOVERY_EFFORT,
+    maxSearches: cfg.DISCOVERY_MAX_SEARCHES,
+    dailyBudgetUsd: cfg.DISCOVERY_DAILY_BUDGET_USD,
     freeDaily: cfg.FREE_DISCOVERY_DAILY,
     proDaily: cfg.PRO_DISCOVERY_DAILY,
     monitorDaily: cfg.MONITOR_SEARCH_DAILY,

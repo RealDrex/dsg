@@ -1,5 +1,5 @@
-import { and, eq, isNull } from 'drizzle-orm';
-import { normalizeSearchText } from '@bestprice/core';
+import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { normalizeSearchText, SHOP_CATEGORIES } from '@bestprice/core';
 import type { DB } from '../db/client';
 import { products } from '../db/schema';
 import { safeGet, type SafeResponse } from '../lib/http';
@@ -28,6 +28,7 @@ export interface ImageQuery { name: string; brand: string | null; preferHosts?: 
  */
 export class MediaService {
   private tried = new Map<string, number>();
+  private covers = new Map<string, { url: string | null; at: number }>();
   private inflight = new Map<string, Promise<string | null>>();
 
   constructor(private db: DB, private opts: { braveKey?: string; fetcher?: Fetcher } = {}) {}
@@ -63,6 +64,28 @@ export class MediaService {
     const query = q.brand && !normalizeSearchText(base).includes(normalizeSearchText(q.brand)) ? `${q.brand} ${base}` : base;
     const candidates = [...(await this.brave(query, q.preferHosts ?? [])), ...(await this.wikipedia(query, q.brand))];
     return this.firstImage(candidates, 5);
+  }
+
+  /**
+   * A real photo for each shopping category: the newest product photo in it
+   * (from the store pages), otherwise an encyclopedia photo of the thing.
+   * Cached for 6 hours.
+   */
+  async categoryCovers(): Promise<{ id: string; imageUrl: string | null }[]> {
+    return Promise.all(SHOP_CATEGORIES.map(async (c) => {
+      const hit = this.covers.get(c.id);
+      if (hit && Date.now() - hit.at < 6 * 3_600_000) return { id: c.id, imageUrl: hit.url };
+      const [p] = await this.db.select({ url: products.imageUrl }).from(products)
+        .where(and(inArray(products.category, c.catalog), eq(products.status, 'active'), isNotNull(products.imageUrl)))
+        .orderBy(desc(products.createdAt)).limit(1);
+      let url = p?.url ?? null;
+      if (!url) {
+        url = await Promise.race([this.find({ name: c.cover, brand: null }), new Promise<null>((r) => setTimeout(() => r(null), 6_000))]).catch(() => null);
+      }
+      // Keep a miss only briefly, so a photo found later shows up soon.
+      this.covers.set(c.id, { url, at: url ? Date.now() : Date.now() - 5.5 * 3_600_000 });
+      return { id: c.id, imageUrl: url };
+    }));
   }
 
   /** Fills in a missing product photo (at most one attempt per product every 6 h). */
