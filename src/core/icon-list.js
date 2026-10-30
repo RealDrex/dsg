@@ -85,6 +85,7 @@ module.exports = {
   leave: lucide('user-minus'),
   hash: lucide('hash'),
   voice: lucide('volume-2'),
+  music: lucide('music'),
   globe: lucide('globe'),
   down: lucide('arrow-down'),
   sparkles: lucide('sparkles'),

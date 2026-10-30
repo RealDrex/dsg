@@ -32,7 +32,7 @@ function connect(entry, client) {
     adapterCreator: guild.voiceAdapterCreator,
     group: entry.id, // several bots in one server need separate connection groups
     selfDeaf: true,
-    selfMute: true,
+    selfMute: false, // must be un-muted to transmit music; silent otherwise
   });
   connection.on(VoiceConnectionStatus.Disconnected, async () => {
     try {
@@ -78,6 +78,7 @@ async function start(entry) {
 }
 
 async function stop(id) {
+  try { require('./music').stop(id); } catch { /* music optional */ }
   const inst = instances.get(id);
   if (!inst) return;
   clearTimeout(inst.timer);

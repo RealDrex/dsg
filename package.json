@@ -23,7 +23,11 @@
     "discord.js": "^14.27.0",
     "dotenv": "^16.6.1",
     "express": "^5.2.1",
-    "gifenc": "^1.0.3"
+    "gifenc": "^1.0.3",
+    "libsodium-wrappers": "^0.8.4",
+    "play-dl": "^1.9.7",
+    "libsodium-wrappers": "^0.8.4",
+    "play-dl": "^1.9.7"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
