@@ -495,8 +495,16 @@ module.exports = {
     messageCreate: onMessage,
     guildMemberAdd: onJoin,
     channelDelete: (channel) => channel.guild && onDestructive(channel.guild, AuditLogEvent.ChannelDelete, channel.id, 'حذف روم'),
+    channelCreate: (channel) => channel.guild && onDestructive(channel.guild, AuditLogEvent.ChannelCreate, channel.id, 'إنشاء رومات'),
     roleDelete: (role) => onDestructive(role.guild, AuditLogEvent.RoleDelete, role.id, 'حذف رتبة'),
+    roleCreate: (role) => onDestructive(role.guild, AuditLogEvent.RoleCreate, role.id, 'إنشاء رتب'),
     guildBanAdd: (ban) => onDestructive(ban.guild, AuditLogEvent.MemberBanAdd, ban.user.id, 'باند'),
     guildMemberRemove: (member) => onDestructive(member.guild, AuditLogEvent.MemberKick, member.id, 'طرد'),
+    // Mass voice disconnect: a member forced out of voice by someone else → count it.
+    voiceStateUpdate: (before, after) => {
+      if (before.channelId && !after.channelId && before.member && !before.member.user.bot) {
+        onDestructive(before.guild, AuditLogEvent.MemberDisconnect, null, 'سحب من الصوت');
+      }
+    },
   },
 };

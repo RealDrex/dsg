@@ -951,9 +951,9 @@ async function onMemberUpdate(oldM, newM) {
   if (!executor || executor.id === guild.client.user.id || executor.id === guild.ownerId) return;
   const ex = await guild.members.fetch(executor.id).catch(() => null);
   if (!ex) return;
-  const trusted = ex.permissions.has(PermissionFlagsBits.Administrator)
-    || (cfg.roleGuard.guardians || []).some((id) => ex.roles.cache.has(id))
-    || cfg.roles.admin.some((id) => ex.roles.cache.has(id));
+  // Only the configured guardians (and the owner, handled above) may grant a
+  // protected role — Administrator / admin roles do NOT bypass this.
+  const trusted = (cfg.roleGuard.guardians || []).some((id) => ex.roles.cache.has(id));
   if (trusted) return;
 
   for (const r of added.values()) await newM.roles.remove(r, 'Sword: منع رفع رتبة محمية').catch(() => null);
@@ -1062,7 +1062,7 @@ module.exports = {
       { id: 'p5', label: 'مخالفة القوانين', minutes: 240 },
       { id: 'p6', label: 'تعدي على الإدارة', minutes: 1440 },
     ],
-    roleGuard: { enabled: true, protected: [], guardians: [], strikes: 3 },
+    roleGuard: { enabled: true, protected: ['1549021844575748096'], guardians: ['1505729933807194263'], strikes: 3 },
   },
   events: {
     messageCreate: onMessage,
