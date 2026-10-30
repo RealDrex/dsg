@@ -31,7 +31,23 @@
     keys.reduce((a, k) => (a[k] ??= {}), o)[last] = v;
   };
 
-  const state = { guilds: [], data: null, pluginId: null, tab: 'settings', draft: null, original: null };
+  const state = { guilds: [], data: null, pluginId: null, tab: 'settings', draft: null, original: null, view: 'plugin' };
+
+  // Log types mirror the logs plugin — label + icon for the live feed.
+  const LOG_TYPES = {
+    all: { label: 'الكل', icon: 'logs' },
+    messages: { label: 'الرسائل', icon: 'message' },
+    messageEdit: { label: 'تعديل الرسائل', icon: 'edit' },
+    members: { label: 'الأعضاء', icon: 'users' },
+    moderation: { label: 'الإدارة', icon: 'ban' },
+    server: { label: 'الرتب والرومات', icon: 'roles' },
+    voice: { label: 'الفويس', icon: 'voice' },
+    voiceLeave: { label: 'خروج الفويس', icon: 'leave' },
+    protection: { label: 'الحماية', icon: 'protection' },
+    general: { label: 'عام', icon: 'logs' },
+  };
+  let logsTimer = null;
+  const logsState = { type: 'all' };
 
   // ── API ──────────────────────────────────────────────────────
   async function api(path, options = {}) {
@@ -126,9 +142,15 @@
   function renderMenu() {
     const menu = $('#menu');
     menu.innerHTML = '';
+    menu.append(el('button', {
+      class: `menu-item${state.view === 'logs' ? ' active' : ''}`, type: 'button', onclick: () => selectLogs(),
+    },
+    el('span', { class: 'menu-icon' }, icon('logs')),
+    el('span', { class: 'menu-text' }, el('b', { text: 'اللوقات المباشرة' }), el('small', { text: 'سجل السيرفر' })),
+    el('span', { class: 'menu-dot', title: 'مباشر' })));
     for (const p of state.data.plugins) {
       menu.append(el('button', {
-        class: `menu-item${p.id === state.pluginId ? ' active' : ''}`, type: 'button', onclick: () => selectPlugin(p.id),
+        class: `menu-item${state.view === 'plugin' && p.id === state.pluginId ? ' active' : ''}`, type: 'button', onclick: () => selectPlugin(p.id),
       },
       el('span', { class: 'menu-icon' }, icon(p.icon)),
       el('span', { class: 'menu-text' }, el('b', { text: p.nameAr }), el('small', { text: `@${p.name}` })),
@@ -151,6 +173,8 @@
       bar.classList.add('shake');
       return;
     }
+    if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
+    state.view = 'plugin';
     if (state.pluginId !== id) state.tab = 'settings';
     state.pluginId = id;
     const p = current();
@@ -166,6 +190,7 @@
 
   // ── Page ─────────────────────────────────────────────────────
   function renderPage() {
+    $('#tabs').hidden = false;
     const p = current();
     $('#p-icon').replaceChildren(icon(p.icon));
     $('#p-title').textContent = p.nameAr;
@@ -193,6 +218,83 @@
     if (state.tab === 'actions') renderActions(panel, p);
     if (state.tab === 'commands') renderCommands(panel, p);
     if (state.tab === 'images') renderImages(panel, p);
+  }
+
+  // ── Live logs view ───────────────────────────────────────────
+  function selectLogs() {
+    if (dirty()) {
+      const bar = $('#savebar');
+      bar.classList.remove('shake'); void bar.offsetWidth; bar.classList.add('shake');
+      return;
+    }
+    state.view = 'logs';
+    closeDrawer();
+    renderMenu();
+    renderLogsPage();
+    window.scrollTo({ top: 0 });
+  }
+
+  function timeAgo(ts) {
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 60) return 'الآن';
+    if (s < 3600) return `قبل ${Math.floor(s / 60)} د`;
+    if (s < 86400) return `قبل ${Math.floor(s / 3600)} س`;
+    return new Date(ts).toLocaleString('ar', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+
+  async function loadLogs(feed) {
+    try {
+      const { entries } = await api(`/api/guilds/${state.data.guild.id}/logs?type=${logsState.type}&limit=200`);
+      feed.innerHTML = '';
+      if (!entries.length) {
+        feed.append(el('div', { class: 'list-empty', text: 'ما فيه لوقات لهذا النوع بعد.' }));
+        return;
+      }
+      for (const e of entries) {
+        const t = LOG_TYPES[e.type] || LOG_TYPES.general;
+        feed.append(el('div', { class: 'log-row' },
+          el('span', { class: 'log-ic' }, icon(t.icon)),
+          el('div', { class: 'log-body' },
+            el('div', { class: 'log-head' },
+              el('b', { text: e.title }),
+              el('span', { class: 'log-type', text: t.label }),
+              el('span', { class: 'log-time', text: timeAgo(e.at) })),
+            e.user ? el('small', { class: 'log-user', text: e.user }) : null,
+            e.text ? el('p', { class: 'log-text', text: e.text }) : null)));
+      }
+    } catch (err) {
+      feed.innerHTML = '';
+      feed.append(el('div', { class: 'list-empty', text: err.message }));
+    }
+  }
+
+  function renderLogsPage() {
+    if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
+    $('#p-icon').replaceChildren(icon('logs'));
+    $('#p-title').textContent = 'اللوقات المباشرة';
+    $('#p-tag').textContent = '@logs';
+    $('#p-desc').textContent = 'سجل مباشر لكل شي يصير بالسيرفر — يتحدث تلقائياً.';
+    $('#crumbs').innerHTML = '';
+    $('#crumbs').append(state.data.guild.name, ' / ', el('b', { text: 'اللوقات المباشرة' }));
+    $('#p-toggle-wrap').hidden = true;
+    $('#tabs').hidden = true;
+    const panel = $('#panel');
+    panel.innerHTML = '';
+
+    const filter = el('div', { class: 'log-filter' });
+    const feed = el('div', { class: 'log-feed' });
+    for (const [key, t] of Object.entries(LOG_TYPES)) {
+      filter.append(el('button', {
+        class: `chip${logsState.type === key ? ' active' : ''}`, type: 'button',
+        onclick: () => { logsState.type = key; renderLogsPage(); },
+      }, icon(t.icon), t.label));
+    }
+    panel.append(el('section', { class: 'card' },
+      el('h2', {}, icon('logs'), 'السجل المباشر'),
+      el('p', { class: 'card-desc', text: 'آخر 200 حدث — يتحدث كل 10 ثواني.' }),
+      filter, feed));
+    loadLogs(feed);
+    logsTimer = setInterval(() => { if (state.view === 'logs') loadLogs(feed); }, 10000);
   }
 
   function renderSettings(panel, p) {

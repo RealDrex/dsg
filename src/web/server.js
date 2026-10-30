@@ -209,6 +209,12 @@ function start(client, plugins = client?.plugins) {
     });
   });
 
+  // ── Live log feed (the website's own "log rooms") ─────────────
+  const logstore = require('../core/logstore');
+  app.get('/api/guilds/:guildId/logs', auth, guildAccess, (req, res) => {
+    res.json({ entries: logstore.recent(req.guild.id, { type: req.query.type, limit: req.query.limit }) });
+  });
+
   app.put('/api/guilds/:guildId/plugins/:pluginId', auth, guildAccess, async (req, res) => {
     const plugin = plugins.get(req.params.pluginId);
     if (!plugin) return res.status(404).json({ error: 'قسم غير موجود' });

@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, PermissionFlagsBits, ChannelType, PermissionsBitField } = require('discord.js');
 const store = require('../../core/store');
+const logstore = require('../../core/logstore');
 const cases = require('../../core/cases');
 const { emoji, DIVIDER, reply, fieldsToText } = require('../../core/theme');
 const { formatDuration, ts } = require('../../utils/time');
@@ -20,6 +21,12 @@ const TYPES = {
 
 function log(guild, type, { title, description, user, fields }) {
   const cfg = store.get(guild.id, 'logs');
+  // Always keep a copy for the website's live log feed, even if the Discord room is unset.
+  const fieldsText = fields?.length ? fieldsToText(fields) : '';
+  logstore.add(guild.id, type, {
+    title, text: [description, fieldsText].filter(Boolean).join('\n'),
+    userTag: user?.tag || user?.username, userId: user?.id,
+  });
   // fall back to the general log room for any type without its own channel
   const channelId = cfg.channels[type] || cfg.channels.general;
   const channel = channelId && guild.channels.cache.get(channelId);
