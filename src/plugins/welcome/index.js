@@ -19,7 +19,7 @@ function welcomePayload(member, cfg) {
     users.push(cfg.ownerId);
   }
   const payload = { content: text, allowedMentions: { users } };
-  if (cfg.image) payload.files = [file('welcome')];
+  if (cfg.image) payload.files = [file('welcome', member.guild.id)];
   return payload;
 }
 

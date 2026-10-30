@@ -2,6 +2,7 @@
 const path = require('node:path');
 const { AttachmentBuilder, MessageFlags } = require('discord.js');
 const { I, text: iconText } = require('./icons');
+const config = require('../config');
 
 const ASSETS = path.join(__dirname, '..', '..', 'assets');
 
@@ -43,8 +44,34 @@ const images = {
   line: 'line.png',
 };
 
-const file = (key) => new AttachmentBuilder(path.join(ASSETS, images[key]), { name: images[key] });
-const url = (key) => `attachment://${images[key]}`;
+// Every brand/theme asset that can be replaced per server from the website
+// (the `theme` plugin stores overrides under images/<guild>/theme/<key>.<ext>).
+const THEME_FILES = {
+  ...images,
+  logoFlat: 'logo.png',
+  roulette: 'lobby-roulette.png',
+  roulettez: 'lobby-roulettez.png',
+  mafia: 'lobby-mafia.png',
+};
+
+// Resolve a theme asset to a disk path: a server's custom upload if it exists,
+// otherwise the default shipped with the bot. `guildId` is optional.
+let imageStore = null; // lazily required to avoid a require cycle at load time
+function themePath(key, guildId) {
+  const name = THEME_FILES[key] || images[key];
+  // Fall back to the primary guild so default panels still pick up the owner's
+  // uploads even when the call site has no guild context.
+  const gid = guildId || config.guildId;
+  if (gid) {
+    imageStore ??= require('./images');
+    const custom = imageStore.find(gid, 'theme', key);
+    if (custom) return custom.file;
+  }
+  return path.join(ASSETS, name);
+}
+
+const file = (key, guildId) => new AttachmentBuilder(themePath(key, guildId), { name: images[key] || THEME_FILES[key] });
+const url = (key) => `attachment://${images[key] || THEME_FILES[key]}`;
 
 // NOTE: the bot uses NO embeds anywhere. `card` and `simple` build plain
 // message content (markdown) so panels/replies render as normal messages.
@@ -66,14 +93,14 @@ function fieldsToText(fields) {
  * Builds plain message content (no embed). `image` attaches one of the brand
  * images as a file. Returns { content, files } so callers spread both.
  */
-function card({ title, icon, description, fields, image, footer } = {}) {
+function card({ title, icon, description, fields, image, footer, guildId } = {}) {
   const files = [];
   const parts = [];
   if (title) parts.push(`**${icon ? `${iconText(icon)} ${title}`.trim() : title}**`);
   if (description) parts.push(description);
   if (fields?.length) parts.push(fieldsToText(fields));
   if (footer) parts.push(`-# ${footer}`);
-  if (image) files.push(images[image] ? file(image) : null);
+  if (image) files.push(THEME_FILES[image] ? file(image, guildId) : null);
   return { content: parts.filter(Boolean).join('\n'), files: files.filter(Boolean) };
 }
 
@@ -108,4 +135,4 @@ function bar(value, max, size = 14) {
   return '▰'.repeat(filled) + '▱'.repeat(size - filled);
 }
 
-module.exports = { colors, emoji, DIVIDER, BRAND, images, file, url, card, simple, fieldsToText, reply, respond, bar, ASSETS };
+module.exports = { colors, emoji, DIVIDER, BRAND, images, THEME_FILES, themePath, file, url, card, simple, fieldsToText, reply, respond, bar, ASSETS };
