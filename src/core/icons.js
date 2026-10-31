@@ -103,4 +103,38 @@ async function sync(client, { dataDir = 'data' } = {}) {
   logger.info(`🎨 الأيقونات جاهزة: ${loaded.size}/${Object.keys(LIST).length}${uploaded ? ` (رفعت ${uploaded} جديدة)` : ''}`);
 }
 
-module.exports = { I, Icon, asEmoji, setIcon, text, isIcon, sync, LIST };
+// Uploads a chosen set of icons to ANOTHER application (e.g. an extra music
+// bot's own app) using that bot's own client, and returns a Map
+// key -> { id, name } so its messages/buttons can reference them. Each app can
+// only use emojis it owns, so every music bot needs its own copy.
+async function syncFor(client, keys, { tag = client.user?.id || 'bot', dataDir = 'data' } = {}) {
+  const out = new Map();
+  const manager = client.application?.emojis;
+  if (!manager) return out;
+  const hashFile = path.join(dataDir, `icons-${tag}.json`);
+  let hashes = {};
+  try { hashes = JSON.parse(fs.readFileSync(hashFile, 'utf8')); } catch { /* first run */ }
+  const existing = await manager.fetch().catch(() => null);
+  if (!existing) return out;
+  for (const key of keys) {
+    if (!LIST[key]) continue;
+    const file = path.join(DIR, `${key}.png`);
+    if (!fs.existsSync(file)) continue;
+    const name = `${PREFIX}${key}`.slice(0, 32);
+    const hash = crypto.createHash('sha1').update(fs.readFileSync(file)).digest('hex').slice(0, 12);
+    let found = existing.find((e) => e.name === name);
+    if (found && hashes[key] && hashes[key] !== hash) {
+      await found.delete().catch(() => null);
+      found = null;
+    }
+    if (!found) {
+      try { found = await manager.create({ attachment: file, name }); } catch { continue; }
+    }
+    hashes[key] = hash;
+    out.set(key, { id: found.id, name });
+  }
+  try { fs.mkdirSync(dataDir, { recursive: true }); fs.writeFileSync(hashFile, JSON.stringify(hashes)); } catch { /* ignore */ }
+  return out;
+}
+
+module.exports = { I, Icon, asEmoji, setIcon, text, isIcon, sync, syncFor, LIST };

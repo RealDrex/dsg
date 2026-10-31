@@ -14,7 +14,6 @@ const { register } = require('../../core/i18n');
 const { encrypt } = require('../../core/secrets');
 const logger = require('../../core/logger');
 const manager = require('./manager');
-const music = require('./music');
 
 register({ commands: { voicebots: 'بوتات_الفويس' } });
 
@@ -85,27 +84,17 @@ function picker(customId, guildId, placeholder) {
 function controlView(guildId, bot) {
   const s = manager.status(bot.id);
   const running = s.status === 'running' || s.status === 'starting';
-  const np = music.state(bot.id);
-  const lines = [
-    `${emoji.dot} <@${bot.botId}> — <#${bot.channelId}>`,
+  const embed = simple([
+    `${emoji.dot} <@${bot.botId}> — voice <#${bot.channelId}>`,
+    `${emoji.dot} commands <#${bot.commandChannelId || bot.channelId}>`,
     `${emoji.dot} ${statusLine(bot)}`,
-  ];
-  if (np.current) lines.push(`${I.music || emoji.dot} Now playing: **${np.current.title}**${np.queue.length ? ` (+${np.queue.length} in queue)` : ''}`);
-  const embed = simple(lines.join('\n'), 'primary', `${I.bot} ${bot.name}`);
-  return eph(embed, [
-    new ActionRowBuilder().addComponents(
-      setIcon(new ButtonBuilder().setCustomId(`voicebots:on:${bot.id}`).setLabel(running ? 'Restart' : 'Start').setStyle(ButtonStyle.Success), I.fast),
-      setIcon(new ButtonBuilder().setCustomId(`voicebots:off:${bot.id}`).setLabel('Stop').setStyle(ButtonStyle.Secondary).setDisabled(!running), I.stop),
-      setIcon(new ButtonBuilder().setCustomId(`voicebots:move:${bot.id}`).setLabel('Move').setStyle(ButtonStyle.Primary), I.voice),
-      setIcon(new ButtonBuilder().setCustomId(`voicebots:refresh:${bot.id}`).setLabel('Refresh').setStyle(ButtonStyle.Secondary), I.history),
-    ),
-    new ActionRowBuilder().addComponents(
-      setIcon(new ButtonBuilder().setCustomId(`voicebots:play:${bot.id}`).setLabel('Play Music').setStyle(ButtonStyle.Success).setDisabled(!running), I.music || I.fast),
-      setIcon(new ButtonBuilder().setCustomId(`voicebots:skip:${bot.id}`).setLabel('Skip').setStyle(ButtonStyle.Secondary).setDisabled(!np.current), I.next),
-      setIcon(new ButtonBuilder().setCustomId(`voicebots:stopmusic:${bot.id}`).setLabel('Stop Music').setStyle(ButtonStyle.Danger).setDisabled(!np.current), I.stop),
-      setIcon(new ButtonBuilder().setCustomId(`voicebots:queue:${bot.id}`).setLabel('Queue').setStyle(ButtonStyle.Secondary), I.list),
-    ),
-  ]);
+  ].join('\n'), 'primary', `${I.music} ${bot.name}`);
+  return eph(embed, [new ActionRowBuilder().addComponents(
+    setIcon(new ButtonBuilder().setCustomId(`voicebots:on:${bot.id}`).setLabel(running ? 'Restart' : 'Start').setStyle(ButtonStyle.Success), I.fast),
+    setIcon(new ButtonBuilder().setCustomId(`voicebots:off:${bot.id}`).setLabel('Stop').setStyle(ButtonStyle.Secondary).setDisabled(!running), I.stop),
+    setIcon(new ButtonBuilder().setCustomId(`voicebots:move:${bot.id}`).setLabel('Move').setStyle(ButtonStyle.Primary), I.voice),
+    setIcon(new ButtonBuilder().setCustomId(`voicebots:refresh:${bot.id}`).setLabel('Refresh').setStyle(ButtonStyle.Secondary), I.history),
+  )]);
 }
 
 async function refreshPanel(interaction) {
@@ -145,10 +134,10 @@ const command = {
 
 module.exports = {
   id: 'voicebots',
-  name: 'Voicebots',
-  nameAr: 'بوتات الفويس',
-  emoji: I.bot,
-  description: 'أضف توكنات بوتات وخلها تقعد في روم فويس 24/7 وتشغّل أغاني بصوت صافي — تحكم كامل من لوحة.',
+  name: 'Music Bots',
+  nameAr: 'بوتات الأغاني',
+  emoji: I.music,
+  description: 'أضف بوتات أغاني (توكن + روم + اسم + أفتار) تقعد 24/7 وتشغّل أغاني بصوت صافي بأيقونات SVG — تُدار من الموقع.',
   defaults: { bots: [] },
   commands: [command],
   components: {
@@ -159,8 +148,10 @@ module.exports = {
           .setStyle(TextInputStyle.Short).setRequired(true).setMinLength(50).setMaxLength(120).setPlaceholder('Developer Portal -> Bot -> Reset Token')),
         new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('guild').setLabel('Server ID')
           .setStyle(TextInputStyle.Short).setRequired(true).setMinLength(17).setMaxLength(20).setValue(interaction.guildId)),
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('channel').setLabel('Voice Channel ID')
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('channel').setLabel('Voice Channel ID (sits here 24/7)')
           .setStyle(TextInputStyle.Short).setRequired(true).setMinLength(17).setMaxLength(20)),
+        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('cmdchannel').setLabel('Command/Music Text Channel ID')
+          .setStyle(TextInputStyle.Short).setRequired(false).setMinLength(17).setMaxLength(20).setPlaceholder('روم أوامر الأغاني (اختياري)')),
       );
       return interaction.showModal(modal);
     }),
@@ -170,7 +161,9 @@ module.exports = {
       const token = interaction.fields.getTextInputValue('token').trim().replace(/^Bot\s+/i, '');
       const guildId = interaction.fields.getTextInputValue('guild').trim();
       const channelId = interaction.fields.getTextInputValue('channel').trim();
+      const cmdChannelId = interaction.fields.getTextInputValue('cmdchannel').trim();
       if (!SNOWFLAKE.test(guildId) || !SNOWFLAKE.test(channelId)) return reply.error(interaction, 'Invalid server or channel ID.');
+      if (cmdChannelId && !SNOWFLAKE.test(cmdChannelId)) return reply.error(interaction, 'Invalid command channel ID.');
       if (!TOKEN_SHAPE.test(token)) return reply.error(interaction, 'Invalid token format.');
 
       let me;
@@ -200,6 +193,8 @@ module.exports = {
         token: encrypt(token),
         guildId,
         channelId,
+        commandChannelId: cmdChannelId || existing?.commandChannelId || null,
+        volume: existing?.volume || 100,
         running: true,
         addedBy: interaction.user.id,
         addedAt: Date.now(),
@@ -267,56 +262,6 @@ module.exports = {
       const fresh = findBot(interaction.guildId, id);
       await startBot(interaction.guildId, fresh);
       await interaction.editReply(controlView(interaction.guildId, fresh));
-    }),
-
-    play: guard(async (interaction, [id]) => {
-      const bot = findBot(interaction.guildId, id);
-      if (!bot) return reply.error(interaction, 'That bot is gone.');
-      return interaction.showModal(new ModalBuilder().setCustomId(`voicebots:playmodal:${id}`).setTitle(`Play on ${bot.name}`.slice(0, 45)).addComponents(
-        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId('query').setLabel('YouTube link or search')
-          .setStyle(TextInputStyle.Short).setRequired(true).setMinLength(2).setMaxLength(200).setPlaceholder('اسم الأغنية أو رابط يوتيوب')),
-      ));
-    }),
-
-    playmodal: guard(async (interaction, [id]) => {
-      const bot = findBot(interaction.guildId, id);
-      if (!bot) return reply.error(interaction, 'That bot is gone.');
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-      const query = interaction.fields.getTextInputValue('query').trim();
-      try {
-        const tracks = await music.enqueue(bot, query, interaction.user.id);
-        const first = tracks[0];
-        const extra = tracks.length > 1 ? ` (+${tracks.length - 1})` : '';
-        return interaction.editReply(simple(`${I.music} Added: **${first.title}**${extra}`, 'success'));
-      } catch (err) {
-        return reply.error(interaction, err.userFacing ? err.message : 'فشل تشغيل الموسيقى — تأكد البوت داخل الفويس.');
-      }
-    }),
-
-    skip: guard(async (interaction, [id]) => {
-      const bot = findBot(interaction.guildId, id);
-      if (!bot) return reply.error(interaction, 'That bot is gone.');
-      music.skip(id);
-      await interaction.deferUpdate();
-      return interaction.editReply(controlView(interaction.guildId, bot));
-    }),
-
-    stopmusic: guard(async (interaction, [id]) => {
-      const bot = findBot(interaction.guildId, id);
-      if (!bot) return reply.error(interaction, 'That bot is gone.');
-      music.stop(id);
-      await interaction.deferUpdate();
-      return interaction.editReply(controlView(interaction.guildId, bot));
-    }),
-
-    queue: guard(async (interaction, [id]) => {
-      const bot = findBot(interaction.guildId, id);
-      if (!bot) return reply.error(interaction, 'That bot is gone.');
-      const { current, queue } = music.state(id);
-      const lines = [];
-      if (current) lines.push(`${I.music} **${current.title}**`);
-      queue.slice(0, 15).forEach((t, n) => lines.push(`\`${n + 1}\` ${t.title}`));
-      return interaction.reply(eph(simple(lines.join('\n') || 'القائمة فاضية.', 'primary', `${I.list} Queue — ${bot.name}`)));
     }),
 
     delete: guard(async (interaction) => {
