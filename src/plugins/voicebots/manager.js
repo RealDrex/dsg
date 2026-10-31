@@ -233,11 +233,18 @@ async function stop(id) {
 }
 
 // Update a bot's name and/or avatar through its own token (REST).
-async function applyProfile(entry, { name, avatarDataUri }) {
+async function applyProfile(entry, { name, avatar } = {}) {
   const inst = instances.get(entry.id);
-  if (!inst?.client?.user) throw new Error('البوت مو شغّال');
+  if (!inst?.client?.user) throw Object.assign(new Error('البوت مو شغّال — شغّله أول'), { userFacing: true });
   if (name) await inst.client.user.setUsername(name);
-  if (avatarDataUri) await inst.client.user.setAvatar(avatarDataUri);
+  if (avatar) await inst.client.user.setAvatar(avatar); // Buffer or data URI
 }
 
-module.exports = { start, stop, status, applyProfile, VOICE_TYPES, VOL };
+// Current live info for the dashboard (avatar URL, tag) if the bot is running.
+function info(id) {
+  const inst = instances.get(id);
+  const u = inst?.client?.user;
+  return u ? { tag: u.tag, username: u.username, avatar: u.displayAvatarURL({ size: 128 }) } : null;
+}
+
+module.exports = { start, stop, status, applyProfile, info, VOICE_TYPES, VOL };

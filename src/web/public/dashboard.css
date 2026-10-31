@@ -210,3 +210,14 @@ select.input { appearance: none; background-image: linear-gradient(45deg, transp
 .log-time { font-size: 11px; color: var(--muted); margin-inline-start: auto; }
 .log-user { color: var(--silver); font-size: 12px; }
 .log-text { margin: 4px 0 0; color: var(--muted); font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+
+/* ── Music bots manager ───────────────────── */
+.mb-card { border: 1px solid var(--line); background: #0a0a0b; border-radius: 14px; padding: 14px; }
+.mb-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.mb-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 1px solid var(--line); background: #111; flex: none; }
+.mb-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.mb-status { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.mb-status .ic { width: 13px; height: 13px; }
+.mb-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.mb-fields label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--silver); }
+.mb-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }

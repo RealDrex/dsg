@@ -192,6 +192,7 @@
   function renderPage() {
     $('#tabs').hidden = false;
     const p = current();
+    if (p.id === 'voicebots') return renderMusicPage(p);
     $('#p-icon').replaceChildren(icon(p.icon));
     $('#p-title').textContent = p.nameAr;
     $('#p-tag').textContent = `@${p.name}`;
@@ -297,6 +298,127 @@
     logsTimer = setInterval(() => { if (state.view === 'logs') loadLogs(feed); }, 10000);
   }
 
+  // ── Music bots manager ───────────────────────────────────────
+  function musicApi(path, options) { return api(`/api/guilds/${state.data.guild.id}/music${path}`, options); }
+
+  function voiceSelect(value) {
+    const s = el('select', { class: 'input' }, el('option', { value: '', text: '— اختر روم فويس —' }), channelOptions('voice'));
+    s.value = value || '';
+    return s;
+  }
+  function textSelect(value) {
+    const s = el('select', { class: 'input' }, el('option', { value: '', text: '— روم الأوامر (نص) —' }), channelOptions('text'));
+    s.value = value || '';
+    return s;
+  }
+
+  function musicBotCard(b) {
+    const dot = { running: 'on', starting: 'warn', error: 'error', stopped: 'off' }[b.status] || 'off';
+    const nameInput = el('input', { class: 'input', value: b.name, maxlength: 32 });
+    const voice = voiceSelect(b.channelId);
+    const cmd = textSelect(b.commandChannelId);
+    const vol = el('input', { class: 'input', type: 'number', min: 10, max: 150, value: b.volume });
+    const avatarInput = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif', hidden: true });
+    const avatar = el('img', { class: 'mb-avatar', src: b.avatar || '/assets/logo-96.png', alt: '' });
+
+    const save = el('button', { class: 'btn btn-primary btn-sm', type: 'button', text: 'حفظ' });
+    save.addEventListener('click', async () => {
+      save.disabled = true;
+      try {
+        const { bots } = await musicApi(`/${b.id}`, { method: 'PATCH', body: { name: nameInput.value.trim(), channelId: voice.value, commandChannelId: cmd.value, volume: Number(vol.value) } });
+        toast('تم الحفظ'); drawMusic(bots);
+      } catch (e) { toast(e.message, true); save.disabled = false; }
+    });
+
+    const running = b.status === 'running' || b.status === 'starting';
+    const power = el('button', { class: `btn btn-sm ${running ? 'btn-ghost' : 'btn-primary'}`, type: 'button', text: running ? 'إيقاف' : 'تشغيل' });
+    power.addEventListener('click', async () => {
+      power.disabled = true;
+      try { const { bots } = await musicApi(`/${b.id}/${running ? 'stop' : 'start'}`, { method: 'POST' }); drawMusic(bots); }
+      catch (e) { toast(e.message, true); power.disabled = false; }
+    });
+
+    const avatarBtn = el('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => avatarInput.click() }, icon('image'), 'أفتار');
+    avatarInput.addEventListener('change', async () => {
+      const file = avatarInput.files[0]; if (!file) return;
+      if (file.size > 8 * 1024 * 1024) return toast('الصورة أكبر من 8 ميقا', true);
+      try {
+        const res = await fetch(`/api/guilds/${state.data.guild.id}/music/${b.id}/avatar`, { method: 'POST', body: file, headers: { 'Content-Type': file.type }, credentials: 'same-origin' });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || 'فشل');
+        toast('تم تغيير الأفتار'); drawMusic(body.bots);
+      } catch (e) { toast(e.message, true); }
+    });
+
+    const del = el('button', { class: 'btn btn-danger btn-sm', type: 'button', onclick: async () => {
+      if (!confirm(`حذف البوت "${b.name}"؟`)) return;
+      try { const { bots } = await musicApi(`/${b.id}`, { method: 'DELETE' }); toast('تم الحذف'); drawMusic(bots); }
+      catch (e) { toast(e.message, true); }
+    } }, icon('trash'), 'حذف');
+
+    return el('div', { class: 'mb-card' },
+      el('div', { class: 'mb-head' }, avatar,
+        el('div', { class: 'mb-id' }, nameInput,
+          el('small', { class: 'mb-status' },
+            icon(dot),
+            ` ${b.status}${b.error ? ' — ' + b.error : ''} • ID ${b.botId}`))),
+      el('div', { class: 'mb-fields' },
+        el('label', {}, 'روم التواجد (فويس)', voice),
+        el('label', {}, 'روم الأوامر (نص)', cmd),
+        el('label', {}, 'الصوت الافتراضي (10–150)', vol)),
+      el('div', { class: 'mb-actions' }, save, power, avatarBtn, del, avatarInput));
+  }
+
+  function drawMusic(bots) {
+    const list = $('#mb-list');
+    if (!list) return;
+    list.innerHTML = '';
+    if (!bots.length) { list.append(el('div', { class: 'list-empty', text: 'ما فيه بوتات أغاني بعد — أضف واحد فوق.' })); return; }
+    for (const b of bots) list.append(musicBotCard(b));
+  }
+
+  function renderMusicPage(p) {
+    $('#tabs').hidden = true;
+    $('#p-toggle-wrap').hidden = true;
+    $('#p-icon').replaceChildren(icon('music'));
+    $('#p-title').textContent = p.nameAr;
+    $('#p-tag').textContent = `@${p.name}`;
+    $('#p-desc').textContent = 'أضف بوتات أغاني، حدد رومها، غيّر اسمها وأفتارها وصوتها — كل بوت يشتغل بتوكنه.';
+    $('#crumbs').innerHTML = '';
+    $('#crumbs').append(state.data.guild.name, ' / ', el('b', { text: p.nameAr }));
+    const panel = $('#panel');
+    panel.innerHTML = '';
+
+    // Add-bot form
+    const token = el('input', { class: 'input', type: 'password', placeholder: 'توكن البوت', maxlength: 120 });
+    const voice = voiceSelect('');
+    const cmd = textSelect('');
+    const addBtn = el('button', { class: 'btn btn-primary btn-sm', type: 'button' }, icon('plus'), 'إضافة بوت');
+    addBtn.addEventListener('click', async () => {
+      if (!token.value.trim()) return toast('حط التوكن', true);
+      if (!voice.value) return toast('اختر روم الفويس', true);
+      addBtn.disabled = true;
+      try {
+        const { bots } = await musicApi('', { method: 'POST', body: { token: token.value.trim(), channelId: voice.value, commandChannelId: cmd.value } });
+        token.value = ''; toast('تمت الإضافة — شغّال'); drawMusic(bots);
+      } catch (e) { toast(e.message, true); } finally { addBtn.disabled = false; }
+    });
+    panel.append(el('section', { class: 'card' },
+      el('h2', {}, icon('plus'), 'إضافة بوت أغاني'),
+      el('p', { class: 'card-desc', text: 'لازم تفعّل Message Content Intent لكل بوت من Developer Portal. التوكن يُخزّن مشفّر ولا يظهر مرة ثانية.' }),
+      el('div', { class: 'mb-fields' },
+        el('label', {}, 'التوكن', token),
+        el('label', {}, 'روم التواجد (فويس)', voice),
+        el('label', {}, 'روم الأوامر (نص)', cmd)),
+      el('div', { style: 'margin-top:12px' }, addBtn)));
+
+    panel.append(el('section', { class: 'card' },
+      el('h2', {}, icon('music'), 'بوتات الأغاني'),
+      el('div', { id: 'mb-list', style: 'margin-top:12px;display:flex;flex-direction:column;gap:12px' })));
+
+    musicApi('', {}).then(({ bots }) => drawMusic(bots)).catch((e) => toast(e.message, true));
+  }
+
   function renderSettings(panel, p) {
     if (!p.sections.length) {
       panel.append(el('div', { class: 'card' }, el('h2', {}, icon('info'), 'ما فيه إعدادات هنا'), el('p', { class: 'card-desc', text: 'هذا القسم يُدار بالأوامر — شوف تبويب الأوامر.' })));
@@ -321,6 +443,7 @@
 
   function channelOptions(type) {
     if (type === 'category') return channelsOf('category').map((c) => el('option', { value: c.id, text: `▸ ${c.name}` }));
+    if (type === 'voice') return channelsOf('voice').map((c) => el('option', { value: c.id, text: `🔊 ${c.name}` }));
     const groups = new Map([[null, []]]);
     for (const c of channelsOf('text')) {
       if (!groups.has(c.parent)) groups.set(c.parent, []);

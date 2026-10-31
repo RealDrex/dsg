@@ -191,10 +191,15 @@ function start(client, plugins = client?.plugins) {
 
   app.get('/api/guilds/:guildId', auth, guildAccess, (req, res) => {
     const { guild } = req;
+    const channelType = (c) => {
+      if (c.type === ChannelType.GuildCategory) return 'category';
+      if ([ChannelType.GuildVoice, ChannelType.GuildStageVoice].includes(c.type)) return 'voice';
+      return 'text';
+    };
     const channels = guild.channels.cache
-      .filter((c) => [ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildCategory].includes(c.type))
+      .filter((c) => [ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildCategory, ChannelType.GuildVoice, ChannelType.GuildStageVoice].includes(c.type))
       .sort((a, b) => a.rawPosition - b.rawPosition)
-      .map((c) => ({ id: c.id, name: c.name, type: c.type === ChannelType.GuildCategory ? 'category' : 'text', parent: c.parentId }));
+      .map((c) => ({ id: c.id, name: c.name, type: channelType(c), parent: c.parentId }));
     const roles = guild.roles.cache
       .filter((r) => r.id !== guild.id && !r.managed)
       .sort((a, b) => b.position - a.position)
@@ -213,6 +218,119 @@ function start(client, plugins = client?.plugins) {
   const logstore = require('../core/logstore');
   app.get('/api/guilds/:guildId/logs', auth, guildAccess, (req, res) => {
     res.json({ entries: logstore.recent(req.guild.id, { type: req.query.type, limit: req.query.limit }) });
+  });
+
+  // ── Music bots management ─────────────────────────────────────
+  const musicManager = require('../plugins/voicebots/manager');
+  const { encrypt } = require('../core/secrets');
+  const SNOWFLAKE = /^\d{17,20}$/;
+  const TOKEN_SHAPE = /^[\w-]{20,}\.[\w-]{4,}\.[\w-]{20,}$/;
+
+  const musicList = (guild) => (store.get(guild.id, 'voicebots').bots || []).map((b) => {
+    const live = musicManager.info(b.id);
+    return {
+      id: b.id, botId: b.botId, name: b.name, channelId: b.channelId,
+      commandChannelId: b.commandChannelId || null, volume: b.volume || 100,
+      running: !!b.running, status: musicManager.status(b.id).status,
+      error: musicManager.status(b.id).error || null,
+      avatar: live?.avatar || null,
+    };
+  });
+  const findMusic = (guild, id) => store.get(guild.id, 'voicebots').bots.find((b) => b.id === id);
+  const saveMusic = (guild, id, patch) => store.update(guild.id, 'voicebots', (cfg) => {
+    const b = cfg.bots.find((x) => x.id === id); if (b) Object.assign(b, patch);
+  });
+  async function discordBot(token, route) {
+    const r = await fetch(`https://discord.com/api/v10${route}`, { headers: { Authorization: `Bot ${token}` }, signal: AbortSignal.timeout(8000) });
+    return { ok: r.ok, status: r.status, body: r.ok ? await r.json() : null };
+  }
+
+  app.get('/api/guilds/:guildId/music', auth, guildAccess, (req, res) => res.json({ bots: musicList(req.guild) }));
+
+  app.post('/api/guilds/:guildId/music', auth, guildAccess, async (req, res) => {
+    try {
+      const token = String(req.body.token || '').trim().replace(/^Bot\s+/i, '');
+      const channelId = String(req.body.channelId || '').trim();
+      const commandChannelId = String(req.body.commandChannelId || '').trim();
+      if (!TOKEN_SHAPE.test(token)) return res.status(400).json({ error: 'صيغة التوكن غير صحيحة' });
+      if (!SNOWFLAKE.test(channelId)) return res.status(400).json({ error: 'روم الفويس غير صحيح' });
+      if (commandChannelId && !SNOWFLAKE.test(commandChannelId)) return res.status(400).json({ error: 'روم الأوامر غير صحيح' });
+      const me = await discordBot(token, '/users/@me').catch(() => ({ ok: false }));
+      if (!me.ok || !me.body?.bot) return res.status(400).json({ error: 'توكن غير صالح أو مو توكن بوت' });
+      if (me.body.id === client.user.id) return res.status(400).json({ error: 'هذا توكن سورد نفسه' });
+      const cfg = store.get(req.guild.id, 'voicebots');
+      if (cfg.bots.length >= 25) return res.status(400).json({ error: 'الحد الأقصى 25 بوت' });
+      const existing = cfg.bots.find((b) => b.botId === me.body.id);
+      const entry = {
+        id: existing?.id || crypto.randomBytes(4).toString('hex'),
+        botId: me.body.id, name: me.body.global_name || me.body.username,
+        token: encrypt(token), guildId: req.guild.id, channelId,
+        commandChannelId: commandChannelId || null, volume: existing?.volume || 100,
+        running: true, addedBy: req.user.id, addedAt: Date.now(),
+      };
+      store.update(req.guild.id, 'voicebots', (c) => { c.bots = c.bots.filter((b) => b.botId !== entry.botId); c.bots.push(entry); });
+      musicManager.start(entry).catch((e) => logger.warn('music add:', e.message));
+      logger.info(`🌐 ${req.user.username} أضاف بوت أغاني ${entry.name}`);
+      res.json({ bots: musicList(req.guild) });
+    } catch (err) {
+      logger.error('music add:', err);
+      res.status(500).json({ error: 'فشل إضافة البوت' });
+    }
+  });
+
+  app.patch('/api/guilds/:guildId/music/:id', auth, guildAccess, async (req, res) => {
+    const bot = findMusic(req.guild, req.params.id);
+    if (!bot) return res.status(404).json({ error: 'البوت غير موجود' });
+    const patch = {};
+    if (typeof req.body.channelId === 'string' && SNOWFLAKE.test(req.body.channelId)) patch.channelId = req.body.channelId;
+    if (typeof req.body.commandChannelId === 'string') patch.commandChannelId = SNOWFLAKE.test(req.body.commandChannelId) ? req.body.commandChannelId : null;
+    if (Number.isFinite(req.body.volume)) patch.volume = Math.min(150, Math.max(10, Math.round(req.body.volume)));
+    const rename = typeof req.body.name === 'string' && req.body.name.trim() && req.body.name.trim() !== bot.name ? req.body.name.trim() : null;
+    if (rename) patch.name = rename;
+    saveMusic(req.guild, bot.id, patch);
+    const fresh = findMusic(req.guild, bot.id);
+    try {
+      if (rename) await musicManager.applyProfile(fresh, { name: rename });
+      if (patch.channelId || 'commandChannelId' in patch) await musicManager.start(fresh); // restart to apply channels
+    } catch (err) {
+      return res.status(400).json({ error: err.userFacing ? err.message : (err.message || 'فشل التعديل') });
+    }
+    res.json({ bots: musicList(req.guild) });
+  });
+
+  app.post('/api/guilds/:guildId/music/:id/avatar', auth, guildAccess, express.raw({ type: () => true, limit: 8 * 1024 * 1024 }), async (req, res) => {
+    const bot = findMusic(req.guild, req.params.id);
+    if (!bot) return res.status(404).json({ error: 'البوت غير موجود' });
+    try {
+      await musicManager.applyProfile(bot, { avatar: req.body });
+      res.json({ bots: musicList(req.guild) });
+    } catch (err) {
+      res.status(400).json({ error: err.userFacing ? err.message : 'فشل تغيير الأفتار (جرّب بعد شوي — في حد أقصى للتغييرات)' });
+    }
+  });
+
+  app.post('/api/guilds/:guildId/music/:id/start', auth, guildAccess, async (req, res) => {
+    const bot = findMusic(req.guild, req.params.id);
+    if (!bot) return res.status(404).json({ error: 'البوت غير موجود' });
+    saveMusic(req.guild, bot.id, { running: true });
+    await musicManager.start(findMusic(req.guild, bot.id)).catch(() => null);
+    res.json({ bots: musicList(req.guild) });
+  });
+
+  app.post('/api/guilds/:guildId/music/:id/stop', auth, guildAccess, async (req, res) => {
+    const bot = findMusic(req.guild, req.params.id);
+    if (!bot) return res.status(404).json({ error: 'البوت غير موجود' });
+    saveMusic(req.guild, bot.id, { running: false });
+    await musicManager.stop(bot.id);
+    res.json({ bots: musicList(req.guild) });
+  });
+
+  app.delete('/api/guilds/:guildId/music/:id', auth, guildAccess, async (req, res) => {
+    const bot = findMusic(req.guild, req.params.id);
+    if (!bot) return res.status(404).json({ error: 'البوت غير موجود' });
+    await musicManager.stop(bot.id);
+    store.update(req.guild.id, 'voicebots', (c) => { c.bots = c.bots.filter((b) => b.id !== bot.id); });
+    res.json({ bots: musicList(req.guild) });
   });
 
   app.put('/api/guilds/:guildId/plugins/:pluginId', auth, guildAccess, async (req, res) => {
