@@ -301,22 +301,21 @@
   // ── Music bots manager ───────────────────────────────────────
   function musicApi(path, options) { return api(`/api/guilds/${state.data.guild.id}/music${path}`, options); }
 
-  function voiceSelect(value) {
-    const s = el('select', { class: 'input' }, el('option', { value: '', text: '— اختر روم فويس —' }), channelOptions('voice'));
-    s.value = value || '';
-    return s;
-  }
-  function textSelect(value) {
-    const s = el('select', { class: 'input' }, el('option', { value: '', text: '— روم الأوامر (نص) —' }), channelOptions('text'));
-    s.value = value || '';
-    return s;
+  // Voice-channel picker: a dropdown when voice channels are available, else a
+  // manual ID input so the feature still works regardless. Both expose `.value`.
+  function voiceField(value) {
+    if (channelsOf('voice').length) {
+      const s = el('select', { class: 'input' }, el('option', { value: '', text: '— اختر روم فويس —' }), channelOptions('voice'));
+      s.value = value || '';
+      return s;
+    }
+    return el('input', { class: 'input', type: 'text', inputmode: 'numeric', placeholder: 'ID روم الفويس', value: value || '' });
   }
 
   function musicBotCard(b) {
     const dot = { running: 'on', starting: 'warn', error: 'error', stopped: 'off' }[b.status] || 'off';
     const nameInput = el('input', { class: 'input', value: b.name, maxlength: 32 });
-    const voice = voiceSelect(b.channelId);
-    const cmd = textSelect(b.commandChannelId);
+    const voice = voiceField(b.channelId);
     const vol = el('input', { class: 'input', type: 'number', min: 10, max: 150, value: b.volume });
     const avatarInput = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif', hidden: true });
     const avatar = el('img', { class: 'mb-avatar', src: b.avatar || '/assets/logo-96.png', alt: '' });
@@ -325,7 +324,7 @@
     save.addEventListener('click', async () => {
       save.disabled = true;
       try {
-        const { bots } = await musicApi(`/${b.id}`, { method: 'PATCH', body: { name: nameInput.value.trim(), channelId: voice.value, commandChannelId: cmd.value, volume: Number(vol.value) } });
+        const { bots } = await musicApi(`/${b.id}`, { method: 'PATCH', body: { name: nameInput.value.trim(), channelId: voice.value.trim(), volume: Number(vol.value) } });
         toast('تم الحفظ'); drawMusic(bots);
       } catch (e) { toast(e.message, true); save.disabled = false; }
     });
@@ -363,8 +362,7 @@
             icon(dot),
             ` ${b.status}${b.error ? ' — ' + b.error : ''} • ID ${b.botId}`))),
       el('div', { class: 'mb-fields' },
-        el('label', {}, 'روم التواجد (فويس)', voice),
-        el('label', {}, 'روم الأوامر (نص)', cmd),
+        el('label', {}, 'روم الفويس (يقعد فيه ويستقبل الأوامر بشاته)', voice),
         el('label', {}, 'الصوت الافتراضي (10–150)', vol)),
       el('div', { class: 'mb-actions' }, save, power, avatarBtn, del, avatarInput));
   }
@@ -391,25 +389,23 @@
 
     // Add-bot form
     const token = el('input', { class: 'input', type: 'password', placeholder: 'توكن البوت', maxlength: 120 });
-    const voice = voiceSelect('');
-    const cmd = textSelect('');
+    const voice = voiceField('');
     const addBtn = el('button', { class: 'btn btn-primary btn-sm', type: 'button' }, icon('plus'), 'إضافة بوت');
     addBtn.addEventListener('click', async () => {
       if (!token.value.trim()) return toast('حط التوكن', true);
-      if (!voice.value) return toast('اختر روم الفويس', true);
+      if (!voice.value.trim()) return toast('اختر/اكتب روم الفويس', true);
       addBtn.disabled = true;
       try {
-        const { bots } = await musicApi('', { method: 'POST', body: { token: token.value.trim(), channelId: voice.value, commandChannelId: cmd.value } });
+        const { bots } = await musicApi('', { method: 'POST', body: { token: token.value.trim(), channelId: voice.value.trim() } });
         token.value = ''; toast('تمت الإضافة — شغّال'); drawMusic(bots);
       } catch (e) { toast(e.message, true); } finally { addBtn.disabled = false; }
     });
     panel.append(el('section', { class: 'card' },
       el('h2', {}, icon('plus'), 'إضافة بوت أغاني'),
-      el('p', { class: 'card-desc', text: 'لازم تفعّل Message Content Intent لكل بوت من Developer Portal. التوكن يُخزّن مشفّر ولا يظهر مرة ثانية.' }),
+      el('p', { class: 'card-desc', text: 'الأوامر تُكتب في شات روم الفويس نفسه. لازم تفعّل Message Content Intent لكل بوت من Developer Portal. التوكن يُخزّن مشفّر ولا يظهر مرة ثانية.' }),
       el('div', { class: 'mb-fields' },
         el('label', {}, 'التوكن', token),
-        el('label', {}, 'روم التواجد (فويس)', voice),
-        el('label', {}, 'روم الأوامر (نص)', cmd)),
+        el('label', {}, 'روم الفويس (يقعد فيه ويستقبل الأوامر بشاته)', voice)),
       el('div', { style: 'margin-top:12px' }, addBtn)));
 
     panel.append(el('section', { class: 'card' },
