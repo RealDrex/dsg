@@ -58,9 +58,9 @@ Config.Minimap = {
     -- the UI measures its map frame and the native radar is placed inside it on any resolution.
     -- If it is off by a few pixels on your setup, nudge it here (screen fractions, e.g. 0.002)
     offset = { x = 0.0, y = 0.0 },
-    -- stream/squaremap.ytd replaces GTA's radar clipping texture. REQUIRED for the map to fill the frame
-    -- (same file qb-hud uses). Only set false if another resource already replaces 'radarmasksm'.
-    squareTexture = true,
+    -- stream/squaremap.ytd replaces GTA's radar clipping texture (same file qb-hud uses).
+    -- OFF by default: on servers with a custom map (minimap.gfx / map colour packs) it can hide the whole map.
+    squareTexture = false,
     hideHealthArmour = true,    -- hide GTA's health / armour bars under the radar
 }
 
